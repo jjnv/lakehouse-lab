@@ -1,8 +1,26 @@
 export type CodeLanguage = "SQL" | "PySpark" | "Python" | "YAML" | "CLI" | "JSON";
 
+export type ConceptDefinition = {
+  term: string;
+  definition: string;
+  whyItMatters: string;
+};
+
+export type LessonDeepDive = {
+  mentalModel: string;
+  mechanics: [string, string];
+  concepts: [ConceptDefinition, ConceptDefinition, ConceptDefinition];
+  workedScenario: {
+    situation: string;
+    reasoning: [string, string, string];
+    outcome: string;
+  };
+};
+
 export type LessonContent = {
   summary: string;
   explanation: [string, string];
+  deepDive: LessonDeepDive;
   keyPoints: [string, string, string];
   example: {
     language: CodeLanguage;

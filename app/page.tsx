@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState, type KeyboardEvent, type MouseEve
 import {
   associateBlueprint,
   buildExamQuestions,
+  examMappings,
   modules,
   professionalBlueprint,
   totalMinutes,
@@ -43,10 +44,38 @@ type StatusFilter = "all" | "available" | "in-progress" | "completed" | "locked"
 type LevelFilter = "all" | "associate" | "professional";
 
 function formatHours(minutes: number) {
-  const hours = Math.floor(minutes / 60);
-  const rest = minutes % 60;
+  const roundedMinutes = Math.round(minutes);
+  const hours = Math.floor(roundedMinutes / 60);
+  const rest = roundedMinutes % 60;
   return rest ? `${hours} h ${rest} min` : `${hours} h`;
 }
+
+const moduleSearchIndices = new Map(modules.map((module) => [module.id, [
+  module.title,
+  module.short,
+  module.description,
+  module.lab.goal,
+  module.lab.scenario,
+  ...module.lab.steps,
+  ...module.outcomes,
+  ...module.examDomains,
+  ...examMappings.filter((mapping) => mapping.moduleIds.includes(module.id)).flatMap((mapping) => [mapping.domain, ...mapping.objectives]),
+  ...module.lessons.flatMap((lesson) => [
+    lesson.title,
+    lesson.summary,
+    ...lesson.explanation,
+    lesson.deepDive.mentalModel,
+    ...lesson.deepDive.mechanics,
+    ...lesson.deepDive.concepts.flatMap((concept) => [concept.term, concept.definition, concept.whyItMatters]),
+    lesson.deepDive.workedScenario.situation,
+    ...lesson.deepDive.workedScenario.reasoning,
+    lesson.deepDive.workedScenario.outcome,
+    ...lesson.keyPoints,
+    ...lesson.pitfalls,
+    lesson.examDecision,
+    lesson.example.code,
+  ]),
+].join(" ").toLocaleLowerCase("es")]));
 
 function missingPrerequisiteText(module: CurriculumModule, completed: Set<string>) {
   const missing = module.prerequisites
@@ -98,17 +127,7 @@ export default function Home() {
   const filteredModules = useMemo(() => {
     const normalized = search.trim().toLocaleLowerCase("es");
     return modules.filter((module) => {
-      const searchIndex = [
-        module.title,
-        module.short,
-        module.description,
-        module.lab.goal,
-        module.lab.scenario,
-        ...module.lab.steps,
-        ...module.outcomes,
-        ...module.examDomains,
-        ...module.lessons.flatMap((lesson) => [lesson.title, lesson.summary, ...lesson.explanation, ...lesson.keyPoints, ...lesson.pitfalls, lesson.examDecision, lesson.example.code]),
-      ].join(" ").toLocaleLowerCase("es");
+      const searchIndex = moduleSearchIndices.get(module.id) ?? "";
       const matchesText = !normalized || searchIndex.includes(normalized);
       const matchesTrack = trackFilter === "all" || module.track === trackFilter;
       const matchesLevel = levelFilter === "all" || (levelFilter === "associate" ? module.level.includes("Associate") : module.level.includes("Professional"));
@@ -295,7 +314,10 @@ export default function Home() {
     const lastVisitedModule = modules.find((item) => item.id === progress.lastModuleId);
     if (lastVisitedModule) url.searchParams.set("module", lastVisitedModule.slug);
     history.replaceState({}, "", url);
-    requestAnimationFrame(() => document.getElementById("academy")?.scrollIntoView({ behavior: scrollBehavior(), block: "start" }));
+    requestAnimationFrame(() => {
+      document.getElementById("academy")?.scrollIntoView({ behavior: scrollBehavior(), block: "start" });
+      moduleHeadingRef.current?.focus({ preventScroll: true });
+    });
   }
 
   function toggleLesson(lessonId: string) {
@@ -344,6 +366,19 @@ export default function Home() {
       lastView: "lab",
     }));
     setAnnouncement(passed ? "Laboratorio validado." : confirmed ? "La estructura del laboratorio aún tiene comprobaciones pendientes." : "Confirma la ejecución en Databricks antes de validar.");
+  }
+
+  function editPassedLab() {
+    updateProgress((current) => ({
+      ...current,
+      labsPassed: current.labsPassed.filter((id) => id !== activeModule.id),
+      labConfirmed: current.labConfirmed.filter((id) => id !== activeModule.id),
+      lastModuleId: activeModule.id,
+      lastView: "lab",
+    }));
+    setLabResult(null);
+    setShowSolution(false);
+    setAnnouncement("Laboratorio abierto para edición; deberás ejecutarlo y validarlo de nuevo.");
   }
 
   function chooseQuizAnswer(question: number, option: number) {
@@ -470,12 +505,12 @@ export default function Home() {
           <div className="hero-copy">
             <p className="eyebrow">Data Engineer Associate → Professional</p>
             <h1 id="hero-title">De lakehouse<br />a producción<span>.</span></h1>
-            <p className="hero-text">Una academia de ingeniería Databricks con 32 módulos, 160 lecciones desarrolladas, 30 prácticas guiadas, dos capstones y evaluación por dominios.</p>
+            <p className="hero-text">Una academia autosuficiente de ingeniería Databricks: 160 capítulos conceptuales con modelos mentales, mecánica interna, casos razonados y código; 30 prácticas, dos capstones y evaluación por dominios.</p>
             <div className="hero-actions">
               <button className="primary-button" onClick={() => openModule(continueModule)}>Continuar: módulo {continueModule.number}<span>→</span></button>
               <button className="secondary-button" onClick={() => document.getElementById("roadmap")?.scrollIntoView({ behavior: scrollBehavior() })}>Explorar el mapa</button>
             </div>
-            <div className="hero-proof"><span>100 h</span><span>Multinube</span><span>Blueprints vigentes</span><span>Práctica razonada</span></div>
+            <div className="hero-proof"><span>100 h</span><span>Teoría profunda</span><span>Multinube</span><span>Blueprints vigentes</span><span>Práctica razonada</span></div>
           </div>
           <div className="hero-dashboard">
             <div className="hero-progress-card">
@@ -495,6 +530,11 @@ export default function Home() {
           <div><p className="eyebrow">Evaluación acumulativa</p><h2>Dos hitos. Una carrera completa.</h2></div>
           <button aria-disabled={!completed.has("m11")} onClick={() => openExam("associate")}><span>Associate</span><b>45 preguntas · 90 min</b><small>{progress.examScores.associate !== undefined ? `Último resultado: ${progress.examScores.associate}%` : completed.has("m11") ? "Listo para comenzar" : "Se desbloquea al completar el módulo 11"}</small></button>
           <button aria-disabled={!(["m17","m22","m27","m31"].every((id) => completed.has(id)))} onClick={() => openExam("professional")}><span>Professional</span><b>59 preguntas · 120 min</b><small>{progress.examScores.professional !== undefined ? `Último resultado: ${progress.examScores.professional}%` : ["m17","m22","m27","m31"].every((id) => completed.has(id)) ? "Listo para comenzar" : "Se desbloquea al completar las cuatro ramas"}</small></button>
+        </section>
+
+        <section className="study-method" aria-labelledby="study-method-title">
+          <div><p className="eyebrow">Método autosuficiente</p><h2 id="study-method-title">Aprende, explica, decide y ejecuta.</h2><p>Cada módulo contiene todo el ciclo. Para que el curso sustituya a otros temarios, no marques una lección hasta poder explicar el mecanismo con tus propias palabras y reproducir el caso sin mirar.</p></div>
+          <ol><li><span>01</span><div><b>Construye el modelo mental</b><p>Comprende qué problema resuelve el componente y cómo encaja en la plataforma.</p></div></li><li><span>02</span><div><b>Domina la mecánica</b><p>Sigue el flujo de datos, estado, permisos, costes y fallos paso a paso.</p></div></li><li><span>03</span><div><b>Razona con restricciones</b><p>Resuelve el caso comparando alternativas; no memorices palabras clave.</p></div></li><li><span>04</span><div><b>Ejecuta y recupera</b><p>Completa el laboratorio en Databricks, fuerza un fallo y conserva evidencia.</p></div></li></ol>
         </section>
 
         <section id="roadmap" className="roadmap" aria-labelledby="roadmap-title">
@@ -545,8 +585,8 @@ export default function Home() {
             </div>
 
             {view === "lessons" && <LessonsView module={activeModule} completedLessons={progress.completedLessons[activeModule.id] ?? []} onToggle={toggleLesson} onNext={() => selectView("lab")} />}
-            {view === "lab" && <LabView module={activeModule} code={progress.labCode[activeModule.id] ?? activeModule.lab.starterCode} cloud={cloud} result={labResult} passed={progress.labsPassed.includes(activeModule.id)} confirmed={progress.labConfirmed.includes(activeModule.id)} showSolution={showSolution} onCloud={setCloud} onCode={setLabCode} onConfirm={setLabConfirmed} onRun={runLab} onSolution={() => setShowSolution((value) => !value)} onNext={() => selectView("quiz")} />}
-            {view === "quiz" && <QuizView module={activeModule} answers={progress.quizAnswers[activeModule.id] ?? {}} submitted={submittedQuiz} score={progress.quizScores[activeModule.id]} requirementsMet={(progress.completedLessons[activeModule.id]?.length ?? 0) >= activeModule.lessons.length && progress.labsPassed.includes(activeModule.id) && (activeModule.id === "m12" ? progress.examCompleted.associate === true : activeModule.id === "m32" ? progress.examCompleted.professional === true : true)} examRequired={activeModule.id === "m12" ? "associate" : activeModule.id === "m32" ? "professional" : null} examDone={activeModule.id === "m12" ? progress.examCompleted.associate === true : activeModule.id === "m32" ? progress.examCompleted.professional === true : true} onExam={openExam} onAnswer={chooseQuizAnswer} onSubmit={submitQuiz} onRetry={resetQuizAttempt} onBack={() => selectView("lessons")} />}
+            {view === "lab" && <LabView module={activeModule} code={progress.labCode[activeModule.id] ?? activeModule.lab.starterCode} cloud={cloud} result={labResult} passed={progress.labsPassed.includes(activeModule.id)} confirmed={progress.labConfirmed.includes(activeModule.id)} showSolution={showSolution} onCloud={setCloud} onCode={setLabCode} onConfirm={setLabConfirmed} onRun={runLab} onEdit={editPassedLab} onSolution={() => setShowSolution((value) => !value)} onNext={() => selectView("quiz")} />}
+            {view === "quiz" && <QuizView module={activeModule} answers={progress.quizAnswers[activeModule.id] ?? {}} submitted={submittedQuiz || progress.quizScores[activeModule.id] !== undefined} score={progress.quizScores[activeModule.id]} requirementsMet={(progress.completedLessons[activeModule.id]?.length ?? 0) >= activeModule.lessons.length && progress.labsPassed.includes(activeModule.id) && (activeModule.id === "m12" ? progress.examCompleted.associate === true : activeModule.id === "m32" ? progress.examCompleted.professional === true : true)} examRequired={activeModule.id === "m12" ? "associate" : activeModule.id === "m32" ? "professional" : null} examDone={activeModule.id === "m12" ? progress.examCompleted.associate === true : activeModule.id === "m32" ? progress.examCompleted.professional === true : true} onExam={openExam} onAnswer={chooseQuizAnswer} onSubmit={submitQuiz} onRetry={resetQuizAttempt} onBack={() => selectView("lessons")} />}
             {completed.has(activeModule.id) && <div className="completion-banner" role="status"><div><span>✓</span><div><b>Módulo {activeModule.number} superado</b><p>{activeModule.id === "m12" ? "Las cuatro especializaciones ya están abiertas." : activeModule.id === "m32" ? "Has completado toda la academia." : "Tu progreso se ha guardado en este dispositivo."}</p></div></div>{activeModule.id !== "m32" && (activeModule.id === "m12" ? <button className="primary-button" onClick={() => document.getElementById("roadmap")?.scrollIntoView({ behavior: scrollBehavior() })}>Elegir especialización <span>→</span></button> : <button className="primary-button" onClick={() => openModule(continueModule)}>Continuar con {continueModule.number} <span>→</span></button>)}</div>}
           </div>
         </section>
@@ -575,27 +615,40 @@ function ModuleCard({ module, unlocked, done, progress, onLink }: { module: Curr
     <span className="module-track">{trackMeta[module.track].name}</span>
     <b>{module.title}</b>
     <p>{module.description}</p>
-    <div><span>{formatHours(module.minutes)}</span><span>5 lecciones</span><span>{module.kind === "capstone" ? "Proyecto final" : "1 práctica"}</span>{progress > 0 && !done && <span>{progress}% completado</span>}</div>
+    <div><span>{formatHours(module.minutes)}</span><span>5 capítulos</span><span>{module.kind === "capstone" ? "Proyecto final" : "1 práctica"}</span>{progress > 0 && !done && <span>{progress}% completado</span>}</div>
     <small className={done ? "done" : unlocked ? "ready" : "locked"}>{done ? "Módulo superado" : unlocked ? "Abrir módulo →" : `Requiere ${prerequisiteNames}`}</small>
   </a>;
 }
 
 function LessonsView({ module, completedLessons, onToggle, onNext }: { module: CurriculumModule; completedLessons: string[]; onToggle: (id: string) => void; onNext: () => void }) {
+  const mappedCoverage = examMappings.filter((mapping) => mapping.moduleIds.includes(module.id));
+  const blueprintCoverage = mappedCoverage.length ? mappedCoverage : [{ level: module.level, domain: module.examDomains.join(" · "), objectives: module.outcomes }];
   return <div id="panel-lessons" className="lessons-view" role="tabpanel" aria-labelledby="tab-lessons" tabIndex={0}>
     <div className="outcomes"><span>Al terminar podrás</span>{module.outcomes.map((outcome) => <p key={outcome}>✓ {outcome}</p>)}</div>
+    <section className="blueprint-coverage" aria-labelledby={`blueprint-${module.id}`}><div><p className="eyebrow">Cobertura de certificación</p><h3 id={`blueprint-${module.id}`}>Qué parte del blueprint estás preparando</h3><p>Estos objetivos aparecen integrados en la teoría, el laboratorio y las preguntas del módulo.</p></div><div>{blueprintCoverage.map((mapping) => <article key={`${mapping.level}-${mapping.domain}`}><span>{mapping.level}</span><b>{mapping.domain}</b><ul>{mapping.objectives.map((objective) => <li key={objective}>{objective}</li>)}</ul></article>)}</div></section>
     {module.lessons.map((lesson, index) => {
       const done = completedLessons.includes(lesson.id);
+      const lessonMinutes = Math.round(module.minutes * (module.kind === "capstone" ? .3 : module.kind === "branch-project" ? .35 : .5) / module.lessons.length);
       return <article className={`lesson ${done ? "done" : ""}`} key={lesson.id}>
         <div className="lesson-index">{String(index + 1).padStart(2,"0")}</div>
         <div className="lesson-copy">
           <p className="eyebrow">{lesson.kicker}</p><h3>{lesson.title}</h3><p className="lead">{lesson.summary}</p>
           <div className="lesson-explanation">{lesson.explanation.map((paragraph) => <p key={paragraph}>{paragraph}</p>)}</div>
+          <details className="deep-dive">
+            <summary><span>Desarrollo conceptual completo</span><small>Modelo mental · mecánica · conceptos · caso razonado · ≈ {lessonMinutes} min</small></summary>
+            <div className="deep-dive-body">
+              <section className="mental-model"><p className="eyebrow">Modelo mental</p><h4>La idea que organiza todo</h4><p>{lesson.deepDive.mentalModel}</p></section>
+              <section className="mechanics"><p className="eyebrow">Mecánica interna</p><h4>Qué ocurre realmente y por qué</h4>{lesson.deepDive.mechanics.map((paragraph) => <p key={paragraph}>{paragraph}</p>)}</section>
+              <section className="concepts"><div><p className="eyebrow">Vocabulario operativo</p><h4>Conceptos que debes poder explicar</h4></div><div className="concept-grid">{lesson.deepDive.concepts.map((concept) => <article key={concept.term}><h5>{concept.term}</h5><p>{concept.definition}</p><small><b>Por qué importa:</b> {concept.whyItMatters}</small></article>)}</div></section>
+              <section className="worked-scenario"><div><p className="eyebrow">Caso razonado</p><h4>De la restricción a la decisión</h4><p>{lesson.deepDive.workedScenario.situation}</p></div><ol>{lesson.deepDive.workedScenario.reasoning.map((step, stepIndex) => <li key={step}><span>{stepIndex + 1}</span><p>{step}</p></li>)}</ol><div className="scenario-outcome"><b>Resultado defendible</b><p>{lesson.deepDive.workedScenario.outcome}</p></div></section>
+            </div>
+          </details>
           <div className="key-points"><h4>Qué debes retener</h4><div>{lesson.keyPoints.map((point) => <span key={point}>✓ {point}</span>)}</div></div>
           <div className="code-example"><div className="code-example-header"><div><span>{lesson.example.language}</span><b>{lesson.example.title}</b></div><CopyCodeButton code={lesson.example.code} /></div><pre><code>{lesson.example.code}</code></pre><p>{lesson.example.note}</p></div>
           <div className="lesson-guidance"><div className="pitfalls"><h4>Errores frecuentes</h4>{lesson.pitfalls.map((pitfall) => <p key={pitfall}>× {pitfall}</p>)}</div><div className="exam-decision"><h4>Decisión de examen</h4><p>{lesson.examDecision}</p></div></div>
           <details className="checkpoint"><summary>Comprueba tu razonamiento</summary><p><b>{lesson.checkpoint.question}</b></p><p>{lesson.checkpoint.answer}</p></details>
         </div>
-        <button className="lesson-check" onClick={() => onToggle(lesson.id)} aria-pressed={done}>{done ? "✓ Leída" : "Marcar leída"}</button>
+        <button className="lesson-check" onClick={() => onToggle(lesson.id)} aria-pressed={done} title="Márcala solo cuando puedas explicar el modelo, la mecánica y la decisión sin mirar.">{done ? "✓ Puedo explicarla" : "Puedo explicarla"}</button>
       </article>;
     })}
     <div className="sources-card"><div><span>Referencias oficiales</span><b>Revisadas para esta versión</b></div><ul>{module.sources.map((source) => <li key={source.href}><a href={source.href} target="_blank" rel="noreferrer">{source.label} <span>↗</span></a><small>Revisada {source.reviewedAt}</small></li>)}</ul></div>
@@ -617,7 +670,7 @@ function CopyCodeButton({ code }: { code: string }) {
   return <button type="button" onClick={copy} aria-live="polite">{status === "copied" ? "✓ Copiado" : status === "failed" ? "No se pudo copiar" : "Copiar código"}</button>;
 }
 
-function LabView({ module, code, cloud, result, passed, confirmed, showSolution, onCloud, onCode, onConfirm, onRun, onSolution, onNext }: { module: CurriculumModule; code: string; cloud: "AWS"|"Azure"|"GCP"; result: { checks:boolean[]; passed:boolean } | null; passed:boolean; confirmed:boolean; showSolution:boolean; onCloud:(cloud:"AWS"|"Azure"|"GCP")=>void; onCode:(code:string)=>void; onConfirm:(confirmed:boolean)=>void; onRun:()=>void; onSolution:()=>void; onNext:()=>void }) {
+function LabView({ module, code, cloud, result, passed, confirmed, showSolution, onCloud, onCode, onConfirm, onRun, onEdit, onSolution, onNext }: { module: CurriculumModule; code: string; cloud: "AWS"|"Azure"|"GCP"; result: { checks:boolean[]; passed:boolean } | null; passed:boolean; confirmed:boolean; showSolution:boolean; onCloud:(cloud:"AWS"|"Azure"|"GCP")=>void; onCode:(code:string)=>void; onConfirm:(confirmed:boolean)=>void; onRun:()=>void; onEdit:()=>void; onSolution:()=>void; onNext:()=>void }) {
   const cloudNote = module.lab.cloudNotes.find((item) => item.cloud === cloud)!;
   const clouds = ["AWS", "Azure", "GCP"] as const;
   const practiceMinutes = Math.round(module.minutes * (module.kind === "capstone" ? .4 : module.kind === "branch-project" ? .5 : .35));
@@ -634,10 +687,10 @@ function LabView({ module, code, cloud, result, passed, confirmed, showSolution,
     <ol className="lab-steps">{module.lab.steps.map((step,index) => <li key={step}><span>{index+1}</span><p>{step}</p></li>)}</ol>
     <div className="evidence-card"><h4>Evidencia que debes conservar</h4><ul>{module.lab.expectedEvidence.map((evidence) => <li key={evidence}>{evidence}</li>)}</ul></div>
     <div className="cloud-panel"><div className="cloud-tabs" role="tablist" aria-label="Variante de nube">{clouds.map((item) => <button id={`cloud-${item}`} role="tab" aria-controls="cloud-note" aria-selected={cloud===item} tabIndex={cloud===item?0:-1} className={cloud===item?"active":""} onKeyDown={(event) => handleCloudKey(event, item)} onClick={() => onCloud(item)} key={item}>{item}</button>)}</div><p id="cloud-note" role="tabpanel" aria-labelledby={`cloud-${cloud}`}>{cloudNote.note}</p></div>
-    <div className="editor"><div className="editor-bar"><div><i/><i/><i/><b>{module.lab.solution.trimStart().match(/^(SELECT|CREATE|ALTER|MERGE|WITH|INSERT|GRANT)/) ? "solution.sql" : "solution.py"}</b></div><div className="editor-tools"><CopyCodeButton code={showSolution ? module.lab.solution : code} /><button disabled={!showSolution && !result && !passed} title={!result && !passed ? "Haz primero un intento de comprobación" : undefined} onClick={onSolution}>{showSolution ? "Ocultar referencia" : "Ver referencia"}</button></div></div><textarea value={showSolution ? module.lab.solution : code} onChange={(event) => onCode(event.target.value)} readOnly={showSolution} spellCheck={false} aria-label="Editor del laboratorio" aria-describedby="sandbox-note"/><div className="editor-actions"><span id="sandbox-note">Autocomprobación de estructura; ejecuta el código en tu workspace real.</span><button onClick={onRun}>▶ Comprobar estructura</button></div></div>
-    <label className="evidence-confirm"><input type="checkbox" checked={confirmed} onChange={(event) => onConfirm(event.target.checked)} /><span><b>He ejecutado la práctica en Databricks</b><small>He comparado la salida con la evidencia esperada y no he incluido credenciales en el código.</small></span></label>
+    <div className="editor"><div className="editor-bar"><div><i/><i/><i/><b>{module.lab.solution.trimStart().match(/^(SELECT|CREATE|ALTER|MERGE|WITH|INSERT|GRANT)/) ? "solution.sql" : "solution.py"}</b></div><div className="editor-tools"><CopyCodeButton code={showSolution ? module.lab.solution : code} /><button disabled={!showSolution && !result && !passed} title={!result && !passed ? "Haz primero un intento de comprobación" : undefined} onClick={onSolution}>{showSolution ? "Ocultar referencia" : "Ver referencia"}</button></div></div><textarea value={showSolution ? module.lab.solution : code} onChange={(event) => onCode(event.target.value)} readOnly={showSolution || passed} spellCheck={false} aria-label="Editor del laboratorio" aria-describedby="sandbox-note"/><div className="editor-actions"><span id="sandbox-note">{passed ? "Práctica aprobada; usa «Editar y revalidar» para cambiarla." : "Autocomprobación de estructura; ejecuta el código en tu workspace real."}</span><button disabled={passed} onClick={onRun}>▶ Comprobar estructura</button></div></div>
+    <label className="evidence-confirm"><input type="checkbox" checked={confirmed} disabled={passed} onChange={(event) => onConfirm(event.target.checked)} /><span><b>He ejecutado la práctica en Databricks</b><small>He comparado la salida con la evidencia esperada y no he incluido credenciales en el código.</small></span></label>
     {result && <div className={`lab-result ${result.passed ? "passed":"failed"}`} role="status"><div><strong>{result.passed ? "✓ Práctica completada" : "Revisa la estructura o la confirmación"}</strong><span>{result.checks.filter(Boolean).length}/{result.checks.length} comprobaciones</span></div>{module.lab.checks.map((check,index) => <p key={check.label} className={result.checks[index]?"ok":"missing"}>{result.checks[index]?"✓":"×"} {check.label}</p>)}{!confirmed && <p className="missing">× Falta confirmar la ejecución real</p>}</div>}
-    {passed && !result && <div className="lab-result passed"><strong>✓ Laboratorio ya superado</strong></div>}
+    {passed && !result && <div className="lab-result passed locked-result"><strong>✓ Laboratorio ya superado</strong><button className="secondary-button" onClick={onEdit}>Editar y revalidar</button></div>}
     <div className="view-next"><span>{passed ? "Práctica completada" : "La comprobación no sustituye la ejecución en Databricks"}</span><button className="primary-button" onClick={onNext}>Hacer el test <span>→</span></button></div>
   </div>;
 }

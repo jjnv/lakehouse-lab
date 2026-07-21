@@ -37,7 +37,7 @@ export const professionalExamBank = [
     id: "pro-001",
     scenario:
       "Un equipo mantiene un notebook de 1.800 líneas que lee tablas, transforma pedidos y publica resultados. Las pruebas solo pueden ejecutarse levantando el notebook completo y cada entorno requiere editar nombres de catálogo a mano.",
-    question: "¿Qué refactorización ofrece la base más mantenible para un Databricks Asset Bundle?",
+    question: "¿Qué refactorización ofrece la base más mantenible para un Declarative Automation Bundle (Asset Bundle en el blueprint)?",
     options: [
       "Duplicar el notebook para dev, test y prod y proteger cada copia con permisos de workspace.",
       "Extraer transformaciones puras a un paquete bajo src, dejar I/O y parámetros en una capa fina y declarar recursos y variables por target en el bundle.",
@@ -138,7 +138,7 @@ export const professionalExamBank = [
   {
     id: "pro-007",
     scenario:
-      "Una transformación de streaming necesita llamar a un servicio externo con un protocolo propio, administrar una transacción por microbatch y escribir en un sink no soportado por Lakeflow Spark Declarative Pipelines.",
+      "Una transformación de streaming necesita llamar a un servicio externo con un protocolo propio, administrar una transacción por microbatch y escribir en un sink no soportado por Spark Declarative Pipelines en Lakeflow.",
     question: "¿Qué enfoque conserva el control requerido con el menor artificio?",
     options: [
       "Declarar una materialized view, porque todas las vistas materializadas admiten sinks externos.",
@@ -413,7 +413,7 @@ export const professionalExamBank = [
       "Dos unidades de una misma empresa usan workspaces y metastores distintos. El productor quiere conceder acceso a tablas Delta actualizadas sin copiar archivos ni emitir credenciales permanentes de almacenamiento al consumidor Databricks.",
     question: "¿Qué mecanismo es el ajuste natural?",
     options: [
-      "Databricks-to-Databricks Delta Sharing, publicando un share y autorizando al recipient correspondiente.",
+      "Databricks-to-Databricks OpenSharing —Delta Sharing en el blueprint—, publicando un share y autorizando al recipient correspondiente.",
       "Exportar CSV cada noche a un bucket público y enviar la ruta por correo.",
       "Crear una Lakehouse Federation desde el productor hacia el metastore del consumidor.",
       "Hacer DEEP CLONE diaria de cada tabla en el workspace consumidor.",
@@ -427,13 +427,13 @@ export const professionalExamBank = [
   {
     id: "pro-024",
     scenario:
-      "Un socio usa un motor que no es Databricks pero admite clientes Delta Sharing. Debe leer solo dos vistas aprobadas y el proveedor necesita revocar el acceso sin cambiar permisos internos de los analistas.",
+      "Un socio usa un motor que no es Databricks pero admite clientes OpenSharing —Delta Sharing en el blueprint—. Debe leer solo dos vistas aprobadas y el proveedor necesita revocar el acceso sin cambiar permisos internos de los analistas.",
     question: "¿Qué diseño corresponde a ese consumidor?",
     options: [
       "Databricks-to-Databricks sharing, aunque el socio no disponga de un workspace Databricks.",
       "Conceder al socio SELECT directo sobre el catálogo interno y acceso a la consola cloud.",
       "Montar el almacenamiento del proveedor en el sistema del socio con una clave de cuenta compartida.",
-      "Open Delta Sharing con un recipient externo, credencial de receptor gestionada y un share limitado a los objetos aprobados.",
+      "Databricks-to-Open OpenSharing con un recipient externo, autenticación gestionada y un share limitado a los objetos aprobados.",
     ],
     answer: 3,
     explanation:
@@ -858,7 +858,7 @@ export const professionalExamBank = [
       "Un permiso SELECT ausente en Unity Catalog.",
       "Skew de datos que crea particiones desproporcionadas y presión de memoria/spill.",
       "Un error de sintaxis en databricks.yml.",
-      "Una credencial de Delta Sharing expirada.",
+      "Una credencial de OpenSharing expirada.",
     ],
     answer: 1,
     explanation:
@@ -869,7 +869,7 @@ export const professionalExamBank = [
   {
     id: "pro-050",
     scenario:
-      "Una actualización de Lakeflow Spark Declarative Pipelines falla al materializar silver_orders, pero otras tablas del grafo se actualizan. El mensaje resumido del job no revela si falló la regla de calidad, el flujo o el compute.",
+      "Una actualización de Spark Declarative Pipelines en Lakeflow falla al materializar silver_orders, pero otras tablas del grafo se actualizan. El mensaje resumido del job no revela si falló la regla de calidad, el flujo o el compute.",
     question: "¿Dónde se obtiene primero el contexto específico del dataset y la actualización?",
     options: [
       "En el event log del pipeline, filtrando la actualización, flujo y dataset afectados, y complementando con Spark UI si procede.",

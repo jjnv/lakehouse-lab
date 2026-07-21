@@ -83,19 +83,103 @@ function numberProperty(object, name) {
   return Number(value.text);
 }
 
-function contentPackEntries(source, variableName, filename) {
-  const rootObject = variableInitializer(parse(source, filename), variableName);
+function wordCount(value) {
+  return value.trim().split(/\s+/u).filter(Boolean).length;
+}
+
+function variables(ast) {
+  const result = new Map();
+  for (const statement of ast.statements) {
+    if (!ts.isVariableStatement(statement)) continue;
+    for (const declaration of statement.declarationList.declarations) {
+      if (ts.isIdentifier(declaration.name) && declaration.initializer) result.set(declaration.name.text, unwrap(declaration.initializer));
+    }
+  }
+  return result;
+}
+
+function resolveReference(node, scope) {
+  const value = unwrap(node);
+  if (ts.isIdentifier(value) && scope.has(value.text)) return resolveReference(scope.get(value.text), scope);
+  if (ts.isPropertyAccessExpression(value)) {
+    const target = resolveReference(value.expression, scope);
+    return resolveReference(property(target, value.name.text), scope);
+  }
+  if (ts.isElementAccessExpression(value)) {
+    const target = resolveReference(value.expression, scope);
+    const rawKey = textValue(value.argumentExpression) ?? (ts.isNumericLiteral(value.argumentExpression) ? value.argumentExpression.text : null);
+    assert.notEqual(rawKey, null, "El índice de deepDive debe ser literal");
+    if (ts.isArrayLiteralExpression(target)) {
+      const element = target.elements[Number(rawKey)];
+      assert.ok(element, `No existe el índice ${rawKey} de deepDive`);
+      return resolveReference(element, scope);
+    }
+    return resolveReference(property(target, rawKey), scope);
+  }
+  return value;
+}
+
+function deepDiveData(initializer, scope) {
+  const deepDive = resolveReference(initializer, scope);
+  if (ts.isCallExpression(deepDive)) {
+    assert.ok(ts.isIdentifier(deepDive.expression) && ["deepDive", "dive"].includes(deepDive.expression.text), "Constructor deepDive desconocido");
+    const [mentalNode, mechanicsNode, conceptsNode, situationNode, reasoningNode, outcomeNode] = deepDive.arguments.map(unwrap);
+    assert.ok(ts.isArrayLiteralExpression(mechanicsNode) && ts.isArrayLiteralExpression(conceptsNode) && ts.isArrayLiteralExpression(reasoningNode));
+    const concepts = conceptsNode.elements.map((conceptNode) => {
+      const concept = unwrap(conceptNode);
+      if (ts.isCallExpression(concept)) return concept.arguments.map(textValue);
+      if (ts.isArrayLiteralExpression(concept)) return concept.elements.map(textValue);
+      assert.ok(ts.isObjectLiteralExpression(concept));
+      return [textProperty(concept, "term"), textProperty(concept, "definition"), textProperty(concept, "whyItMatters")];
+    });
+    return {
+      mentalModel: textValue(mentalNode),
+      mechanics: mechanicsNode.elements.map(textValue),
+      concepts,
+      situation: textValue(situationNode),
+      reasoning: reasoningNode.elements.map(textValue),
+      outcome: textValue(outcomeNode),
+    };
+  }
+  assert.ok(ts.isObjectLiteralExpression(deepDive), "deepDive debe resolverse a un objeto o constructor tipado");
+  const workedScenario = object(deepDive, "workedScenario");
+  return {
+    mentalModel: textProperty(deepDive, "mentalModel"),
+    mechanics: array(deepDive, "mechanics").map(textValue),
+    concepts: array(deepDive, "concepts").map((node) => {
+      const concept = unwrap(node);
+      return [textProperty(concept, "term"), textProperty(concept, "definition"), textProperty(concept, "whyItMatters")];
+    }),
+    situation: textProperty(workedScenario, "situation"),
+    reasoning: array(workedScenario, "reasoning").map(textValue),
+    outcome: textProperty(workedScenario, "outcome"),
+  };
+}
+
+function contentPackEntries(source, variableName, filename, coreDeepDives = false) {
+  const ast = parse(source, filename);
+  const rootObject = variableInitializer(ast, variableName);
+  const scope = variables(ast);
   assert.ok(ts.isObjectLiteralExpression(rootObject), `${variableName} debe ser un objeto`);
   return rootObject.properties.map((item) => {
     assert.ok(ts.isPropertyAssignment(item), "Cada módulo debe ser una propiedad");
     const value = unwrap(item.initializer);
     assert.ok(ts.isObjectLiteralExpression(value), `${nameOf(item.name)} debe ser un objeto`);
-    return [nameOf(item.name), value];
+    const id = nameOf(item.name);
+    let fallbackDeepDives = null;
+    if (coreDeepDives) {
+      const number = Number(id.slice(1));
+      const registryName = number <= 4 ? "deepDives01To04" : number <= 8 ? "deepDives05To08" : "deepDives09To12";
+      const registry = variableInitializer(ast, registryName);
+      fallbackDeepDives = property(registry, id);
+      assert.ok(ts.isArrayLiteralExpression(fallbackDeepDives), `${id}: faltan deep dives del tronco`);
+    }
+    return [id, value, scope, fallbackDeepDives];
   });
 }
 
 const packEntries = [
-  ...contentPackEntries(contentSources[0], "coreContent", "core-content.ts"),
+  ...contentPackEntries(contentSources[0], "coreBase", "core-content.ts", true),
   ...contentPackEntries(contentSources[1], "advancedContentA", "advanced-content-a.ts"),
   ...contentPackEntries(contentSources[2], "advancedContentB", "advanced-content-b.ts"),
 ];
@@ -113,20 +197,73 @@ test("contains exactly 32 ordered, unique modules and 100 hours", () => {
   for (const seed of modules) assert.equal(array(seed, "topics").length, 5);
 });
 
+test("uses current Databricks terminology without generic depth padding", () => {
+  const authoredContent = [courseSource, ...contentSources].join("\n");
+  assert.match(authoredContent, /Spark Declarative Pipelines en Lakeflow/);
+  assert.match(authoredContent, /AUTO CDC/);
+  assert.match(authoredContent, /Declarative Automation Bundles/);
+  assert.doesNotMatch(authoredContent, /Lakeflow Spark Declarative Pipelines/);
+  assert.doesNotMatch(authoredContent, /En esta lección, ese alcance explica que/);
+  assert.doesNotMatch(authoredContent, /Su efecto se comprueba en los límites, fallos y decisiones/);
+});
+
 test("all 32 authored packs contain complete lessons, practice, assessment and official sources", () => {
   assert.equal(packEntries.length, 32);
   assert.deepEqual(packEntries.map(([id]) => id), Array.from({ length: 32 }, (_, index) => `m${String(index + 1).padStart(2, "0")}`));
   const quizQuestions = new Set();
+  let deepDiveCount = 0;
+  let deepDiveWords = 0;
+  const depthIssues = [];
 
-  for (const [id, pack] of packEntries) {
+  for (const [id, pack, scope, fallbackDeepDives] of packEntries) {
     const lessons = array(pack, "lessons");
     assert.equal(lessons.length, 5, `${id} debe tener cinco lecciones`);
-    for (const lessonNode of lessons) {
+    for (const [lessonIndex, lessonNode] of lessons.entries()) {
       const lesson = unwrap(lessonNode);
       assert.ok(textProperty(lesson, "summary").length >= 50, `${id}: resumen insuficiente`);
       const explanation = array(lesson, "explanation").map(textValue);
       assert.equal(explanation.length, 2, `${id}: explicación incompleta`);
       assert.ok(explanation.every((paragraph) => paragraph && paragraph.length >= 40), `${id}: párrafos demasiado breves`);
+      const directDeepDive = lesson.properties.find((item) => ts.isPropertyAssignment(item) && nameOf(item.name) === "deepDive");
+      const deepDiveInitializer = directDeepDive && ts.isPropertyAssignment(directDeepDive)
+        ? directDeepDive.initializer
+        : fallbackDeepDives?.elements[lessonIndex];
+      assert.ok(deepDiveInitializer, `${id}: falta deepDive en la lección ${lessonIndex + 1}`);
+      const deepDive = deepDiveData(deepDiveInitializer, scope);
+      const mentalModel = deepDive.mentalModel;
+      assert.equal(typeof mentalModel, "string", `${id}: el modelo mental debe ser texto literal`);
+      if (wordCount(mentalModel) < 85) depthIssues.push(`${id}.${lessonIndex + 1}: modelo mental ${wordCount(mentalModel)}/85`);
+      const mechanics = deepDive.mechanics;
+      assert.equal(mechanics.length, 2, `${id}: mecánica incompleta`);
+      mechanics.forEach((paragraph, index) => {
+        if (!paragraph || wordCount(paragraph) < 60) depthIssues.push(`${id}.${lessonIndex + 1}: mecánica ${index + 1} ${wordCount(paragraph ?? "")}/60`);
+      });
+      const concepts = deepDive.concepts;
+      assert.equal(concepts.length, 3, `${id}: deben existir tres conceptos definidos`);
+      const conceptTexts = [];
+      for (const [term, definition, whyItMatters] of concepts) {
+        assert.ok([term, definition, whyItMatters].every((value) => typeof value === "string"), `${id}: concepto no literal`);
+        assert.ok(term.length >= 3);
+        if (wordCount(definition) < 8) depthIssues.push(`${id}.${lessonIndex + 1} «${term}»: definición ${wordCount(definition)}/8`);
+        if (wordCount(whyItMatters) < 7) depthIssues.push(`${id}.${lessonIndex + 1} «${term}»: relevancia ${wordCount(whyItMatters)}/7`);
+        conceptTexts.push(term, definition, whyItMatters);
+      }
+      const situation = deepDive.situation;
+      assert.equal(typeof situation, "string", `${id}: la situación debe ser texto literal`);
+      if (wordCount(situation) < 12) depthIssues.push(`${id}.${lessonIndex + 1}: situación ${wordCount(situation)}/12`);
+      const reasoning = deepDive.reasoning;
+      assert.equal(reasoning.length, 3);
+      reasoning.forEach((step, index) => {
+        if (!step || wordCount(step) < 11) depthIssues.push(`${id}.${lessonIndex + 1}: razonamiento ${index + 1} ${wordCount(step ?? "")}/11`);
+      });
+      const outcome = deepDive.outcome;
+      assert.equal(typeof outcome, "string", `${id}: el resultado debe ser texto literal`);
+      if (wordCount(outcome) < 14) depthIssues.push(`${id}.${lessonIndex + 1}: resultado ${wordCount(outcome)}/14`);
+      deepDiveCount += 1;
+      const lessonDeepDiveWords = [mentalModel, ...mechanics, ...conceptTexts, situation, ...reasoning, outcome]
+        .reduce((total, value) => total + wordCount(value ?? ""), 0);
+      if (lessonDeepDiveWords < 350) depthIssues.push(`${id}.${lessonIndex + 1}: desarrollo agregado ${lessonDeepDiveWords}/350`);
+      deepDiveWords += lessonDeepDiveWords;
       assert.equal(array(lesson, "keyPoints").length, 3);
       const example = object(lesson, "example");
       assert.ok(textProperty(example, "code").length >= 12, `${id}: falta ejemplo ejecutable`);
@@ -183,6 +320,9 @@ test("all 32 authored packs contain complete lessons, practice, assessment and o
       sourceUrls.add(href);
     }
   }
+  assert.equal(deepDiveCount, 160);
+  assert.deepEqual(depthIssues, [], `Profundidad conceptual insuficiente:\n${depthIssues.join("\n")}`);
+  assert.ok(deepDiveWords >= 65_000, `Profundidad conceptual agregada insuficiente: ${deepDiveWords} palabras`);
   assert.equal(quizQuestions.size, 128);
 });
 
