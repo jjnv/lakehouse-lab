@@ -1,629 +1,202 @@
-export type LessonSection = {
-  title: string;
-  kicker: string;
-  paragraphs: string[];
-  points: string[];
+export type TrackId = "core" | "streaming" | "pipelines" | "performance" | "delivery" | "final";
+export type ExamLevel = "Associate" | "Associate + Professional" | "Professional";
+
+export type SourceReference = {
+  label: string;
+  href: string;
+  reviewedAt: string;
 };
 
-export type TestQuestion = {
+export type Lesson = {
+  id: string;
+  kicker: string;
+  title: string;
+  summary: string;
+  detail: string;
+  decisions: string[];
+};
+
+export type QuizQuestion = {
   question: string;
   options: string[];
   answer: number;
   explanation: string;
 };
 
-export type CourseModule = {
-  number: string;
+export type Lab = {
   title: string;
-  short: string;
-  level: string;
-  exam: "Associate" | "Associate + Professional" | "Professional";
-  duration: string;
-  icon: string;
-  description: string;
-  outcomes: string[];
-  sections: LessonSection[];
-  code: { language: string; title: string; content: string };
-  lab: {
-    title: string;
-    goal: string;
-    steps: string[];
-    checkpoint: string;
-    language: "SQL" | "Python";
-    dataset: { name: string; schema: string[]; preview: string[][] };
-    challenge: string;
-    starterCode: string;
-    solution: string;
-    checks: { label: string; pattern: string }[];
-    result: { columns: string[]; rows: string[][] };
-    successMessage: string;
-    hints: string[];
-  };
-  questions: TestQuestion[];
-  source: { label: string; href: string };
+  goal: string;
+  steps: string[];
+  starterCode: string;
+  solution: string;
+  checks: { label: string; pattern: string }[];
+  cloudNotes: { cloud: "AWS" | "Azure" | "GCP"; note: string }[];
 };
 
-export const modules: CourseModule[] = [
-  {
-    number: "01",
-    title: "Fundamentos de Lakehouse",
-    short: "Lakehouse",
-    level: "Base",
-    exam: "Associate",
-    duration: "55 min",
-    icon: "</>",
-    description: "Entiende cómo encajan almacenamiento, cómputo, metadatos y gobierno antes de escribir una sola transformación.",
-    outcomes: ["Distinguir lake, warehouse y lakehouse", "Elegir cómputo según la carga", "Navegar el modelo catálogo → esquema → objeto"],
-    sections: [
-      {
-        kicker: "Modelo mental",
-        title: "Un lakehouse separa almacenamiento y cómputo",
-        paragraphs: [
-          "Databricks ejecuta motores de cómputo sobre datos almacenados en object storage. Esa separación permite escalar el cómputo sin copiar el dato a otro sistema y apagar recursos cuando no se usan.",
-          "La capa de tablas aporta transacciones, esquema y metadatos sobre archivos. El resultado combina la flexibilidad de un data lake con propiedades que normalmente asociamos a un warehouse.",
-        ],
-        points: ["El dato persiste aunque termine el clúster", "Varias cargas pueden usar el mismo dato gobernado", "El formato de tabla evita tratar archivos sueltos como una base de datos"],
-      },
-      {
-        kicker: "Superficie de trabajo",
-        title: "Workspace, notebook y compute cumplen funciones distintas",
-        paragraphs: [
-          "El workspace organiza artefactos y colaboración; el notebook contiene código y narrativa; el compute aporta CPU y memoria para ejecutar. Confundir estas capas conduce a permisos excesivos y costes difíciles de explicar.",
-          "Para SQL interactivo se usa un SQL warehouse. Para notebooks y tareas de ingeniería puede usarse compute serverless o clásico, según disponibilidad, control requerido y política de la organización.",
-        ],
-        points: ["Serverless reduce operación de infraestructura", "El compute debe dimensionarse por patrón de carga, no por intuición", "La terminación automática es una medida de coste, no de rendimiento"],
-      },
-      {
-        kicker: "Gobierno",
-        title: "Unity Catalog define el perímetro de confianza",
-        paragraphs: [
-          "Unity Catalog organiza objetos con una jerarquía de tres niveles: catálogo, esquema y objeto. Los privilegios se conceden sobre esa jerarquía y pueden heredarse, lo que simplifica políticas coherentes.",
-          "Gobierno no es solo acceso. También incluye descubrimiento, linaje, auditoría y propiedad. Una tabla técnicamente correcta pero sin dueño, descripción o controles sigue siendo un activo débil.",
-        ],
-        points: ["Usa nombres de tres partes: catalog.schema.table", "Aplica mínimo privilegio a grupos, no a individuos", "Diferencia tablas administradas de datos externos"],
-      },
-    ],
-    code: {
-      language: "SQL",
-      title: "Explorar el namespace gobernado",
-      content: `USE CATALOG main;
-USE SCHEMA learning;
+export type CurriculumModule = {
+  id: string;
+  number: string;
+  slug: string;
+  title: string;
+  short: string;
+  track: TrackId;
+  level: ExamLevel;
+  minutes: number;
+  description: string;
+  outcomes: string[];
+  lessons: Lesson[];
+  lab: Lab;
+  quiz: QuizQuestion[];
+  examDomains: string[];
+  prerequisites: string[];
+  source: SourceReference;
+};
 
-CREATE TABLE IF NOT EXISTS events (
-  event_id BIGINT,
-  event_type STRING,
-  event_ts TIMESTAMP
-) USING DELTA;
+type ModuleSeed = Omit<CurriculumModule, "number" | "slug" | "lessons" | "lab" | "quiz" | "prerequisites" | "source"> & {
+  topics: string[];
+  practice: string;
+  snippet: string;
+  checkTerms: string[];
+  sourcePath: string;
+};
 
-DESCRIBE DETAIL main.learning.events;`,
-    },
-    lab: {
-      title: "Mapea tu primer workspace",
-      goal: "Identificar correctamente cada capa y crear una tabla Delta gobernada.",
-      steps: ["Abre Catalog Explorer y localiza un catálogo al que tengas USE CATALOG.", "Crea un esquema de aprendizaje o utiliza uno autorizado.", "Ejecuta el bloque SQL y revisa DESCRIBE DETAIL.", "Anota dónde vive el dato, qué compute usaste y quién es propietario del objeto."],
-      checkpoint: "Puedes explicar por qué borrar el compute no borra la tabla y localizar sus permisos efectivos.",
-      language: "SQL",
-      dataset: { name: "workspace_sandbox", schema: ["main", "learning", "events"], preview: [["catalog", "main"], ["schema", "learning"], ["target", "events"]] },
-      challenge: "Selecciona el catálogo main y el esquema learning. Después crea events como tabla Delta con event_id BIGINT, event_type STRING y event_ts TIMESTAMP.",
-      starterCode: `-- Define el namespace y crea la tabla
-USE CATALOG ...;
-USE SCHEMA ...;
+export const trackMeta: Record<TrackId, { name: string; eyebrow: string; color: string; description: string }> = {
+  core: { name: "Tronco común", eyebrow: "01—12", color: "coral", description: "La base completa para dominar el blueprint Associate." },
+  streaming: { name: "Streaming y CDC", eyebrow: "13—17", color: "blue", description: "Estado, eventos, datos tardíos y cambios en tiempo real." },
+  pipelines: { name: "Pipelines y orquestación", eyebrow: "18—22", color: "purple", description: "Pipelines declarativos, calidad y operación de DAGs." },
+  performance: { name: "Rendimiento y FinOps", eyebrow: "23—27", color: "gold", description: "Tuning, observabilidad, fiabilidad y coste." },
+  delivery: { name: "Entrega y gobierno", eyebrow: "28—31", color: "green", description: "Pruebas, CI/CD, seguridad e interoperabilidad." },
+  final: { name: "Convergencia Professional", eyebrow: "32", color: "ink", description: "Proyecto final y simulacro Professional." },
+};
 
-CREATE TABLE ... (
-  event_id BIGINT,
-  event_type STRING,
-  event_ts TIMESTAMP
-) USING ...;`,
-      solution: `USE CATALOG main;
-USE SCHEMA learning;
+const seeds: ModuleSeed[] = [
+  { id:"m01", title:"Data Intelligence Platform y arquitectura lakehouse", short:"Plataforma", track:"core", level:"Associate", minutes:170, description:"Construye un modelo mental preciso de almacenamiento, cómputo, gobierno y superficies de trabajo.", outcomes:["Explicar la separación entre storage y compute","Relacionar Delta Lake, Unity Catalog y motores de ejecución","Elegir la superficie adecuada para cada carga"], topics:["Lake, warehouse y lakehouse sin simplificaciones","Plano de control y plano de datos","Object storage y formatos abiertos","Workspace, metastore y recursos de cómputo","Arquitectura de referencia de extremo a extremo"], practice:"Dibuja y documenta una arquitectura lakehouse para una empresa de comercio electrónico.", snippet:"DESCRIBE DETAIL main.learning.events;", checkTerms:["DESCRIBE DETAIL","main.learning.events"], examDomains:["Databricks Intelligence Platform","Arquitectura"], sourcePath:"/lakehouse/" },
+  { id:"m02", title:"Compute clásico, serverless y SQL warehouses", short:"Compute", track:"core", level:"Associate", minutes:170, description:"Selecciona recursos por patrón de carga, aislamiento, latencia, gobernanza y coste total.", outcomes:["Comparar serverless, classic y SQL warehouses","Dimensionar sin sobredimensionar","Aplicar auto-stop, políticas y modos de rendimiento"], topics:["Serverless frente a compute clásico","All-purpose, jobs compute y SQL warehouses","Autoscaling, auto-stop y pools","Access modes y aislamiento","DBUs, latencia de arranque y coste"], practice:"Elige compute y política para tres cargas con SLA y presupuestos distintos.", snippet:"SELECT * FROM system.billing.usage LIMIT 20;", checkTerms:["system.billing.usage","SELECT"], examDomains:["Compute services","Cost models"], sourcePath:"/compute/" },
+  { id:"m03", title:"Notebooks, SQL, Python y PySpark en el workspace", short:"Desarrollo", track:"core", level:"Associate", minutes:170, description:"Trabaja con notebooks y archivos como código mantenible, reproducible y parametrizable.", outcomes:["Distinguir SQL, Python y PySpark por carga","Gestionar parámetros y dependencias","Evitar estado oculto en notebooks"], topics:["Notebooks y archivos de workspace","SQL frente a PySpark","Widgets y parámetros de tareas","Librerías y entornos reproducibles","Colaboración, revisión y modularidad"], practice:"Refactoriza un notebook monolítico en funciones parametrizadas y comprobables.", snippet:"orders = spark.table(\"main.sales.orders\")\ndisplay(orders.limit(20))", checkTerms:["spark.table","main.sales.orders"], examDomains:["Workspace","PySpark"], sourcePath:"/pyspark/" },
+  { id:"m04", title:"DataFrames, transformaciones y datos complejos", short:"DataFrames", track:"core", level:"Associate", minutes:170, description:"Domina las operaciones que aparecen en ETL real: joins, arrays, structs, ventanas y deduplicación.", outcomes:["Transformar columnas y filas con funciones nativas","Manipular arrays, maps y structs","Combinar y deduplicar datasets de forma determinista"], topics:["Transformaciones y acciones","Select, filter y withColumn","Joins, unions y claves compuestas","explode, arrays, maps y structs","Ventanas, agregaciones y deduplicación"], practice:"Normaliza pedidos JSON anidados y publica una tabla de líneas deduplicadas.", snippet:"from pyspark.sql import functions as F\nclean = raw.select(\"order_id\", F.explode(\"items\").alias(\"item\"))", checkTerms:["explode","order_id"], examDomains:["Data Transformation and Modeling","PySpark DataFrames"], sourcePath:"/pyspark/basics" },
+  { id:"m05", title:"Catalyst, particiones, joins y shuffles", short:"Spark", track:"core", level:"Associate + Professional", minutes:170, description:"Razona sobre el plan lógico y físico antes de ajustar configuraciones o añadir cómputo.", outcomes:["Leer explain formatted","Detectar Exchange, skew y spill","Elegir broadcast, repartition o coalesce con evidencia"], topics:["Lazy evaluation y DAG de Spark","Catalyst y optimizaciones de consulta","Particiones y paralelismo","Shuffles, skew y spills","Estrategias de join y broadcast"], practice:"Compara dos planes físicos y justifica una reducción del movimiento de datos.", snippet:"daily.explain(\"formatted\")", checkTerms:["explain","formatted"], examDomains:["Troubleshooting and Optimization","Spark execution"], sourcePath:"/optimizations/" },
+  { id:"m06", title:"Delta Lake: ACID, esquema, historial y DML", short:"Delta", track:"core", level:"Associate + Professional", minutes:170, description:"Usa el transaction log para construir tablas fiables, auditables e idempotentes.", outcomes:["Explicar snapshots y concurrencia optimista","Aplicar MERGE, UPDATE y DELETE correctamente","Diferenciar enforcement, evolution y time travel"], topics:["Transaction log y propiedades ACID","Tablas managed y external","Schema enforcement y evolution","MERGE e idempotencia","History, time travel y VACUUM"], practice:"Implementa un MERGE incremental que resista reintentos y eventos antiguos.", snippet:"MERGE INTO main.silver.customers t USING updates s ON t.id=s.id WHEN MATCHED THEN UPDATE SET * WHEN NOT MATCHED THEN INSERT *;", checkTerms:["MERGE INTO","WHEN NOT MATCHED"], examDomains:["Delta Lake","Data management"], sourcePath:"/delta/" },
+  { id:"m07", title:"Arquitectura medallion, calidad y modelado", short:"Modelado", track:"core", level:"Associate + Professional", minutes:170, description:"Diseña capas y contratos desde las necesidades de consumo, trazabilidad y reejecución.", outcomes:["Asignar responsabilidades a bronze, silver y gold","Diseñar hechos, dimensiones y SCD","Definir controles de calidad por frontera"], topics:["Medallion como patrón, no dogma","Bronze y trazabilidad de origen","Silver, conformado y calidad","Gold, hechos y dimensiones","Contratos, SLOs y ownership"], practice:"Diseña un modelo dimensional de ventas con reglas explícitas en cada capa.", snippet:"CREATE OR REPLACE VIEW main.gold.daily_sales AS SELECT order_date, sum(amount) revenue FROM main.silver.orders GROUP BY order_date;", checkTerms:["main.gold.daily_sales","sum(amount)"], examDomains:["Data Modelling","Data Quality"], sourcePath:"/lakehouse-architecture/medallion" },
+  { id:"m08", title:"Ingesta batch, formatos, COPY INTO, JDBC y REST", short:"Ingesta batch", track:"core", level:"Associate", minutes:170, description:"Elige una vía de entrada reproducible para archivos, bases de datos y APIs.", outcomes:["Comparar cargas completas e incrementales","Usar COPY INTO de forma idempotente","Controlar formatos, compresión y metadatos de origen"], topics:["Matriz de patrones de ingesta","CSV, JSON, Parquet, Avro, ORC y binary","COPY INTO e historial de archivos","JDBC, ODBC y REST","Metadatos, errores y cuarentena"], practice:"Carga un lote JSON gobernado y demuestra que una segunda ejecución no duplica filas.", snippet:"COPY INTO main.bronze.orders FROM '/Volumes/main/landing/orders' FILEFORMAT = JSON;", checkTerms:["COPY INTO","FILEFORMAT = JSON"], examDomains:["Data Ingestion and Loading","File formats"], sourcePath:"/ingestion/" },
+  { id:"m09", title:"Auto Loader y Lakeflow Connect", short:"Ingesta managed", track:"core", level:"Associate + Professional", minutes:170, description:"Selecciona entre descubrimiento de archivos, conectores gestionados y alternativas de integración.", outcomes:["Configurar schemaLocation y checkpointLocation","Gestionar evolución y rescued data","Elegir Lakeflow Connect, Auto Loader o partner connector"], topics:["Auto Loader y cloudFiles","Directory listing y file notification","Inferencia, hints y evolución de esquema","Lakeflow Connect standard y managed","Matriz de decisión por volumen, frescura y gobierno"], practice:"Construye una carga incremental con estado durable y política de evolución explícita.", snippet:"spark.readStream.format(\"cloudFiles\").option(\"cloudFiles.format\", \"json\").load(landing)", checkTerms:["cloudFiles","readStream"], examDomains:["Data Ingestion and Loading","Lakeflow Connect"], sourcePath:"/ingestion/cloud-object-storage/auto-loader/" },
+  { id:"m10", title:"Lakeflow Jobs: DAG, tareas y triggers", short:"Jobs", track:"core", level:"Associate + Professional", minutes:170, description:"Convierte ejecuciones manuales en workflows parametrizados, idempotentes y observables.", outcomes:["Diseñar un DAG con paralelismo seguro","Configurar tareas, parámetros y dependencias","Elegir triggers temporales o dirigidos por datos"], topics:["Jobs, runs y task graph","Notebook, Python, SQL y pipeline tasks","Parámetros y task values","Schedule, file arrival y table update","Retries, timeout y notificaciones"], practice:"Diseña un job bronze-silver-gold con parámetros y un trigger adecuado al SLA.", snippet:"resources:\n  jobs:\n    orders_job:\n      tasks: []", checkTerms:["jobs","tasks"], examDomains:["Working with Lakeflow Jobs","Orchestration"], sourcePath:"/jobs/" },
+  { id:"m11", title:"Unity Catalog, Git folders y CI/CD esencial", short:"Gobierno y CI/CD", track:"core", level:"Associate + Professional", minutes:170, description:"Une gobierno de datos con una entrega de código revisable y promocionable entre entornos.", outcomes:["Aplicar el namespace y mínimo privilegio","Diferenciar managed, external, volumes y credentials","Promover el mismo código con variables por entorno"], topics:["Metastore, catalog, schema y object","Privilegios, herencia y service principals","External locations, volumes y storage credentials","Git folders y flujo de ramas","Bundles, targets y variables por entorno"], practice:"Define permisos de un dominio y un esqueleto de bundle para dev y prod.", snippet:"bundle:\n  name: learning\ntargets:\n  dev:\n    default: true\n  prod: {}", checkTerms:["bundle","targets"], examDomains:["Governance and Security","Implementing CI/CD"], sourcePath:"/data-governance/unity-catalog/" },
+  { id:"m12", title:"Proyecto Associate y simulacro de 45 preguntas", short:"Hito Associate", track:"core", level:"Associate", minutes:300, description:"Integra ingesta, transformación, gobierno, Jobs y CI/CD en una solución defendible.", outcomes:["Entregar un pipeline Associate completo","Justificar decisiones de arquitectura","Medir preparación con un simulacro original"], topics:["Brief y criterios de aceptación","Arquitectura y seguridad inicial","Construcción del pipeline","Pruebas, operación y documentación","Retrospectiva y simulacro Associate"], practice:"Entrega un mini-lakehouse de pedidos desde landing hasta gold con job y controles.", snippet:"-- CAPSTONE ASSOCIATE\nSELECT count(*) AS rows_checked FROM main.gold.daily_sales;", checkTerms:["CAPSTONE ASSOCIATE","main.gold.daily_sales"], examDomains:["Todos los dominios Associate"], sourcePath:"https://www.databricks.com/sites/default/files/2026-03/databricks-certified-data-engineer-associate-exam-guide-may-4-2026.pdf" },
 
-CREATE TABLE events (
-  event_id BIGINT,
-  event_type STRING,
-  event_ts TIMESTAMP
-) USING DELTA;`,
-      checks: [
-        { label: "Selecciona el catálogo main", pattern: "use\\s+catalog\\s+main" },
-        { label: "Selecciona el esquema learning", pattern: "use\\s+schema\\s+learning" },
-        { label: "Crea la tabla events", pattern: "create\\s+table(?:\\s+if\\s+not\\s+exists)?\\s+(?:main\\.learning\\.)?events" },
-        { label: "Usa el formato Delta", pattern: "using\\s+delta" },
-      ],
-      result: { columns: ["catalog", "schema", "table", "format"], rows: [["main", "learning", "events", "DELTA"]] },
-      successMessage: "Tabla gobernada creada. El namespace y el formato coinciden con el objetivo.",
-      hints: ["USE CATALOG y USE SCHEMA establecen el namespace de la sesión.", "El formato se declara al final con USING DELTA."],
-    },
-    questions: [
-      { question: "¿Qué persiste cuando se termina el compute?", options: ["Solo el notebook", "Los datos en almacenamiento y sus metadatos", "La memoria del ejecutor", "El caché local del clúster"], answer: 1, explanation: "El cómputo es efímero. Los datos y metadatos se mantienen en las capas de almacenamiento y catálogo." },
-      { question: "¿Qué recurso es específico para consultas SQL interactivas?", options: ["Model Registry", "SQL warehouse", "Repos", "Feature Store"], answer: 1, explanation: "Un SQL warehouse proporciona cómputo optimizado y un endpoint para Databricks SQL." },
-      { question: "¿Cuál es el orden correcto del namespace de Unity Catalog?", options: ["schema.catalog.table", "workspace.cluster.table", "catalog.schema.table", "table.schema.catalog"], answer: 2, explanation: "Unity Catalog usa nombres de tres partes: catálogo, esquema y objeto." },
-      { question: "¿Cuál es la mejor práctica de acceso?", options: ["Conceder ALL PRIVILEGES a cada analista", "Compartir un usuario técnico", "Conceder mínimo privilegio a grupos", "Evitar propietarios"], answer: 2, explanation: "Los grupos y el mínimo privilegio hacen la política auditable, mantenible y menos frágil." },
-    ],
-    source: { label: "Documentación: conceptos de tablas", href: "https://docs.databricks.com/aws/en/tables/tables-concepts" },
-  },
-  {
-    number: "02",
-    title: "Apache Spark en profundidad",
-    short: "Spark",
-    level: "Intermedio",
-    exam: "Associate + Professional",
-    duration: "70 min",
-    icon: "✦",
-    description: "Pasa de usar DataFrames a razonar sobre planes, particiones, shuffles y coste de ejecución distribuida.",
-    outcomes: ["Diferenciar transformaciones y acciones", "Leer un plan físico", "Reducir shuffles y movimiento de datos"],
-    sections: [
-      {
-        kicker: "Ejecución",
-        title: "Spark construye un plan antes de tocar los datos",
-        paragraphs: [
-          "Las transformaciones como select, filter o join son perezosas: describen un plan lógico. Una acción como count, collect o write desencadena la optimización y ejecución del grafo completo.",
-          "Esta pereza permite que Catalyst elimine columnas, empuje filtros y reorganice operaciones. También significa que encadenar transformaciones no equivale a ejecutar repetidamente.",
-        ],
-        points: ["Transformación: produce otro DataFrame", "Acción: solicita un resultado o materializa una salida", "explain() revela el plan, no ejecuta la carga"],
-      },
-      {
-        kicker: "Distribución",
-        title: "El shuffle suele dominar el coste",
-        paragraphs: [
-          "Agrupaciones, joins y repartition pueden redistribuir datos entre ejecutores. Ese movimiento implica red, serialización y escritura temporal; por eso un shuffle grande cuesta mucho más que una proyección local.",
-          "Un broadcast join evita redistribuir la tabla grande cuando una dimensión es suficientemente pequeña. No debe forzarse sin comprobar tamaño y memoria: un broadcast demasiado grande puede desestabilizar ejecutores.",
-        ],
-        points: ["Filtra y proyecta antes de un join", "Vigila skew: pocas claves concentran demasiadas filas", "No uses repartition como receta universal"],
-      },
-      {
-        kicker: "API",
-        title: "Las funciones nativas preservan optimización",
-        paragraphs: [
-          "Las expresiones nativas de Spark quedan visibles para el optimizador. Una UDF opaca parte de esa lógica y puede introducir costes de serialización entre runtimes.",
-          "Prefiere funciones built-in y expresiones SQL. Usa una UDF cuando la regla no pueda expresarse razonablemente con funciones nativas y mide su impacto con datos representativos.",
-        ],
-        points: ["Evita collect() sobre datos no acotados", "Cachea solo cuando reutilizas y puedes medir el beneficio", "Compara planes antes y después de optimizar"],
-      },
-    ],
-    code: {
-      language: "Python",
-      title: "Plan y agregación distribuida",
-      content: `from pyspark.sql import functions as F
+  { id:"m13", title:"Structured Streaming, triggers y checkpoints", short:"Streaming", track:"streaming", level:"Professional", minutes:170, description:"Construye consultas incrementales con estado durable y semántica de recuperación clara.", outcomes:["Explicar microbatches y progreso","Configurar triggers y checkpoints","Diseñar sinks idempotentes"], topics:["Modelo incremental de Structured Streaming","Sources, sinks y output modes","Triggers availableNow y processingTime","Offsets, commits y checkpoints","Recuperación y compatibilidad de cambios"], practice:"Procesa eventos con availableNow y demuestra reanudación desde checkpoint.", snippet:"stream.writeStream.option(\"checkpointLocation\", checkpoint).trigger(availableNow=True).toTable(target)", checkTerms:["checkpointLocation","availableNow"], examDomains:["Data Ingestion and Acquisition","Structured Streaming"], sourcePath:"/structured-streaming/" },
+  { id:"m14", title:"Estado, ventanas, watermarks y datos tardíos", short:"Estado", track:"streaming", level:"Professional", minutes:170, description:"Controla el crecimiento de estado y la corrección temporal con eventos fuera de orden.", outcomes:["Definir event time y processing time","Aplicar watermark con intención","Deduplicar y agregar ventanas acotando estado"], topics:["Event time frente a processing time","Ventanas tumbling y sliding","Watermarks y finalización","Deduplicación con estado","State store, métricas y presión de memoria"], practice:"Agrega eventos tardíos por ventana y documenta qué registros pueden descartarse.", snippet:"events.withWatermark(\"event_ts\", \"10 minutes\").dropDuplicatesWithinWatermark([\"event_id\"])", checkTerms:["withWatermark","event_id"], examDomains:["Streaming state","Reliability"], sourcePath:"/structured-streaming/watermarks" },
+  { id:"m15", title:"Kafka, buses de eventos y garantías de entrega", short:"Kafka", track:"streaming", level:"Professional", minutes:170, description:"Integra sistemas de eventos sin confundir offsets, claves, orden y garantías end-to-end.", outcomes:["Configurar lectura Kafka con seguridad","Interpretar particiones y offsets","Diseñar idempotencia entre source y sink"], topics:["Kafka topics, partitions y consumer offsets","key, value, headers y timestamps","Autenticación y secretos","At-least-once y exactly-once práctico","Backpressure, lag y capacidad"], practice:"Decodifica un topic de pedidos, preserva metadatos y publica Delta idempotente.", snippet:"spark.readStream.format(\"kafka\").option(\"subscribe\", \"orders\").load()", checkTerms:["format(\"kafka\")","subscribe"], examDomains:["Message buses","Streaming ingestion"], sourcePath:"/connect/streaming/kafka" },
+  { id:"m16", title:"Change Data Feed, CDC, APPLY CHANGES y SCD", short:"CDC", track:"streaming", level:"Professional", minutes:170, description:"Procesa inserciones, actualizaciones y borrados respetando clave, secuencia y retención.", outcomes:["Consumir Change Data Feed","Modelar CDC con APPLY CHANGES","Elegir SCD tipo 1 o 2"], topics:["CDC, CDF y sus diferencias","Change types y versiones de commit","Keys y sequence_by","APPLY CHANGES y AUTO CDC","SCD 1, SCD 2 y borrados"], practice:"Materializa el historial de clientes desde un feed CDC con eventos fuera de orden.", snippet:"ALTER TABLE main.silver.customers SET TBLPROPERTIES (delta.enableChangeDataFeed = true);", checkTerms:["enableChangeDataFeed","ALTER TABLE"], examDomains:["CDC","Change Data Feed"], sourcePath:"/delta/delta-change-data-feed" },
+  { id:"m17", title:"Proyecto de streaming con SLA", short:"Proyecto streaming", track:"streaming", level:"Professional", minutes:300, description:"Entrega un flujo operable que soporte datos tardíos, recuperación e incidentes reproducibles.", outcomes:["Cumplir SLA de frescura y completitud","Recuperar sin duplicados","Crear métricas y runbook"], topics:["Definición del SLA","Diseño de eventos y particiones","Estado, CDC y calidad","Observabilidad y alertas","Game day y recuperación"], practice:"Construye y opera un pipeline clickstream con CDC de perfiles y gold casi en tiempo real.", snippet:"SELECT max(event_ts) AS max_event, current_timestamp() - max(event_ts) AS freshness FROM main.silver.events;", checkTerms:["freshness","main.silver.events"], examDomains:["Streaming production readiness"], sourcePath:"/structured-streaming/production" },
 
-orders = spark.table("main.sales.orders")
+  { id:"m18", title:"Lakeflow Spark Declarative Pipelines", short:"Declarativo", track:"pipelines", level:"Professional", minutes:170, description:"Declara datasets y dependencias para que el servicio gestione el grafo y la ejecución incremental.", outcomes:["Crear tablas streaming y materialized views","Comparar declarativo con Structured Streaming","Organizar código de pipeline"], topics:["Modelo declarativo y grafo","Streaming tables","Materialized views","Python y SQL en pipelines","Serverless y modos de ejecución"], practice:"Declara un pipeline bronze-silver con una tabla streaming y una vista materializada.", snippet:"from pyspark import pipelines as dp\n@dp.table\ndef orders_bronze(): return spark.readStream.table(\"main.raw.orders\")", checkTerms:["@dp.table","readStream"], examDomains:["Lakeflow Spark Declarative Pipelines"], sourcePath:"/ldp/" },
+  { id:"m19", title:"Expectations, cuarentena y event logs", short:"Calidad", track:"pipelines", level:"Professional", minutes:170, description:"Haz visibles las decisiones de calidad y separa observación, descarte, fallo y remediación.", outcomes:["Elegir EXPECT, DROP o FAIL","Diseñar una cuarentena trazable","Consultar métricas en event logs"], topics:["Dimensiones y contratos de calidad","EXPECT y observación","EXPECT OR DROP","EXPECT OR FAIL","Quarantine pattern y event log"], practice:"Implementa reglas con acciones distintas y un dashboard mínimo de calidad.", snippet:"@dp.expect_or_drop(\"valid_id\", \"order_id IS NOT NULL\")", checkTerms:["expect_or_drop","order_id"], examDomains:["Data Transformation, Cleansing, and Quality","Monitoring"], sourcePath:"/ldp/expectations" },
+  { id:"m20", title:"Lakeflow Jobs avanzado: control flow y repairs", short:"Jobs avanzado", track:"pipelines", level:"Professional", minutes:170, description:"Orquesta decisiones, bucles y recuperaciones sin convertir el DAG en lógica opaca.", outcomes:["Usar branching y for-each con límites","Aplicar retries y repairs correctamente","Transferir parámetros y task values"], topics:["If/else task","For each task","Run job y modularidad","Job repairs y parameter overrides","Concurrency y queueing"], practice:"Diseña un workflow multi-región con branch, for-each y recuperación de una partición.", snippet:"dbutils.jobs.taskValues.set(key=\"row_count\", value=validated.count())", checkTerms:["taskValues.set","row_count"], examDomains:["Debugging and Deploying","Lakeflow Jobs"], sourcePath:"/jobs/control-flow" },
+  { id:"m21", title:"Triggers, alertas, backfills y operación", short:"Operación", track:"pipelines", level:"Professional", minutes:170, description:"Opera pipelines según disponibilidad real del dato y recupera ventanas históricas sin romper producción.", outcomes:["Elegir trigger por evento o calendario","Diseñar backfills seguros","Crear alertas accionables y SLOs"], topics:["Schedule y time zones","File arrival y table update","Continuous y triggered pipelines","Backfills y ventanas de proceso","Alertas, webhooks y ownership"], practice:"Planifica un backfill de 90 días compatible con la ejecución diaria.", snippet:"process_date = dbutils.widgets.get(\"process_date\")", checkTerms:["widgets.get","process_date"], examDomains:["Monitoring and Alerting","Orchestration"], sourcePath:"/jobs/triggers" },
+  { id:"m22", title:"Proyecto de pipeline declarativo", short:"Proyecto pipelines", track:"pipelines", level:"Professional", minutes:300, description:"Construye una cadena declarativa con calidad, CDC, orquestación y operación documentada.", outcomes:["Entregar datasets incrementales fiables","Probar dependencias y reglas","Operar fallos y backfills"], topics:["Arquitectura del pipeline","Implementación declarativa","Expectations y cuarentena","Job envolvente y despliegue","Pruebas operativas"], practice:"Entrega un pipeline de clientes y pedidos con CDC, quality dashboard y job de publicación.", snippet:"SELECT * FROM event_log(TABLE(main.pipeline.orders));", checkTerms:["event_log","pipeline"], examDomains:["Production pipelines"], sourcePath:"/ldp/monitor-event-logs" },
 
-daily = (
-    orders
-      .filter(F.col("status") == "COMPLETE")
-      .select("order_date", "customer_id", "amount")
-      .groupBy("order_date")
-      .agg(F.sum("amount").alias("revenue"))
-)
+  { id:"m23", title:"Tuning avanzado de Spark", short:"Tuning Spark", track:"performance", level:"Professional", minutes:170, description:"Optimiza con evidencia del plan y las métricas, no con recetas globales ni más cómputo por defecto.", outcomes:["Diagnosticar skew y spill","Ajustar joins y particiones","Evaluar UDF, Pandas UDF y funciones nativas"], topics:["Plan físico y métricas de stages","Skew y adaptive query execution","Broadcast y sort merge join","Shuffle partitions y file sizing","UDF, Pandas UDF y serialización"], practice:"Reduce tiempo y shuffle de una consulta sesgada y registra el antes/después.", snippet:"spark.conf.set(\"spark.sql.adaptive.enabled\", \"true\")", checkTerms:["adaptive.enabled","true"], examDomains:["Cost & Performance Optimisation","Spark UI"], sourcePath:"/optimizations/aqe" },
+  { id:"m24", title:"Photon, data skipping y liquid clustering", short:"Tuning Delta", track:"performance", level:"Professional", minutes:170, description:"Diseña layout y mantenimiento de tablas según patrones de consulta que cambian con el tiempo.", outcomes:["Interpretar data skipping y pruning","Elegir liquid clustering","Explicar deletion vectors, Photon y predictive optimization"], topics:["Photon y ejecución vectorizada","Statistics y data skipping","Particionado y sus límites","Liquid clustering","Deletion vectors y predictive optimization"], practice:"Optimiza una tabla de eventos para filtros por cliente y fecha sin sobreparticionar.", snippet:"ALTER TABLE main.silver.events CLUSTER BY (customer_id, event_date);", checkTerms:["CLUSTER BY","customer_id"], examDomains:["Delta optimization","Performance"], sourcePath:"/delta/clustering" },
+  { id:"m25", title:"Compute, políticas, etiquetas y costes", short:"FinOps", track:"performance", level:"Professional", minutes:170, description:"Atribuye consumo, controla guardrails y optimiza coste sin degradar el valor del workload.", outcomes:["Consultar costes con system tables","Etiquetar y atribuir consumo","Elegir modos serverless y políticas"], topics:["DBUs, SKUs y coste cloud","system.billing.usage","Tags y chargeback","Compute policies y budgets","Standard frente a performance optimized"], practice:"Crea un informe de coste por equipo y recomienda tres acciones cuantificables.", snippet:"SELECT custom_tags.team, sum(usage_quantity) usage FROM system.billing.usage GROUP BY custom_tags.team;", checkTerms:["system.billing.usage","sum(usage_quantity)"], examDomains:["Cost optimization","System tables"], sourcePath:"/admin/usage/" },
+  { id:"m26", title:"Spark UI, Query Profile y system tables", short:"Observabilidad", track:"performance", level:"Professional", minutes:170, description:"Combina señales de ejecución, plataforma y datos para reducir el tiempo de diagnóstico.", outcomes:["Localizar cuellos en Spark UI y Query Profile","Consultar historial de Jobs y auditoría","Usar CLI y REST para automatizar diagnóstico"], topics:["Spark UI: jobs, stages y executors","Query Profile y operadores","System tables de workflows","Event logs y cluster logs","CLI, REST APIs y automatización"], practice:"Investiga un job lento con un árbol de hipótesis y evidencia de tres superficies.", snippet:"SELECT * FROM system.lakeflow.job_run_timeline ORDER BY period_start_time DESC LIMIT 20;", checkTerms:["system.lakeflow","ORDER BY"], examDomains:["Monitoring and Alerting","Debugging"], sourcePath:"/admin/system-tables/" },
+  { id:"m27", title:"Proyecto de fiabilidad y coste", short:"Proyecto FinOps", track:"performance", level:"Professional", minutes:300, description:"Recupera un workload degradado equilibrando SLA, capacidad, layout, código y presupuesto.", outcomes:["Resolver un incidente con método","Demostrar mejora con métricas","Definir prevención y alertas"], topics:["Triage y severidad","Hipótesis y evidencia","Corrección de código y layout","Right-sizing y coste","Postmortem y acciones preventivas"], practice:"Diagnostica un pipeline con skew, archivos pequeños y gasto creciente; entrega postmortem.", snippet:"DESCRIBE HISTORY main.silver.events;", checkTerms:["DESCRIBE HISTORY","main.silver.events"], examDomains:["Reliability","Cost & Performance"], sourcePath:"/lakehouse-architecture/reliability/" },
 
-daily.explain("formatted")
-daily.write.mode("overwrite").saveAsTable("main.sales.daily_revenue")`,
-    },
-    lab: {
-      title: "Diagnostica un plan",
-      goal: "Localizar un shuffle y justificar una mejora con evidencia.",
-      steps: ["Ejecuta una agregación sobre una tabla de muestra y abre explain('formatted').", "Localiza Exchange: marca el límite de redistribución.", "Añade un filtro y selección de columnas antes de la agregación.", "Compara filas leídas, tiempo y plan; documenta qué cambió y qué no."],
-      checkpoint: "Puedes señalar la acción, el shuffle y el motivo por el que la versión revisada procesa menos datos.",
-      language: "Python",
-      dataset: { name: "main.sales.orders", schema: ["order_id BIGINT", "order_date DATE", "status STRING", "amount DOUBLE"], preview: [["101", "2026-07-18", "COMPLETE", "120.50"], ["102", "2026-07-18", "CANCELLED", "45.00"], ["103", "2026-07-19", "COMPLETE", "79.50"]] },
-      challenge: "Lee main.sales.orders con spark.table, filtra status = COMPLETE, agrupa por order_date y calcula revenue como suma de amount.",
-      starterCode: `from pyspark.sql import functions as F
+  { id:"m28", title:"Proyectos Python, dependencias y pruebas", short:"Calidad de código", track:"delivery", level:"Professional", minutes:170, description:"Convierte notebooks en un paquete comprobable con límites claros y entornos reproducibles.", outcomes:["Diseñar un paquete Python modular","Gestionar wheels y dependencias","Probar DataFrames y contratos"], topics:["Estructura src y separación de I/O","Wheels, PyPI y versiones fijadas","Funciones transform puras","assertDataFrameEqual y assertSchemaEqual","Unit, integration y smoke tests"], practice:"Extrae una transformación a paquete y crea pruebas de datos y esquema.", snippet:"from pyspark.testing import assertDataFrameEqual\nassertDataFrameEqual(actual, expected)", checkTerms:["assertDataFrameEqual","actual"], examDomains:["Developing Code","Testing"], sourcePath:"/pyspark/testing" },
+  { id:"m29", title:"Declarative Automation Bundles y CI/CD", short:"CI/CD", track:"delivery", level:"Professional", minutes:170, description:"Define recursos como código y promociona el mismo artefacto validado entre targets.", outcomes:["Estructurar un bundle completo","Validar y desplegar con CLI","Integrar identidad de servicio y pipeline Git"], topics:["Bundle configuration y includes","Resources: jobs y pipelines","Variables, substitutions y targets","validate, deploy y run","CI/CD, service principals y approvals"], practice:"Empaqueta un job y pipeline con targets dev, test y prod y una validación automática.", snippet:"databricks bundle validate -t dev\ndatabricks bundle deploy -t dev", checkTerms:["bundle validate","bundle deploy"], examDomains:["Deploying CI/CD","Databricks CLI"], sourcePath:"/dev-tools/bundles/" },
+  { id:"m30", title:"Unity Catalog avanzado y privacidad", short:"Seguridad", track:"delivery", level:"Professional", minutes:170, description:"Aplica controles centralizados a datos sensibles y demuestra cumplimiento mediante auditoría.", outcomes:["Diseñar herencia y ownership","Aplicar row filters, masks y ABAC","Implementar retención, anonimización y purga"], topics:["Modelo de privilegios e inheritance","Workspace ACLs y securables","Row filters y column masks","ABAC y políticas centralizadas","PII, tokenización, retención y auditoría"], practice:"Protege un dominio de clientes con ABAC, máscara de email y política de retención.", snippet:"ALTER TABLE main.gold.customers ALTER COLUMN email SET MASK main.security.email_mask;", checkTerms:["SET MASK","email"], examDomains:["Data Security and Compliance","Data Governance"], sourcePath:"/data-governance/unity-catalog/filters-and-masks/" },
+  { id:"m31", title:"Delta Sharing y Lakehouse Federation", short:"Interoperabilidad", track:"delivery", level:"Professional", minutes:170, description:"Comparte o consulta datos externos con el mínimo movimiento y un perímetro gobernado.", outcomes:["Comparar D2D y open sharing","Configurar federation con pushdown","Elegir compartir, federar o ingerir"], topics:["Delta Sharing y shares","Databricks-to-Databricks","Open sharing recipients","Lakehouse Federation y connections","Matriz compartir, federar o copiar"], practice:"Diseña una colaboración con un socio externo y una consulta federada de baja frecuencia.", snippet:"CREATE SHARE partner_share;\nALTER SHARE partner_share ADD TABLE main.gold.sales;", checkTerms:["CREATE SHARE","ADD TABLE"], examDomains:["Data Sharing and Federation"], sourcePath:"/delta-sharing/" },
 
-orders = spark.table("...")
-
-daily = (
-    orders
-      # completa las transformaciones
-)
-
-display(daily)`,
-      solution: `from pyspark.sql import functions as F
-
-orders = spark.table("main.sales.orders")
-
-daily = (
-    orders
-      .filter(F.col("status") == "COMPLETE")
-      .groupBy("order_date")
-      .agg(F.sum("amount").alias("revenue"))
-)
-
-display(daily)`,
-      checks: [
-        { label: "Lee la tabla con spark.table", pattern: "spark\\.table\\(\\s*[\"']main\\.sales\\.orders[\"']\\s*\\)" },
-        { label: "Filtra pedidos COMPLETE", pattern: "\\.filter\\([^\\n]*complete" },
-        { label: "Agrupa por order_date", pattern: "\\.groupby\\(\\s*[\"']order_date[\"']\\s*\\)" },
-        { label: "Suma amount como revenue", pattern: "sum\\(\\s*[\"']amount[\"']\\s*\\).*alias\\(\\s*[\"']revenue[\"']" },
-      ],
-      result: { columns: ["order_date", "revenue"], rows: [["2026-07-18", "120.50"], ["2026-07-19", "79.50"]] },
-      successMessage: "Transformación válida. El resultado conserva solo pedidos completos y agrega por día.",
-      hints: ["Encadena filter antes de groupBy para reducir filas antes del shuffle.", "La agregación esperada es F.sum('amount').alias('revenue')."],
-    },
-    questions: [
-      { question: "¿Qué ocurre al llamar a filter() sobre un DataFrame?", options: ["Se leen todos los archivos", "Se ejecuta un job inmediatamente", "Se añade una transformación al plan", "Se crea una tabla Delta"], answer: 2, explanation: "filter() es una transformación perezosa; añade lógica al plan sin ejecutar aún el job." },
-      { question: "¿Qué operación suele provocar un shuffle?", options: ["select de una columna", "groupBy por una clave", "withColumn con literal", "limit en el driver"], answer: 1, explanation: "Para agrupar una clave, Spark normalmente debe reunir valores iguales desde distintas particiones." },
-      { question: "¿Cuándo tiene sentido un broadcast join?", options: ["Cuando ambas tablas son enormes", "Cuando una tabla es pequeña y cabe con seguridad en memoria", "Siempre que exista skew", "Solo en streaming"], answer: 1, explanation: "Replicar una dimensión pequeña evita redistribuir la tabla grande, siempre que el tamaño sea seguro." },
-      { question: "¿Por qué se prefieren funciones nativas a una UDF?", options: ["Nunca pueden fallar", "El optimizador puede entenderlas y optimizarlas", "Solo usan el driver", "No requieren esquema"], answer: 1, explanation: "Las expresiones nativas permanecen visibles para Catalyst y suelen evitar barreras de serialización." },
-    ],
-    source: { label: "Documentación: PySpark en Databricks", href: "https://docs.databricks.com/aws/en/pyspark/" },
-  },
-  {
-    number: "03",
-    title: "Ingesta incremental y Auto Loader",
-    short: "Ingesta",
-    level: "Intermedio",
-    exam: "Associate + Professional",
-    duration: "75 min",
-    icon: "▱",
-    description: "Elige el patrón correcto para cargas batch e incrementales y controla esquema, checkpoints y evolución.",
-    outcomes: ["Elegir COPY INTO, Auto Loader o streaming", "Diseñar una ingesta incremental", "Separar schemaLocation y checkpointLocation"],
-    sections: [
-      {
-        kicker: "Patrones de carga",
-        title: "Batch e incremental resuelven problemas distintos",
-        paragraphs: [
-          "COPY INTO carga archivos de forma idempotente al mantener registro de los ya procesados. Es una buena opción SQL para ingestiones periódicas y sencillas desde almacenamiento cloud o Volumes.",
-          "Auto Loader está diseñado para descubrir y procesar nuevos archivos de forma incremental a escala. Usa el origen cloudFiles y mantiene estado para no releer todo el directorio.",
-        ],
-        points: ["COPY INTO: batch SQL idempotente", "Auto Loader: descubrimiento incremental escalable", "Una carga completa sigue siendo válida para datasets pequeños y acotados"],
-      },
-      {
-        kicker: "Estado",
-        title: "El checkpoint es la memoria operativa del stream",
-        paragraphs: [
-          "checkpointLocation registra el progreso de una consulta de streaming: offsets, commits y estado necesario para continuar. Reutilizar o borrar checkpoints sin entender la semántica puede reprocesar datos.",
-          "cloudFiles.schemaLocation conserva el esquema inferido y su evolución. Aunque ambos paths pueden coincidir en algunos patrones, representan responsabilidades distintas y conviene diseñarlos explícitamente.",
-        ],
-        points: ["Un checkpoint pertenece a una única consulta", "No lo borres para arreglar un bug de código", "Los paths de estado deben ser durables y únicos"],
-      },
-      {
-        kicker: "Esquema",
-        title: "Inferir no equivale a gobernar",
-        paragraphs: [
-          "La inferencia acelera el arranque, pero una pipeline productiva necesita una política de evolución y columnas rescatadas. Auto Loader puede capturar datos que no encajan en el esquema para evitar pérdida silenciosa.",
-          "En bronze suele preservarse el payload con metadatos de origen; la validación fuerte llega en silver. Esta separación permite reejecutar transformaciones sin volver a contactar la fuente.",
-        ],
-        points: ["Conserva nombre de archivo y timestamp de ingesta", "Define cómo tratar columnas nuevas", "No promuevas automáticamente cualquier cambio de tipo"],
-      },
-    ],
-    code: {
-      language: "Python",
-      title: "Auto Loader con estado separado",
-      content: `landing = "/Volumes/main/landing/orders"
-
-stream = (
-  spark.readStream
-    .format("cloudFiles")
-    .option("cloudFiles.format", "json")
-    .option("cloudFiles.schemaLocation", "/Volumes/main/state/orders/schema")
-    .load(landing)
-)
-
-(stream.writeStream
-  .option("checkpointLocation", "/Volumes/main/state/orders/checkpoint")
-  .trigger(availableNow=True)
-  .toTable("main.bronze.orders"))`,
-    },
-    lab: {
-      title: "Carga nuevos JSON con COPY INTO",
-      goal: "Escribir una ingesta SQL idempotente desde un Volume a una tabla bronze.",
-      steps: ["Revisa la ruta y el esquema de los archivos de entrada.", "Escribe COPY INTO sobre main.bronze.orders.", "Declara JSON como formato de origen y activa inferSchema.", "Ejecuta dos veces y comprueba que los archivos ya cargados no se duplican."],
-      checkpoint: "La segunda ejecución no añade filas porque COPY INTO reconoce los archivos procesados.",
-      language: "SQL",
-      dataset: { name: "/Volumes/main/landing/orders", schema: ["order_id BIGINT", "order_ts TIMESTAMP", "customer_id BIGINT", "amount DOUBLE"], preview: [["1001", "2026-07-18T09:00:00", "81", "120.50"], ["1002", "2026-07-18T09:04:00", "22", "45.00"], ["1003", "2026-07-18T09:08:00", "81", "79.50"]] },
-      challenge: "Carga los JSON de /Volumes/main/landing/orders en main.bronze.orders con COPY INTO. Activa inferSchema dentro de FORMAT_OPTIONS.",
-      starterCode: `COPY INTO ...
-FROM '...'
-FILEFORMAT = ...
-FORMAT_OPTIONS (...);`,
-      solution: `COPY INTO main.bronze.orders
-FROM '/Volumes/main/landing/orders'
-FILEFORMAT = JSON
-FORMAT_OPTIONS ('inferSchema' = 'true');`,
-      checks: [
-        { label: "Usa COPY INTO sobre la tabla bronze", pattern: "copy\\s+into\\s+main\\.bronze\\.orders" },
-        { label: "Lee desde el Volume indicado", pattern: "from\\s+[\"']/volumes/main/landing/orders[\"']" },
-        { label: "Declara JSON como formato", pattern: "fileformat\\s*=\\s*json" },
-        { label: "Activa inferSchema", pattern: "format_options[\\s\\S]*inferschema[\"']?\\s*=\\s*[\"']true" },
-      ],
-      result: { columns: ["files_loaded", "rows_loaded", "status"], rows: [["3", "3", "SUCCESS"]] },
-      successMessage: "Carga completada. Una segunda ejecución simulará 0 archivos nuevos por idempotencia.",
-      hints: ["La tabla objetivo va justo después de COPY INTO.", "FORMAT_OPTIONS recibe pares clave/valor; usa 'inferSchema' = 'true'."],
-    },
-    questions: [
-      { question: "¿Qué patrón SQL evita volver a cargar archivos ya procesados?", options: ["INSERT OVERWRITE", "COPY INTO", "CACHE TABLE", "VACUUM"], answer: 1, explanation: "COPY INTO mantiene registro de archivos cargados y ofrece un patrón batch idempotente." },
-      { question: "¿Qué formato activa Auto Loader?", options: ["deltaFiles", "cloudFiles", "autoStream", "fileLoader"], answer: 1, explanation: "Auto Loader se configura con .format('cloudFiles') y el formato real en cloudFiles.format." },
-      { question: "¿Qué guarda checkpointLocation?", options: ["Solo el esquema", "Progreso y estado de la consulta streaming", "Las credenciales", "El código del notebook"], answer: 1, explanation: "El checkpoint permite reanudar una consulta manteniendo offsets, commits y estado." },
-      { question: "¿Dónde conviene aplicar reglas de calidad fuertes en medallion?", options: ["Solo en el fichero fuente", "En silver, preservando bronze para trazabilidad", "Después de gold", "En el driver"], answer: 1, explanation: "Bronze conserva la entrada; silver aplica conformado, deduplicación y calidad reutilizable." },
-    ],
-    source: { label: "Documentación: Auto Loader", href: "https://docs.databricks.com/aws/en/ingestion/cloud-object-storage/auto-loader/" },
-  },
-  {
-    number: "04",
-    title: "Delta Lake y modelado fiable",
-    short: "Delta",
-    level: "Avanzado",
-    exam: "Associate + Professional",
-    duration: "80 min",
-    icon: "◇",
-    description: "Construye tablas transaccionales, cargas incrementales idempotentes y capas medallion con contratos explícitos.",
-    outcomes: ["Razonar sobre el log transaccional", "Diseñar MERGE idempotente", "Gestionar esquema, historial y calidad"],
-    sections: [
-      {
-        kicker: "Tabla abierta",
-        title: "Delta añade un protocolo transaccional a archivos",
-        paragraphs: [
-          "Una tabla Delta combina archivos de datos con un transaction log que registra versiones y acciones. Los lectores obtienen una instantánea coherente; los escritores aplican control de concurrencia en lugar de editar archivos a ciegas.",
-          "ACID no elimina la necesidad de diseñar claves, contratos y procesos idempotentes. Garantiza consistencia transaccional, no semántica de negocio.",
-        ],
-        points: ["Cada commit produce una nueva versión", "Los lectores trabajan sobre snapshots coherentes", "La tabla es más que una carpeta de Parquet"],
-      },
-      {
-        kicker: "Medallion",
-        title: "Bronze, silver y gold separan responsabilidades",
-        paragraphs: [
-          "Bronze preserva la entrada con mínima transformación; silver normaliza, deduplica y aplica reglas; gold presenta entidades y métricas orientadas a consumo. No son tres copias arbitrarias, sino contratos con propósitos distintos.",
-          "MERGE es útil para upserts, pero la condición debe identificar de forma estable la fila objetivo. Si la fuente contiene duplicados para la misma clave, debes resolverlos antes del merge.",
-        ],
-        points: ["Bronze optimiza trazabilidad", "Silver concentra calidad y conformado", "Gold se diseña desde el caso de uso"],
-      },
-      {
-        kicker: "Evolución",
-        title: "El esquema es un contrato, no un accidente",
-        paragraphs: [
-          "Delta aplica enforcement al escribir: los datos deben ser compatibles con el esquema. La evolución puede habilitarse de forma explícita para cambios soportados, pero automatizarla sin controles puede propagar columnas inesperadas.",
-          "Time travel consulta versiones anteriores mientras los archivos necesarios sigan retenidos. No sustituye un backup ni garantiza recuperación después de eliminar físicamente archivos antiguos.",
-        ],
-        points: ["Diferencia enforcement de evolution", "Revisa retención antes de depender de time travel", "Usa historial para investigar cambios"],
-      },
-    ],
-    code: {
-      language: "SQL",
-      title: "Upsert incremental e histórico",
-      content: `MERGE INTO main.silver.customers AS target
-USING main.bronze.customer_updates AS source
-ON target.customer_id = source.customer_id
-WHEN MATCHED AND source.updated_at > target.updated_at THEN
-  UPDATE SET *
-WHEN NOT MATCHED THEN
-  INSERT *;
-
-DESCRIBE HISTORY main.silver.customers;
-
-SELECT * FROM main.silver.customers VERSION AS OF 12;`,
-    },
-    lab: {
-      title: "Prueba la idempotencia",
-      goal: "Ejecutar dos veces la misma carga sin duplicar ni degradar datos.",
-      steps: ["Crea una fuente con dos actualizaciones para la misma customer_id.", "Deduplica por clave conservando el updated_at más reciente.", "Ejecuta MERGE y registra conteo y hash de control.", "Repite exactamente la misma carga y demuestra que el resultado no cambia."],
-      checkpoint: "La segunda ejecución produce cero cambio semántico y puedes justificar la condición de MATCH.",
-      language: "SQL",
-      dataset: { name: "main.bronze.customer_updates", schema: ["customer_id BIGINT", "email STRING", "updated_at TIMESTAMP"], preview: [["7", "ana@example.com", "2026-07-18T10:00:00"], ["7", "ana.new@example.com", "2026-07-18T11:00:00"], ["9", "leo@example.com", "2026-07-18T10:30:00"]] },
-      challenge: "Haz MERGE de customer_updates sobre main.silver.customers por customer_id. Actualiza solo cuando source.updated_at sea más reciente e inserta las claves nuevas.",
-      starterCode: `MERGE INTO main.silver.customers AS target
-USING main.bronze.customer_updates AS source
-ON ...
-WHEN MATCHED AND ... THEN
-  UPDATE SET *
-WHEN ... THEN
-  ...;`,
-      solution: `MERGE INTO main.silver.customers AS target
-USING main.bronze.customer_updates AS source
-ON target.customer_id = source.customer_id
-WHEN MATCHED AND source.updated_at > target.updated_at THEN
-  UPDATE SET *
-WHEN NOT MATCHED THEN
-  INSERT *;`,
-      checks: [
-        { label: "Usa MERGE sobre la tabla silver", pattern: "merge\\s+into\\s+main\\.silver\\.customers" },
-        { label: "Une por customer_id", pattern: "target\\.customer_id\\s*=\\s*source\\.customer_id" },
-        { label: "Protege contra actualizaciones antiguas", pattern: "source\\.updated_at\\s*>\\s*target\\.updated_at" },
-        { label: "Inserta claves nuevas", pattern: "when\\s+not\\s+matched[\\s\\S]*insert" },
-      ],
-      result: { columns: ["customer_id", "email", "operation"], rows: [["7", "ana.new@example.com", "UPDATE"], ["9", "leo@example.com", "INSERT"]] },
-      successMessage: "MERGE válido. La condición evita que una actualización antigua reemplace datos más recientes.",
-      hints: ["La condición ON identifica la entidad; la condición de WHEN MATCHED decide si actualizar.", "Las filas nuevas se manejan con WHEN NOT MATCHED THEN INSERT *."],
-    },
-    questions: [
-      { question: "¿Qué registra el Delta transaction log?", options: ["Solo permisos", "Versiones y acciones sobre la tabla", "El caché de Spark", "Contraseñas de conexión"], answer: 1, explanation: "El log permite reconstruir snapshots y coordinar commits sobre los archivos de datos." },
-      { question: "¿Qué debe ocurrir antes de MERGE si la fuente repite la clave?", options: ["Aumentar el warehouse", "Deduplicar con una regla determinista", "Ejecutar VACUUM", "Convertir todo a STRING"], answer: 1, explanation: "Múltiples filas fuente para el mismo objetivo hacen ambiguo el upsert; hay que resolverlas primero." },
-      { question: "¿Qué describe mejor silver?", options: ["Copia inmutable de la entrada", "Datos conformados con calidad aplicada", "Dashboard final", "Solo archivos temporales"], answer: 1, explanation: "Silver concentra limpieza, normalización, deduplicación y reglas de calidad reutilizables." },
-      { question: "¿Qué limitación tiene time travel?", options: ["Solo funciona con CSV", "Depende de que los archivos históricos sigan retenidos", "No admite SQL", "Duplica siempre la tabla"], answer: 1, explanation: "Si el mantenimiento elimina archivos necesarios, una versión antigua ya no puede reconstruirse." },
-    ],
-    source: { label: "Documentación: Delta Lake", href: "https://docs.databricks.com/aws/en/delta/" },
-  },
-  {
-    number: "05",
-    title: "Pipelines declarativos y calidad",
-    short: "Pipelines",
-    level: "Avanzado",
-    exam: "Professional",
-    duration: "90 min",
-    icon: "⌘",
-    description: "Construye pipelines declarativos con streaming tables, materialized views, expectations y gestión incremental.",
-    outcomes: ["Elegir streaming table o materialized view", "Aplicar expectations de calidad", "Diseñar CDC y observabilidad"],
-    sections: [
-      {
-        kicker: "Declarativo",
-        title: "Describe el resultado; el sistema resuelve la ejecución",
-        paragraphs: [
-          "Lakeflow Declarative Pipelines permite declarar tablas y vistas a partir de consultas. El motor construye dependencias, administra ejecución incremental y registra eventos del pipeline.",
-          "Una streaming table procesa nuevas entradas de manera incremental; una materialized view recalcula resultados de consulta mediante estrategias gestionadas. La elección depende de semántica, no solo de latencia.",
-        ],
-        points: ["Streaming table: flujo incremental", "Materialized view: resultado mantenido de una consulta", "La dependencia se infiere de las lecturas"],
-      },
-      {
-        kicker: "Calidad",
-        title: "Una expectation hace visible la decisión sobre datos inválidos",
-        paragraphs: [
-          "Las expectations expresan una condición y una acción: registrar, descartar o fallar. Elegir la acción exige distinguir si una fila inválida es tolerable, corregible o compromete todo el dataset.",
-          "Fallar protege contratos estrictos, pero también detiene downstream. Descartar mantiene el flujo, aunque requiere métricas y una vía para investigar lo rechazado.",
-        ],
-        points: ["EXPECT: observa", "EXPECT OR DROP: excluye filas", "EXPECT OR FAIL: aborta la actualización"],
-      },
-      {
-        kicker: "CDC y operación",
-        title: "El orden de cambios importa tanto como la clave",
-        paragraphs: [
-          "Un flujo CDC debe identificar claves y una secuencia que ordene actualizaciones. Sin orden estable, un evento antiguo puede sobrescribir un estado más reciente.",
-          "El event log del pipeline permite observar progreso, calidad y fallos. La observabilidad debe conectarse a alertas y SLOs; consultar el log solo durante incidentes llega demasiado tarde.",
-        ],
-        points: ["Define keys y sequence_by", "Decide SCD tipo 1 o 2", "Monitoriza expectativas y duración de updates"],
-      },
-    ],
-    code: {
-      language: "Python",
-      title: "Streaming table con expectation",
-      content: `from pyspark import pipelines as dp
-from pyspark.sql import functions as F
-
-@dp.table(name="orders_silver")
-@dp.expect_or_drop("valid_order_id", "order_id IS NOT NULL")
-@dp.expect("non_negative_amount", "amount >= 0")
-def orders_silver():
-    return (
-        spark.readStream.table("main.bronze.orders")
-          .withColumn("order_date", F.to_date("order_ts"))
-    )`,
-    },
-    lab: {
-      title: "Declara una streaming table con calidad",
-      goal: "Crear una tabla silver incremental que descarte filas sin order_id y registre importes negativos.",
-      steps: ["Importa pipelines como dp y functions como F.", "Declara orders_silver con @dp.table.", "Añade expect_or_drop para order_id y expect para amount.", "Lee main.bronze.orders con spark.readStream.table."],
-      checkpoint: "La definición es declarativa, incremental y diferencia claramente la política de cada regla de calidad.",
-      language: "Python",
-      dataset: { name: "main.bronze.orders", schema: ["order_id BIGINT", "order_ts TIMESTAMP", "amount DOUBLE"], preview: [["1001", "2026-07-18T09:00:00", "120.50"], ["null", "2026-07-18T09:02:00", "40.00"], ["1003", "2026-07-18T09:08:00", "-5.00"]] },
-      challenge: "Define orders_silver como tabla declarativa. Descarta order_id nulos, registra amount negativo sin detener el pipeline y lee la tabla bronze como stream.",
-      starterCode: `from pyspark import pipelines as dp
-
-# añade decoradores de tabla y calidad
-def orders_silver():
-    return ...`,
-      solution: `from pyspark import pipelines as dp
-
-@dp.table(name="orders_silver")
-@dp.expect_or_drop("valid_order_id", "order_id IS NOT NULL")
-@dp.expect("non_negative_amount", "amount >= 0")
-def orders_silver():
-    return spark.readStream.table("main.bronze.orders")`,
-      checks: [
-        { label: "Declara la tabla orders_silver", pattern: "@dp\\.table\\([^)]*orders_silver" },
-        { label: "Descarta order_id nulos", pattern: "@dp\\.expect_or_drop\\([^)]*order_id\\s+is\\s+not\\s+null" },
-        { label: "Registra la regla de amount", pattern: "@dp\\.expect\\([^)]*amount\\s*>=\\s*0" },
-        { label: "Lee bronze como stream", pattern: "spark\\.readstream\\.table\\(\\s*[\"']main\\.bronze\\.orders[\"']\\s*\\)" },
-      ],
-      result: { columns: ["dataset", "accepted", "dropped", "quality_warnings"], rows: [["orders_silver", "2", "1", "1"]] },
-      successMessage: "Pipeline válido. La fila sin order_id se descarta y el importe negativo queda registrado como métrica de calidad.",
-      hints: ["Los decoradores se aplican encima de def orders_silver().", "expect_or_drop elimina; expect registra la violación y conserva la fila."],
-    },
-    questions: [
-      { question: "¿Qué hace EXPECT OR DROP?", options: ["Detiene todo el pipeline", "Registra y descarta filas inválidas", "Corrige valores automáticamente", "Borra la tabla"], answer: 1, explanation: "La expectation registra la métrica y excluye las filas que no cumplen la condición." },
-      { question: "¿Qué objeto conviene para una fuente incremental continua?", options: ["Streaming table", "Temporary view local", "Scalar function", "Dashboard"], answer: 0, explanation: "Una streaming table mantiene incrementalmente un flujo de entradas nuevas." },
-      { question: "¿Qué necesita un CDC para ordenar cambios?", options: ["Solo el nombre de tabla", "Clave y columna de secuencia", "Un SQL warehouse grande", "VACUUM diario"], answer: 1, explanation: "La clave identifica la entidad y sequence_by decide qué cambio es más reciente." },
-      { question: "¿Dónde se observan eventos y métricas del pipeline?", options: ["Solo en stdout", "En el event log", "En el Model Registry", "En el navegador del usuario"], answer: 1, explanation: "El event log registra actualizaciones, progreso, calidad y detalles operativos del pipeline." },
-    ],
-    source: { label: "Documentación: Lakeflow Declarative Pipelines", href: "https://docs.databricks.com/aws/en/ldp/" },
-  },
-  {
-    number: "06",
-    title: "Producción con Lakeflow Jobs",
-    short: "Producción",
-    level: "Avanzado",
-    exam: "Associate + Professional",
-    duration: "90 min",
-    icon: "↗",
-    description: "Diseña DAGs idempotentes, observables y gobernados para sustituir ejecuciones manuales de notebooks.",
-    outcomes: ["Diseñar un job multi-tarea", "Gestionar fallos y reintentos", "Definir criterios reales de producción"],
-    sections: [
-      {
-        kicker: "Orquestación",
-        title: "Un job expresa dependencias, no una lista de notebooks",
-        paragraphs: [
-          "Lakeflow Jobs organiza tareas en un DAG: una tarea debe depender solo de salidas necesarias, permitiendo paralelismo y recuperación localizada. Un notebook monolítico oculta esas fronteras.",
-          "Parametriza entorno y ventana de proceso en vez de editar código. Las tareas deben ser idempotentes para que un reintento no duplique resultados ni corrompa estado.",
-        ],
-        points: ["Separa ingestión, calidad y publicación", "Explicita dependencias de datos", "Diseña para reejecución segura"],
-      },
-      {
-        kicker: "Fiabilidad",
-        title: "Reintentar solo ayuda ante fallos transitorios",
-        paragraphs: [
-          "Un retry puede resolver una interrupción temporal, pero repite un bug determinista y puede empeorar una escritura no idempotente. Clasifica fallos y limita reintentos con backoff.",
-          "Observabilidad combina estado de la tarea, métricas de datos, logs y alertas accionables. Una notificación que no identifica impacto, run y punto de fallo produce ruido, no operación.",
-        ],
-        points: ["Alerta sobre impacto, no sobre cada evento", "Distingue calidad de fallo técnico", "Conserva run_id y parámetros para diagnóstico"],
-      },
-      {
-        kicker: "Entrega",
-        title: "Producción es un conjunto de garantías",
-        paragraphs: [
-          "Promover código requiere versionado, revisión, pruebas y configuración separada del código. Las credenciales deben resolverse mediante mecanismos de secretos o identidades de servicio, nunca incrustarse en notebooks.",
-          "Define SLOs de frescura y éxito, ownership, runbook y estrategia de rollback. Si el equipo no sabe detectar, mitigar y recuperar un fallo, el pipeline aún no está listo para producción.",
-        ],
-        points: ["Código revisado y versionado", "Configuración por entorno", "SLO, alertas, runbook y rollback"],
-      },
-    ],
-    code: {
-      language: "Python",
-      title: "Esqueleto idempotente por ventana",
-      content: `from datetime import date
-from pyspark.sql import functions as F
-
-process_date = dbutils.widgets.get("process_date")
-source = spark.table("main.bronze.events")
-
-batch = source.filter(F.to_date("event_ts") == F.lit(process_date))
-
-(batch.write
-  .format("delta")
-  .mode("overwrite")
-  .option("replaceWhere", f"event_date = '{process_date}'")
-  .saveAsTable("main.silver.events"))`,
-    },
-    lab: {
-      title: "Lleva un flujo a producción",
-      goal: "Transformar una secuencia manual en un DAG operable.",
-      steps: ["Divide ingestión, validación y publicación en tareas con límites claros.", "Añade process_date como parámetro y prueba la reejecución de la misma ventana.", "Configura retry solo para una tarea con fallo transitorio simulado.", "Define alerta, SLO de frescura y un runbook de cinco pasos."],
-      checkpoint: "Puedes reejecutar una fecha sin duplicados y explicar cómo detectar, contener y recuperar un fallo.",
-      language: "Python",
-      dataset: { name: "main.bronze.events", schema: ["event_id BIGINT", "event_ts TIMESTAMP", "event_date DATE", "payload STRING"], preview: [["501", "2026-07-18T08:00:00", "2026-07-18", "open"], ["502", "2026-07-18T08:02:00", "2026-07-18", "click"], ["503", "2026-07-19T09:00:00", "2026-07-19", "open"]] },
-      challenge: "Filtra main.bronze.events por process_date y sobrescribe solo esa partición en main.silver.events usando replaceWhere. El código debe ser seguro al reintentarse.",
-      starterCode: `process_date = "2026-07-18"
-source = spark.table("...")
-
-batch = source.filter(...)
-
-(batch.write
-  .format("delta")
-  .mode(...)
-  .option(...)
-  .saveAsTable(...))`,
-      solution: `from pyspark.sql import functions as F
-
-process_date = "2026-07-18"
-source = spark.table("main.bronze.events")
-batch = source.filter(F.col("event_date") == process_date)
-
-(batch.write
-  .format("delta")
-  .mode("overwrite")
-  .option("replaceWhere", f"event_date = '{process_date}'")
-  .saveAsTable("main.silver.events"))`,
-      checks: [
-        { label: "Lee la fuente bronze", pattern: "spark\\.table\\(\\s*[\"']main\\.bronze\\.events[\"']\\s*\\)" },
-        { label: "Filtra por event_date", pattern: "\\.filter\\([^\\n]*event_date" },
-        { label: "Sobrescribe de forma controlada", pattern: "\\.mode\\(\\s*[\"']overwrite[\"']\\s*\\)" },
-        { label: "Limita la escritura con replaceWhere", pattern: "\\.option\\(\\s*[\"']replacewhere[\"']" },
-        { label: "Publica en silver", pattern: "saveastable\\(\\s*[\"']main\\.silver\\.events[\"']\\s*\\)" },
-      ],
-      result: { columns: ["event_date", "rows_written", "target", "retry_safe"], rows: [["2026-07-18", "2", "main.silver.events", "true"]] },
-      successMessage: "Escritura acotada por partición. Repetir la misma fecha reemplaza esa ventana en vez de duplicarla.",
-      hints: ["mode('overwrite') sin replaceWhere sería demasiado amplio.", "replaceWhere debe expresar la misma ventana usada en el filtro."],
-    },
-    questions: [
-      { question: "¿Qué propiedad hace seguro un retry?", options: ["Más memoria", "Idempotencia", "Un nombre corto", "Un dashboard"], answer: 1, explanation: "Una tarea idempotente produce el mismo estado correcto al repetirse con la misma entrada." },
-      { question: "¿Cuándo es apropiado reintentar?", options: ["Ante cualquier bug", "Ante fallos transitorios acotados", "Cuando una regla de calidad falla siempre", "Para corregir credenciales inválidas"], answer: 1, explanation: "Los reintentos ayudan con fallos temporales; los deterministas requieren corregir causa o entrada." },
-      { question: "¿Qué describe mejor un DAG?", options: ["Una lista visual sin dependencias", "Tareas y dependencias dirigidas sin ciclos", "Un tipo de tabla", "Un clúster compartido"], answer: 1, explanation: "El DAG expresa orden y paralelismo mediante dependencias dirigidas acíclicas." },
-      { question: "¿Qué conjunto indica preparación operativa?", options: ["Notebook y captura de pantalla", "SLO, alertas, runbook y rollback", "Solo auto-scaling", "Un propietario sin pruebas"], answer: 1, explanation: "Producción exige garantías para detectar, responder y recuperar, además de ejecutar código." },
-    ],
-    source: { label: "Documentación: Lakeflow Jobs", href: "https://docs.databricks.com/aws/en/jobs/" },
-  },
+  { id:"m32", title:"Proyecto Professional y simulacro de 59 preguntas", short:"Hito Professional", track:"final", level:"Professional", minutes:210, description:"Converge las cuatro ramas en una solución production-grade y mide la preparación final.", outcomes:["Diseñar y defender una plataforma completa","Responder a fallos, costes y cumplimiento","Completar un simulacro Professional original"], topics:["Brief, NFRs y arquitectura","Pipeline batch y streaming","Seguridad, interoperabilidad y CI/CD","Game day, FinOps y postmortem","Defensa técnica y simulacro Professional"], practice:"Entrega una plataforma de pedidos omnicanal con CDC, SLO, CI/CD, gobierno y runbook.", snippet:"-- CAPSTONE PROFESSIONAL\nSELECT 'ready' AS status, current_timestamp() AS reviewed_at;", checkTerms:["CAPSTONE PROFESSIONAL","reviewed_at"], examDomains:["Todos los dominios Professional"], sourcePath:"https://www.databricks.com/sites/default/files/2025-11/databricks-certified-data-engineer-professional-exam-guide-november-30-2025_0.pdf" },
 ];
+
+const lessonKickers = ["Modelo mental", "Implementación", "Operación", "Diagnóstico", "Decisión de diseño"];
+
+function slugify(value: string) {
+  return value.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "");
+}
+
+function prerequisitesFor(index: number, track: TrackId): string[] {
+  if (index === 0) return [];
+  if (track === "core") return [seeds[index - 1].id];
+  if (track === "final") return ["m17", "m22", "m27", "m31"];
+  const previous = seeds[index - 1];
+  return previous.track === track ? [previous.id] : ["m12"];
+}
+
+function makeLessons(seed: ModuleSeed): Lesson[] {
+  return seed.topics.map((topic, index) => ({
+    id: `${seed.id}-l${index + 1}`,
+    kicker: lessonKickers[index],
+    title: topic,
+    summary: `Esta lección sitúa ${topic.toLowerCase()} dentro de ${seed.title.toLowerCase()}, con una decisión técnica concreta y criterios para comprobarla.`,
+    detail: index === 0
+      ? `${seed.description} Empieza por el modelo mental: identifica qué estado persiste, qué componente ejecuta la carga y dónde se aplican los controles. El objetivo no es memorizar nombres, sino poder defender la arquitectura ante requisitos de volumen, latencia, seguridad y coste.`
+      : `Trabaja el tema con datos representativos y compara el resultado esperado con las señales de ejecución. Documenta supuestos, límites y el comportamiento ante reintentos o cambios de esquema; en producción, una solución correcta también debe ser observable, gobernable y recuperable.`,
+    decisions: [seed.outcomes[index % seed.outcomes.length], `Evita aplicar ${topic.toLowerCase()} como receta universal`, "Valida la decisión con métricas y una condición de aceptación"],
+  }));
+}
+
+function makeLab(seed: ModuleSeed): Lab {
+  return {
+    title: seed.track === "final" || ["m12", "m17", "m22", "m27"].includes(seed.id) ? seed.title : `Laboratorio: ${seed.short}`,
+    goal: seed.practice,
+    steps: ["Prepara un catálogo y esquema de aprendizaje sin credenciales incrustadas.", seed.practice, "Ejecuta dos veces o simula un fallo para comprobar idempotencia y recuperación.", "Registra resultado, métricas, supuestos y una mejora pendiente."],
+    starterCode: `# Completa el ejercicio de ${seed.short}\n# TODO: aplica la solución y documenta la evidencia\n`,
+    solution: seed.snippet,
+    checks: seed.checkTerms.map((term) => ({ label: `Incluye ${term}`, pattern: term.replace(/[.*+?^${}()|[\]\\]/g, "\\$&") })),
+    cloudNotes: [
+      { cloud:"AWS", note:"Usa S3 y una storage credential de Unity Catalog cuando el ejercicio necesite object storage." },
+      { cloud:"Azure", note:"Sustituye el almacenamiento por ADLS Gen2 y usa la identidad administrada o service principal autorizada." },
+      { cloud:"GCP", note:"Usa GCS y una storage credential respaldada por una service account con mínimo privilegio." },
+    ],
+  };
+}
+
+function makeQuiz(seed: ModuleSeed): QuizQuestion[] {
+  return [
+    { question:`¿Cuál es el resultado principal del módulo ${seed.id.slice(1)}?`, options:[seed.outcomes[0],"Aumentar compute sin medir","Eliminar los controles de gobierno","Convertir toda carga en streaming"], answer:0, explanation:`El objetivo evaluado es ${seed.outcomes[0].toLowerCase()}; las demás opciones son decisiones sin contexto.` },
+    { question:"¿Qué enfoque es más sólido para producción?", options:["Copiar una receta sin revisar el workload",seed.outcomes[1],"Ocultar métricas para simplificar","Depender de una ejecución manual"], answer:1, explanation:`La opción correcta conecta la implementación con el resultado observable: ${seed.outcomes[1].toLowerCase()}.` },
+    { question:`¿Qué error conviene evitar al trabajar con ${seed.short}?`, options:["Documentar supuestos","Probar con datos representativos",`Aplicar ${seed.topics[2].toLowerCase()} como regla universal`,"Definir una condición de aceptación"], answer:2, explanation:"Una práctica útil en un contexto puede ser perjudicial en otro; hay que validar con evidencia y restricciones reales." },
+    { question:"¿Qué evidencia demuestra mejor que el laboratorio está terminado?", options:["Una captura sin contexto","Que el código no dé error una vez","Haber leído la documentación",`Resultado reproducible, métricas y explicación de ${seed.outcomes[2].toLowerCase()}`], answer:3, explanation:"La finalización exige resultado reproducible, evidencia y capacidad de explicar la decisión." },
+  ];
+}
+
+export const modules: CurriculumModule[] = seeds.map((seed, index) => ({
+  ...seed,
+  number: String(index + 1).padStart(2, "0"),
+  slug: slugify(seed.title),
+  lessons: makeLessons(seed),
+  lab: makeLab(seed),
+  quiz: makeQuiz(seed),
+  prerequisites: prerequisitesFor(index, seed.track),
+  source: {
+    label: seed.sourcePath.startsWith("http") ? "Blueprint oficial de certificación" : "Documentación oficial de Databricks",
+    href: seed.sourcePath.startsWith("http") ? seed.sourcePath : `https://docs.databricks.com/aws/en${seed.sourcePath}`,
+    reviewedAt: "21 jul 2026",
+  },
+}));
+
+export const totalMinutes = modules.reduce((total, module) => total + module.minutes, 0);
+
+export const associateBlueprint = "https://www.databricks.com/sites/default/files/2026-03/databricks-certified-data-engineer-associate-exam-guide-may-4-2026.pdf";
+export const professionalBlueprint = "https://www.databricks.com/sites/default/files/2025-11/databricks-certified-data-engineer-professional-exam-guide-november-30-2025_0.pdf";
+
+export function buildExamQuestions(level: "associate" | "professional"): QuizQuestion[] {
+  const count = level === "associate" ? 45 : 59;
+  const pool = level === "associate" ? modules.slice(0, 12) : modules;
+  return Array.from({ length: count }, (_, index) => {
+    const module = pool[index % pool.length];
+    const lesson = module.lessons[Math.floor(index / pool.length) % module.lessons.length];
+    const correctIndex = index % 4;
+    const correct = `${module.short}: ${lesson.title}`;
+    const distractors = ["Aumentar compute antes de investigar", "Eliminar el checkpoint para repetir la carga", "Conceder permisos amplios a usuarios individuales"];
+    const options = [...distractors];
+    options.splice(correctIndex, 0, correct);
+    return {
+      question: `Escenario ${index + 1}: la decisión afecta a ${module.title}. ¿Qué área debes revisar primero para resolver el requisito descrito?`,
+      options,
+      answer: correctIndex,
+      explanation: `La respuesta se encuentra en ${module.number} · ${lesson.title}. Revisa el modelo, la señal observable y el criterio de aceptación antes de cambiar recursos.`,
+    };
+  });
+}
