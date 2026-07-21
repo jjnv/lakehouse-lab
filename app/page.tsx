@@ -5,6 +5,12 @@ import { modules } from "./course-data";
 
 type LessonView = "learn" | "lab" | "test";
 type AnswerMap = Record<number, Record<number, number>>;
+type LabRun = { checks: boolean[]; passed: boolean };
+
+const certificationFacts = [
+  { name: "Data Engineer Associate", questions: "45 preguntas", time: "90 min", focus: "Fundamentos, ingesta, ETL, Jobs, CI/CD y gobierno", href: "https://www.databricks.com/learn/certification/data-engineer-associate" },
+  { name: "Data Engineer Professional", questions: "59 preguntas", time: "120 min", focus: "Pipelines avanzados, streaming, rendimiento, seguridad y despliegue", href: "https://www.databricks.com/learn/certification/data-engineer-professional" },
+];
 
 export default function Home() {
   const [completed, setCompleted] = useState<number[]>([]);
@@ -14,6 +20,11 @@ export default function Home() {
   const [answers, setAnswers] = useState<AnswerMap>({});
   const [submitted, setSubmitted] = useState<number[]>([]);
   const [copied, setCopied] = useState(false);
+  const [labCode, setLabCode] = useState<Record<number, string>>({});
+  const [labRuns, setLabRuns] = useState<Record<number, LabRun>>({});
+  const [labsPassed, setLabsPassed] = useState<number[]>([]);
+  const [hintStep, setHintStep] = useState<Record<number, number>>({});
+  const [showSolution, setShowSolution] = useState<number[]>([]);
 
   useEffect(() => {
     const frame = requestAnimationFrame(() => {
@@ -21,6 +32,8 @@ export default function Home() {
         const stored = JSON.parse(localStorage.getItem("lakehouse-lab-v2") || "{}");
         if (Array.isArray(stored.completed)) setCompleted(stored.completed.filter((n: unknown) => Number.isInteger(n) && Number(n) >= 0 && Number(n) < modules.length));
         if (stored.answers && typeof stored.answers === "object") setAnswers(stored.answers);
+        if (stored.labCode && typeof stored.labCode === "object") setLabCode(stored.labCode);
+        if (Array.isArray(stored.labsPassed)) setLabsPassed(stored.labsPassed);
       } catch {}
       setProgressLoaded(true);
     });
@@ -28,8 +41,8 @@ export default function Home() {
   }, []);
 
   useEffect(() => {
-    if (progressLoaded) localStorage.setItem("lakehouse-lab-v2", JSON.stringify({ completed, answers }));
-  }, [completed, answers, progressLoaded]);
+    if (progressLoaded) localStorage.setItem("lakehouse-lab-v2", JSON.stringify({ completed, answers, labCode, labsPassed }));
+  }, [completed, answers, labCode, labsPassed, progressLoaded]);
 
   const current = modules[active];
   const percent = Math.round((completed.length / modules.length) * 100);
@@ -37,6 +50,8 @@ export default function Home() {
   const moduleScore = useMemo(() => current.questions.reduce((score, question, index) => score + (moduleAnswers[index] === question.answer ? 1 : 0), 0), [current, moduleAnswers]);
   const hasSubmitted = submitted.includes(active);
   const hasPassed = moduleScore >= 3;
+  const currentLabCode = labCode[active] ?? current.lab.starterCode;
+  const currentLabRun = labRuns[active];
   const isUnlocked = (index: number) => index === 0 || completed.includes(index - 1);
 
   function openModule(index: number, nextView: LessonView = "learn") {
@@ -44,6 +59,7 @@ export default function Home() {
     setActive(index);
     setView(nextView);
     setCopied(false);
+    setShowSolution((items) => items.filter((item) => item !== index));
     requestAnimationFrame(() => document.getElementById("academy")?.scrollIntoView({ behavior: "smooth", block: "start" }));
   }
 
@@ -66,6 +82,11 @@ export default function Home() {
     setCompleted([]);
     setAnswers({});
     setSubmitted([]);
+    setLabCode({});
+    setLabRuns({});
+    setLabsPassed([]);
+    setHintStep({});
+    setShowSolution([]);
     setActive(0);
     setView("learn");
   }
@@ -76,6 +97,20 @@ export default function Home() {
     window.setTimeout(() => setCopied(false), 1600);
   }
 
+  function runLab() {
+    const checks = current.lab.checks.map((check) => new RegExp(check.pattern, "i").test(currentLabCode));
+    const passed = checks.every(Boolean);
+    setLabRuns((runs) => ({ ...runs, [active]: { checks, passed } }));
+    if (passed) setLabsPassed((items) => items.includes(active) ? items : [...items, active].sort());
+  }
+
+  function resetLab() {
+    setLabCode((items) => ({ ...items, [active]: current.lab.starterCode }));
+    setLabRuns((items) => { const next = { ...items }; delete next[active]; return next; });
+    setShowSolution((items) => items.filter((item) => item !== active));
+    setHintStep((items) => ({ ...items, [active]: 0 }));
+  }
+
   return (
     <main>
       <header className="site-header">
@@ -83,7 +118,7 @@ export default function Home() {
         <nav aria-label="Navegación principal">
           <a className="active" href="#path">Ruta</a>
           <a href="#modules">Módulos</a>
-          <a href="#academy">Academia</a>
+          <a href="#certification">Exámenes</a>
         </nav>
         <div className="header-progress"><span>{percent}%</span><div><i style={{ width: `${percent}%` }} /></div></div>
       </header>
@@ -92,12 +127,12 @@ export default function Home() {
         <section className="hero-grid" aria-labelledby="hero-title">
           <div className="hero-card">
             <div className="hero-copy">
-              <p className="eyebrow">Programa avanzado de Databricks</p>
-              <h1 id="hero-title">Entiende. Practica.<br />Demuestra<span>.</span></h1>
-              <p className="hero-text">6 módulos profundos, 18 lecciones, laboratorios guiados y 24 preguntas con feedback razonado.</p>
+              <p className="eyebrow">Preparación Data Engineer Associate → Professional</p>
+              <h1 id="hero-title">Aprende. Ejecuta.<br />Certifica<span>.</span></h1>
+              <p className="hero-text">Teoría alineada al examen, laboratorios ejecutables de SQL/PySpark y tests razonados para las dos certificaciones.</p>
               <div className="hero-actions">
                 <button className="primary-button" onClick={() => openModule(Math.min(completed.length, modules.length - 1))}>{completed.length ? "Continuar aprendiendo" : "Empezar el programa"}<span aria-hidden="true">→</span></button>
-                <span className="hero-meta">Nivel base → avanzado · 7 h 25 min</span>
+                <span className="hero-meta">Associate + Professional · práctica sin ayudas</span>
               </div>
             </div>
             <div className="hero-art" aria-hidden="true"><div className="dot-field" /><div className="chart-line"><i /><i /><i /><i /></div><div className="waves">≈≈≈</div></div>
@@ -124,6 +159,11 @@ export default function Home() {
           </div>
         </section>
 
+        <section id="certification" className="certification-map" aria-labelledby="certification-title">
+          <div className="certification-copy"><p className="eyebrow">Objetivo de certificación</p><h2 id="certification-title">Una ruta, dos niveles.</h2><p>El contenido prioriza el blueprint oficial actual. Los retos imitan decisiones de código y arquitectura, pero no contienen preguntas reales del examen.</p></div>
+          {certificationFacts.map((exam, index) => <a href={exam.href} target="_blank" rel="noreferrer" className="exam-card" key={exam.name}><span>0{index + 1}</span><div><p>{exam.name}</p><b>{exam.questions} · {exam.time}</b><small>{exam.focus}</small></div><i>↗</i></a>)}
+        </section>
+
         <section id="modules" className="modules-section" aria-labelledby="modules-title">
           <div className="section-heading"><div><p className="eyebrow">Plan de estudios</p><h2 id="modules-title">Seis módulos. Un sistema completo.</h2></div><p>Supera el test de un módulo para desbloquear el siguiente.</p></div>
           <div className="module-grid">
@@ -133,7 +173,7 @@ export default function Home() {
               const answered = Object.keys(answers[index] || {}).length;
               return <button className={`module-card ${done ? "is-done" : ""}`} key={module.number} onClick={() => openModule(index)} disabled={!unlocked}>
                 <span className="module-top"><b>{module.number}</b><i>{module.icon}</i></span>
-                <span className="level-tag">{module.level}</span>
+                <span className="level-tag">{module.exam}</span>
                 <span className="module-title">{module.title}</span>
                 <span className="duration"><span aria-hidden="true">◷</span>{module.duration} · 3 lecciones</span>
                 <span className={`status ${done ? "complete" : unlocked ? "ready" : "locked"}`}>{done ? "✓ Test superado" : unlocked ? answered ? `${answered}/4 respondidas` : "▷ Empezar módulo" : "▣ Bloqueado"}</span>
@@ -146,19 +186,19 @@ export default function Home() {
           <aside className="course-sidebar">
             <p className="eyebrow">Academia</p>
             <div className="sidebar-modules">
-              {modules.map((module, index) => <button key={module.number} onClick={() => openModule(index)} disabled={!isUnlocked(index)} className={active === index ? "active" : ""}><span>{completed.includes(index) ? "✓" : module.number}</span><div><b>{module.short}</b><small>{completed.includes(index) ? "Superado" : isUnlocked(index) ? module.level : "Bloqueado"}</small></div></button>)}
+              {modules.map((module, index) => <button key={module.number} onClick={() => openModule(index)} disabled={!isUnlocked(index)} className={active === index ? "active" : ""}><span>{completed.includes(index) ? "✓" : module.number}</span><div><b>{module.short}</b><small>{completed.includes(index) ? "Superado" : isUnlocked(index) ? module.exam : "Bloqueado"}</small></div></button>)}
             </div>
           </aside>
 
           <div className="lesson-workspace">
             <div className="lesson-header">
-              <div><p className="eyebrow">Módulo {current.number} · {current.level} · {current.duration}</p><h2 id="lesson-title">{current.title}</h2><p>{current.description}</p></div>
+              <div><p className="eyebrow">Módulo {current.number} · {current.exam} · {current.duration}</p><h2 id="lesson-title">{current.title}</h2><p>{current.description}</p></div>
               <div className={`mastery-badge ${completed.includes(active) ? "passed" : ""}`}><span>{completed.includes(active) ? "✓" : "75%"}</span><small>{completed.includes(active) ? "Superado" : "Para aprobar"}</small></div>
             </div>
 
             <div className="lesson-tabs" role="tablist" aria-label="Contenido del módulo">
               <button role="tab" aria-selected={view === "learn"} className={view === "learn" ? "active" : ""} onClick={() => setView("learn")}><span>01</span> Explicación</button>
-              <button role="tab" aria-selected={view === "lab"} className={view === "lab" ? "active" : ""} onClick={() => setView("lab")}><span>02</span> Laboratorio</button>
+              <button role="tab" aria-selected={view === "lab"} className={view === "lab" ? "active" : ""} onClick={() => setView("lab")}><span>02</span> Laboratorio {labsPassed.includes(active) && <i>✓</i>}</button>
               <button role="tab" aria-selected={view === "test"} className={view === "test" ? "active" : ""} onClick={() => setView("test")}><span>03</span> Test <i>{Object.keys(moduleAnswers).length}/4</i></button>
             </div>
 
@@ -175,6 +215,15 @@ export default function Home() {
             {view === "lab" && <div className="lab-view" role="tabpanel">
               <div className="lab-brief"><div className="lab-icon">⌘</div><div><p className="eyebrow">Práctica guiada</p><h3>{current.lab.title}</h3><p>{current.lab.goal}</p></div></div>
               <ol className="lab-steps">{current.lab.steps.map((step, index) => <li key={step}><span>{index + 1}</span><div><b>{["Prepara", "Construye", "Comprueba", "Documenta"][index]}</b><p>{step}</p></div></li>)}</ol>
+              <div className="lab-simulator">
+                <div className="simulator-note"><span>⌁</span><div><b>Sandbox de práctica</b><p>Valida estructura e intención y devuelve un resultado simulado. No ejecuta contra un clúster real de Databricks.</p></div><em>{current.lab.language}</em></div>
+                <div className="dataset-panel"><div className="panel-title"><div><span>Dataset</span><b>{current.lab.dataset.name}</b></div><small>{current.lab.dataset.schema.join(" · ")}</small></div><div className="table-scroll"><table><thead><tr>{current.lab.dataset.schema.map((field) => <th key={field}>{field.split(" ")[0]}</th>)}</tr></thead><tbody>{current.lab.dataset.preview.map((row, rowIndex) => <tr key={rowIndex}>{row.map((cell, cellIndex) => <td key={`${rowIndex}-${cellIndex}`}>{cell}</td>)}</tr>)}</tbody></table></div></div>
+                <div className="challenge-bar"><span>Reto</span><p>{current.lab.challenge}</p></div>
+                <div className="editor-shell"><div className="editor-toolbar"><div><i className="traffic red" /><i className="traffic yellow" /><i className="traffic green" /><b>{current.lab.language === "SQL" ? "solution.sql" : "solution.py"}</b></div><div><button onClick={() => setHintStep((items) => ({ ...items, [active]: Math.min((items[active] || 0) + 1, current.lab.hints.length) }))}>Pista {Math.min((hintStep[active] || 0) + 1, current.lab.hints.length)}</button><button onClick={resetLab}>Reiniciar</button></div></div><div className="editor-body"><div className="line-numbers">{currentLabCode.split("\n").map((_, index) => <span key={index}>{index + 1}</span>)}</div><textarea value={currentLabCode} onChange={(event) => { setLabCode((items) => ({ ...items, [active]: event.target.value })); setLabRuns((items) => { const next = { ...items }; delete next[active]; return next; }); }} spellCheck={false} aria-label={`Editor ${current.lab.language}`} /></div><div className="editor-footer"><span>{current.lab.language} · UTF-8</span><button className="run-button" onClick={runLab}>▶ Ejecutar</button></div></div>
+                {(hintStep[active] || 0) > 0 && <div className="hints-box"><b>Pistas desbloqueadas</b>{current.lab.hints.slice(0, hintStep[active]).map((hint, index) => <p key={hint}><span>{index + 1}</span>{hint}</p>)}</div>}
+                {currentLabRun && <div className={`execution-panel ${currentLabRun.passed ? "passed" : "failed"}`}><div className="execution-heading"><div><span>{currentLabRun.passed ? "✓" : "!"}</span><div><b>{currentLabRun.passed ? "Ejecución correcta" : "La solución aún no cumple el reto"}</b><p>{currentLabRun.passed ? current.lab.successMessage : "Revisa los checks fallidos y vuelve a ejecutar."}</p></div></div><small>{currentLabRun.checks.filter(Boolean).length}/{currentLabRun.checks.length} checks</small></div><div className="check-list">{current.lab.checks.map((check, index) => <p className={currentLabRun.checks[index] ? "ok" : "missing"} key={check.label}><span>{currentLabRun.checks[index] ? "✓" : "×"}</span>{check.label}</p>)}</div>{currentLabRun.passed && <div className="result-table"><div className="panel-title"><b>Resultado simulado</b><small>{current.lab.result.rows.length} filas</small></div><div className="table-scroll"><table><thead><tr>{current.lab.result.columns.map((column) => <th key={column}>{column}</th>)}</tr></thead><tbody>{current.lab.result.rows.map((row, rowIndex) => <tr key={rowIndex}>{row.map((cell, cellIndex) => <td key={`${rowIndex}-${cellIndex}`}>{cell}</td>)}</tr>)}</tbody></table></div></div>}</div>}
+                {!currentLabRun?.passed && <div className="solution-reveal"><button onClick={() => setShowSolution((items) => items.includes(active) ? items.filter((item) => item !== active) : [...items, active])}>{showSolution.includes(active) ? "Ocultar solución" : "Ver solución de referencia"}</button>{showSolution.includes(active) && <pre><code>{current.lab.solution}</code></pre>}</div>}
+              </div>
               <div className="checkpoint"><span>✓</span><div><b>Criterio de finalización</b><p>{current.lab.checkpoint}</p></div></div>
               <div className="lesson-next"><button className="ghost-button" onClick={() => setView("learn")}>← Volver a la explicación</button><button className="primary-button compact-inline" onClick={() => setView("test")}>Hacer el test <span>→</span></button></div>
             </div>}
