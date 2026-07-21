@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState, type KeyboardEvent, type MouseEvent } from "react";
 import {
   associateBlueprint,
   buildExamQuestions,
@@ -11,49 +11,54 @@ import {
   type CurriculumModule,
   type TrackId,
 } from "./course-data";
+import {
+  STORAGE_KEY,
+  deriveProgress,
+  earnedMinutes,
+  emptyProgress,
+  hasStarted,
+  isUnlocked as moduleIsUnlocked,
+  moduleProgressPercent,
+  sanitizeProgress,
+  type ExamMode as StoredExamMode,
+  type ModuleView,
+  type ProgressState,
+} from "./progress";
 
-type ModuleView = "lessons" | "lab" | "quiz";
-type ExamMode = "associate" | "professional" | null;
-type QuizAnswers = Record<string, Record<number, number>>;
-
-type ProgressState = {
-  completedLessons: Record<string, string[]>;
-  labsPassed: string[];
-  quizScores: Record<string, number>;
-  quizAnswers: QuizAnswers;
-  completedModules: string[];
-  labCode: Record<string, string>;
-  examScores: Partial<Record<"associate" | "professional", number>>;
-};
-
-const STORAGE_KEY = "lakehouse-lab-progress-v2";
-const emptyProgress: ProgressState = {
-  completedLessons: {},
-  labsPassed: [],
-  quizScores: {},
-  quizAnswers: {},
-  completedModules: [],
-  labCode: {},
-  examScores: {},
-};
+type ExamMode = StoredExamMode | null;
 
 const trackOrder: TrackId[] = ["core", "streaming", "pipelines", "performance", "delivery", "final"];
-
-function deriveProgress(progress: ProgressState): ProgressState {
-  const completedModules = modules
-    .filter((module) =>
-      (progress.completedLessons[module.id]?.length ?? 0) >= module.lessons.length &&
-      progress.labsPassed.includes(module.id) &&
-      (progress.quizScores[module.id] ?? 0) >= 3,
-    )
-    .map((module) => module.id);
-  return { ...progress, completedModules };
-}
+const topicGroups = {
+  platform: { label: "Plataforma y compute", ids: ["m01", "m02", "m06"] },
+  development: { label: "SQL, Python y Spark", ids: ["m03", "m04", "m05", "m23", "m28"] },
+  ingestion: { label: "Ingesta, streaming y CDC", ids: ["m08", "m09", "m13", "m14", "m15", "m16"] },
+  modeling: { label: "Modelado y calidad", ids: ["m07", "m18", "m19"] },
+  orchestration: { label: "Pipelines y orquestación", ids: ["m10", "m20", "m21", "m22"] },
+  performance: { label: "Rendimiento, observabilidad y coste", ids: ["m24", "m25", "m26", "m27"] },
+  governance: { label: "Entrega, seguridad e interoperabilidad", ids: ["m11", "m29", "m30", "m31"] },
+  projects: { label: "Proyectos integradores", ids: ["m12", "m17", "m22", "m27", "m32"] },
+} as const;
+type TopicFilter = keyof typeof topicGroups | "all";
+type StatusFilter = "all" | "available" | "in-progress" | "completed" | "locked";
+type LevelFilter = "all" | "associate" | "professional";
 
 function formatHours(minutes: number) {
   const hours = Math.floor(minutes / 60);
   const rest = minutes % 60;
   return rest ? `${hours} h ${rest} min` : `${hours} h`;
+}
+
+function missingPrerequisiteText(module: CurriculumModule, completed: Set<string>) {
+  const missing = module.prerequisites
+    .filter((id) => !completed.has(id))
+    .map((id) => modules.find((item) => item.id === id))
+    .filter((item): item is CurriculumModule => Boolean(item));
+  if (!missing.length) return "";
+  return missing.map((item) => `${item.number} · ${item.title}`).join("; ");
+}
+
+function scrollBehavior(): ScrollBehavior {
+  return window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth";
 }
 
 export default function Home() {
@@ -63,135 +68,291 @@ export default function Home() {
   const [view, setView] = useState<ModuleView>("lessons");
   const [search, setSearch] = useState("");
   const [trackFilter, setTrackFilter] = useState<TrackId | "all">("all");
-  const [statusFilter, setStatusFilter] = useState<"all" | "available" | "completed">("all");
+  const [levelFilter, setLevelFilter] = useState<LevelFilter>("all");
+  const [topicFilter, setTopicFilter] = useState<TopicFilter>("all");
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
   const [cloud, setCloud] = useState<"AWS" | "Azure" | "GCP">("AWS");
   const [labResult, setLabResult] = useState<{ checks: boolean[]; passed: boolean } | null>(null);
   const [showSolution, setShowSolution] = useState(false);
   const [submittedQuiz, setSubmittedQuiz] = useState(false);
+  const [lockedNotice, setLockedNotice] = useState<string | null>(null);
+  const [resetPending, setResetPending] = useState(false);
+  const [announcement, setAnnouncement] = useState("");
   const [examMode, setExamMode] = useState<ExamMode>(null);
   const [examPage, setExamPage] = useState(0);
   const [examAnswers, setExamAnswers] = useState<Record<number, number>>({});
   const [examSubmitted, setExamSubmitted] = useState(false);
+  const [examAttempt, setExamAttempt] = useState(1);
+  const moduleHeadingRef = useRef<HTMLHeadingElement>(null);
+  const progressRef = useRef<ProgressState>(emptyProgress);
+  const resetButtonRef = useRef<HTMLButtonElement>(null);
+  const resetDialogRef = useRef<HTMLDivElement>(null);
 
   const completed = useMemo(() => new Set(progress.completedModules), [progress.completedModules]);
   const activeModule = modules.find((module) => module.id === activeId) ?? modules[0];
-  const completedMinutes = modules.filter((module) => completed.has(module.id)).reduce((sum, module) => sum + module.minutes, 0);
+  const completedMinutes = modules.reduce((sum, module) => sum + earnedMinutes(module, progress), 0);
   const percent = Math.round((completedMinutes / totalMinutes) * 100);
 
-  const isUnlocked = (module: CurriculumModule) => module.prerequisites.every((id) => completed.has(id));
+  const isUnlocked = (module: CurriculumModule) => moduleIsUnlocked(module, completed);
 
   const filteredModules = useMemo(() => {
     const normalized = search.trim().toLocaleLowerCase("es");
     return modules.filter((module) => {
-      const matchesText = !normalized || [module.title, module.short, module.description, ...module.examDomains].join(" ").toLocaleLowerCase("es").includes(normalized);
+      const searchIndex = [
+        module.title,
+        module.short,
+        module.description,
+        module.lab.goal,
+        module.lab.scenario,
+        ...module.lab.steps,
+        ...module.outcomes,
+        ...module.examDomains,
+        ...module.lessons.flatMap((lesson) => [lesson.title, lesson.summary, ...lesson.explanation, ...lesson.keyPoints, ...lesson.pitfalls, lesson.examDecision, lesson.example.code]),
+      ].join(" ").toLocaleLowerCase("es");
+      const matchesText = !normalized || searchIndex.includes(normalized);
       const matchesTrack = trackFilter === "all" || module.track === trackFilter;
-      const matchesStatus = statusFilter === "all" || (statusFilter === "completed" ? completed.has(module.id) : isUnlocked(module) && !completed.has(module.id));
-      return matchesText && matchesTrack && matchesStatus;
+      const matchesLevel = levelFilter === "all" || (levelFilter === "associate" ? module.level.includes("Associate") : module.level.includes("Professional"));
+      const matchesTopic = topicFilter === "all" || (topicGroups[topicFilter].ids as readonly string[]).includes(module.id);
+      const unlocked = moduleIsUnlocked(module, completed);
+      const started = hasStarted(module, progress);
+      const matchesStatus = statusFilter === "all" ||
+        (statusFilter === "completed" && completed.has(module.id)) ||
+        (statusFilter === "in-progress" && started && !completed.has(module.id)) ||
+        (statusFilter === "available" && unlocked && !started && !completed.has(module.id)) ||
+        (statusFilter === "locked" && !unlocked);
+      return matchesText && matchesTrack && matchesLevel && matchesTopic && matchesStatus;
     });
-  }, [search, trackFilter, statusFilter, completed]);
+  }, [search, trackFilter, levelFilter, topicFilter, statusFilter, completed, progress]);
 
   useEffect(() => {
     const frame = requestAnimationFrame(() => {
-      let restored = emptyProgress;
+      let restored: ProgressState = emptyProgress;
       try {
-        const stored = JSON.parse(localStorage.getItem(STORAGE_KEY) || "null");
-        if (stored && typeof stored === "object") restored = deriveProgress({ ...emptyProgress, ...stored });
+        restored = sanitizeProgress(JSON.parse(localStorage.getItem(STORAGE_KEY) || "null"));
       } catch {}
       setProgress(restored);
+      progressRef.current = restored;
 
       const params = new URLSearchParams(window.location.search);
       const exam = params.get("exam");
       const slug = params.get("module");
       const restoredCompleted = new Set(restored.completedModules);
-      if (exam === "associate" && restoredCompleted.has("m11")) setExamMode(exam);
-      if (exam === "professional" && ["m17","m22","m27","m31"].every((id) => restoredCompleted.has(id))) setExamMode(exam);
+      const examAllowed = exam === "associate"
+        ? restoredCompleted.has("m11")
+        : exam === "professional" && ["m17", "m22", "m27", "m31"].every((id) => restoredCompleted.has(id));
+      if ((exam === "associate" || exam === "professional") && examAllowed) setExamMode(exam);
+      else if (exam === "associate" || exam === "professional") setLockedNotice(`Ese simulacro aún está bloqueado. ${exam === "associate" ? "Completa el módulo 11." : "Completa los proyectos 17, 22, 27 y el módulo 31."}`);
       if (slug) {
         const deepLinked = modules.find((module) => module.slug === slug);
-        if (deepLinked && deepLinked.prerequisites.every((id) => restoredCompleted.has(id))) setActiveId(deepLinked.id);
+        if (deepLinked && moduleIsUnlocked(deepLinked, restoredCompleted)) {
+          setActiveId(deepLinked.id);
+          setView(deepLinked.id === restored.lastModuleId ? restored.lastView : "lessons");
+          requestAnimationFrame(() => document.getElementById("academy")?.scrollIntoView({ behavior: scrollBehavior(), block: "start" }));
+        } else if (deepLinked) {
+          setLockedNotice(`El módulo ${deepLinked.number} está bloqueado. Completa antes: ${missingPrerequisiteText(deepLinked, restoredCompleted)}.`);
+        }
+      } else if (!examAllowed) {
+        const lastModule = modules.find((module) => module.id === restored.lastModuleId);
+        if (lastModule && moduleIsUnlocked(lastModule, restoredCompleted)) {
+          setActiveId(lastModule.id);
+          setView(restored.lastView);
+        }
       }
       setLoaded(true);
     });
-
-    const onPopState = () => {
-      const params = new URLSearchParams(window.location.search);
-      const exam = params.get("exam");
-      setExamMode(exam === "associate" || exam === "professional" ? exam : null);
-      const deepLinked = modules.find((module) => module.slug === params.get("module"));
-      if (deepLinked) setActiveId(deepLinked.id);
-    };
-    window.addEventListener("popstate", onPopState);
-    return () => { cancelAnimationFrame(frame); window.removeEventListener("popstate", onPopState); };
+    return () => cancelAnimationFrame(frame);
   }, []);
 
   useEffect(() => {
-    if (loaded) localStorage.setItem(STORAGE_KEY, JSON.stringify(progress));
+    progressRef.current = progress;
+    if (loaded) {
+      try { localStorage.setItem(STORAGE_KEY, JSON.stringify(progress)); } catch {}
+    }
   }, [progress, loaded]);
+
+  useEffect(() => {
+    const onPopState = () => {
+      const current = progressRef.current;
+      const currentCompleted = new Set(current.completedModules);
+      const params = new URLSearchParams(window.location.search);
+      const exam = params.get("exam");
+      const allowed = exam === "associate"
+        ? currentCompleted.has("m11")
+        : exam === "professional" && ["m17", "m22", "m27", "m31"].every((id) => currentCompleted.has(id));
+      if ((exam === "associate" || exam === "professional") && allowed) {
+        setExamMode(exam);
+        setExamPage(0);
+        setExamAnswers({});
+        setExamSubmitted(false);
+        setExamAttempt((value) => value + 1);
+        setLockedNotice(null);
+        return;
+      }
+      setExamMode(null);
+      const deepLinked = modules.find((module) => module.slug === params.get("module"));
+      if (deepLinked && moduleIsUnlocked(deepLinked, currentCompleted)) {
+        setActiveId(deepLinked.id);
+        setView(deepLinked.id === current.lastModuleId ? current.lastView : "lessons");
+        setSubmittedQuiz(false);
+        setLabResult(null);
+        setShowSolution(false);
+        setLockedNotice(null);
+      } else if (deepLinked) {
+        setLockedNotice(`El módulo ${deepLinked.number} está bloqueado. Completa antes: ${missingPrerequisiteText(deepLinked, currentCompleted)}.`);
+      } else if (exam === "associate" || exam === "professional") {
+        setLockedNotice(`Ese simulacro aún está bloqueado. ${exam === "associate" ? "Completa el módulo 11." : "Completa los proyectos de las cuatro ramas."}`);
+      }
+    };
+    window.addEventListener("popstate", onPopState);
+    return () => window.removeEventListener("popstate", onPopState);
+  }, []);
+
+  useEffect(() => {
+    const activeLink = document.querySelector<HTMLElement>('.sidebar-list [aria-current="step"]');
+    activeLink?.scrollIntoView({ block: "nearest", inline: "center", behavior: scrollBehavior() });
+  }, [activeId]);
 
   function updateProgress(updater: (current: ProgressState) => ProgressState) {
     setProgress((current) => deriveProgress(updater(current)));
   }
 
   function openModule(module: CurriculumModule) {
-    if (!isUnlocked(module)) return;
+    if (!isUnlocked(module)) {
+      setLockedNotice(`El módulo ${module.number} está bloqueado. Completa antes: ${missingPrerequisiteText(module, completed)}.`);
+      setAnnouncement(`Módulo ${module.number} bloqueado.`);
+      return;
+    }
     setActiveId(module.id);
     setView("lessons");
     setSubmittedQuiz(false);
     setLabResult(null);
     setShowSolution(false);
     setExamMode(null);
+    setLockedNotice(null);
+    updateProgress((current) => ({ ...current, lastModuleId: module.id, lastView: "lessons" }));
     const url = new URL(window.location.href);
     url.search = "";
     url.searchParams.set("module", module.slug);
     history.pushState({}, "", url);
-    requestAnimationFrame(() => document.getElementById("academy")?.scrollIntoView({ behavior: "smooth", block: "start" }));
+    setAnnouncement(`Módulo ${module.number}: ${module.title}.`);
+    requestAnimationFrame(() => {
+      document.getElementById("academy")?.scrollIntoView({ behavior: scrollBehavior(), block: "start" });
+      moduleHeadingRef.current?.focus({ preventScroll: true });
+    });
+  }
+
+  function handleModuleLink(event: MouseEvent<HTMLAnchorElement>, module: CurriculumModule) {
+    if (!isUnlocked(module)) {
+      event.preventDefault();
+      openModule(module);
+      return;
+    }
+    if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey || event.button !== 0) return;
+    event.preventDefault();
+    openModule(module);
+  }
+
+  function selectView(nextView: ModuleView) {
+    setView(nextView);
+    updateProgress((current) => ({ ...current, lastModuleId: activeModule.id, lastView: nextView }));
+  }
+
+  function handleTabKey(event: KeyboardEvent<HTMLButtonElement>, currentView: ModuleView) {
+    if (!["ArrowLeft", "ArrowRight", "Home", "End"].includes(event.key)) return;
+    event.preventDefault();
+    const views: ModuleView[] = ["lessons", "lab", "quiz"];
+    const currentIndex = views.indexOf(currentView);
+    const nextIndex = event.key === "Home" ? 0 : event.key === "End" ? views.length - 1 : (currentIndex + (event.key === "ArrowRight" ? 1 : -1) + views.length) % views.length;
+    const nextView = views[nextIndex];
+    selectView(nextView);
+    requestAnimationFrame(() => document.getElementById(`tab-${nextView}`)?.focus());
   }
 
   function openExam(mode: Exclude<ExamMode, null>) {
     const allowed = mode === "associate" ? completed.has("m11") : ["m17","m22","m27","m31"].every((id) => completed.has(id));
-    if (!allowed) return;
+    if (!allowed) {
+      setLockedNotice(mode === "associate" ? "El simulacro Associate requiere completar el módulo 11." : "El simulacro Professional requiere completar los proyectos 17, 22, 27 y el módulo 31.");
+      setAnnouncement("Simulacro bloqueado.");
+      return;
+    }
     setExamMode(mode);
     setExamPage(0);
     setExamAnswers({});
     setExamSubmitted(false);
+    setExamAttempt((value) => value + 1);
+    setLockedNotice(null);
     const url = new URL(window.location.href);
     url.search = "";
     url.searchParams.set("exam", mode);
     history.pushState({}, "", url);
-    window.scrollTo({ top: 0, behavior: "smooth" });
+    window.scrollTo({ top: 0, behavior: scrollBehavior() });
   }
 
   function closeExam() {
     setExamMode(null);
     const url = new URL(window.location.href);
     url.search = "";
-    history.pushState({}, "", url);
+    const lastVisitedModule = modules.find((item) => item.id === progress.lastModuleId);
+    if (lastVisitedModule) url.searchParams.set("module", lastVisitedModule.slug);
+    history.replaceState({}, "", url);
+    requestAnimationFrame(() => document.getElementById("academy")?.scrollIntoView({ behavior: scrollBehavior(), block: "start" }));
   }
 
   function toggleLesson(lessonId: string) {
     updateProgress((current) => {
       const lessons = new Set(current.completedLessons[activeModule.id] ?? []);
-      lessons.has(lessonId) ? lessons.delete(lessonId) : lessons.add(lessonId);
-      return { ...current, completedLessons: { ...current.completedLessons, [activeModule.id]: [...lessons] } };
+      if (lessons.has(lessonId)) lessons.delete(lessonId);
+      else lessons.add(lessonId);
+      return { ...current, completedLessons: { ...current.completedLessons, [activeModule.id]: [...lessons] }, lastModuleId: activeModule.id, lastView: "lessons" };
     });
+    setAnnouncement("Progreso de la lección actualizado.");
   }
 
   function setLabCode(value: string) {
-    updateProgress((current) => ({ ...current, labCode: { ...current.labCode, [activeModule.id]: value } }));
+    updateProgress((current) => ({
+      ...current,
+      labCode: { ...current.labCode, [activeModule.id]: value },
+      labsPassed: current.labsPassed.filter((id) => id !== activeModule.id),
+      labConfirmed: current.labConfirmed.filter((id) => id !== activeModule.id),
+      lastModuleId: activeModule.id,
+      lastView: "lab",
+    }));
+    setLabResult(null);
+  }
+
+  function setLabConfirmed(confirmed: boolean) {
+    updateProgress((current) => ({
+      ...current,
+      labConfirmed: confirmed ? [...new Set([...current.labConfirmed, activeModule.id])] : current.labConfirmed.filter((id) => id !== activeModule.id),
+      labsPassed: confirmed ? current.labsPassed : current.labsPassed.filter((id) => id !== activeModule.id),
+      lastModuleId: activeModule.id,
+      lastView: "lab",
+    }));
     setLabResult(null);
   }
 
   function runLab() {
     const code = progress.labCode[activeModule.id] ?? activeModule.lab.starterCode;
     const checks = activeModule.lab.checks.map((check) => new RegExp(check.pattern, "i").test(code));
-    const passed = checks.every(Boolean);
+    const confirmed = progress.labConfirmed.includes(activeModule.id);
+    const passed = checks.every(Boolean) && confirmed;
     setLabResult({ checks, passed });
-    if (passed) updateProgress((current) => ({ ...current, labsPassed: [...new Set([...current.labsPassed, activeModule.id])] }));
+    updateProgress((current) => ({
+      ...current,
+      labsPassed: passed ? [...new Set([...current.labsPassed, activeModule.id])] : current.labsPassed.filter((id) => id !== activeModule.id),
+      lastModuleId: activeModule.id,
+      lastView: "lab",
+    }));
+    setAnnouncement(passed ? "Laboratorio validado." : confirmed ? "La estructura del laboratorio aún tiene comprobaciones pendientes." : "Confirma la ejecución en Databricks antes de validar.");
   }
 
   function chooseQuizAnswer(question: number, option: number) {
     updateProgress((current) => ({
       ...current,
       quizAnswers: { ...current.quizAnswers, [activeModule.id]: { ...(current.quizAnswers[activeModule.id] ?? {}), [question]: option } },
+      quizScores: Object.fromEntries(Object.entries(current.quizScores).filter(([id]) => id !== activeModule.id)),
+      lastModuleId: activeModule.id,
+      lastView: "quiz",
     }));
     setSubmittedQuiz(false);
   }
@@ -201,6 +362,19 @@ export default function Home() {
     const score = activeModule.quiz.reduce((sum, question, index) => sum + (answers[index] === question.answer ? 1 : 0), 0);
     updateProgress((current) => ({ ...current, quizScores: { ...current.quizScores, [activeModule.id]: score } }));
     setSubmittedQuiz(true);
+    setAnnouncement(`Resultado del test: ${score} de ${activeModule.quiz.length}.`);
+  }
+
+  function resetQuizAttempt() {
+    updateProgress((current) => ({
+      ...current,
+      quizAnswers: Object.fromEntries(Object.entries(current.quizAnswers).filter(([id]) => id !== activeModule.id)),
+      quizScores: Object.fromEntries(Object.entries(current.quizScores).filter(([id]) => id !== activeModule.id)),
+      lastModuleId: activeModule.id,
+      lastView: "quiz",
+    }));
+    setSubmittedQuiz(false);
+    setAnnouncement("Nuevo intento preparado.");
   }
 
   function resetAcademy() {
@@ -210,47 +384,102 @@ export default function Home() {
     setView("lessons");
     setSubmittedQuiz(false);
     setLabResult(null);
+    setShowSolution(false);
+    setLockedNotice(null);
+    setSearch("");
+    setTrackFilter("all");
+    setLevelFilter("all");
+    setTopicFilter("all");
+    setStatusFilter("all");
+    setExamMode(null);
+    setExamPage(0);
+    setExamAnswers({});
+    setExamSubmitted(false);
+    setResetPending(false);
+    const url = new URL(window.location.href);
+    url.search = "";
+    url.searchParams.set("module", modules[0].slug);
+    history.replaceState({}, "", url);
+    setAnnouncement("Academia reiniciada. El progreso local se ha borrado.");
+    requestAnimationFrame(() => resetButtonRef.current?.focus());
   }
 
-  const continueModule = modules.find((module) => isUnlocked(module) && !completed.has(module.id)) ?? modules[31];
+  function closeResetDialog() {
+    setResetPending(false);
+    requestAnimationFrame(() => resetButtonRef.current?.focus());
+  }
+
+  function handleResetDialogKey(event: KeyboardEvent<HTMLDivElement>) {
+    if (event.key === "Escape") {
+      event.preventDefault();
+      closeResetDialog();
+      return;
+    }
+    if (event.key !== "Tab") return;
+    const focusable = [...(resetDialogRef.current?.querySelectorAll<HTMLElement>('button,[href],input,select,textarea,[tabindex]:not([tabindex="-1"])') ?? [])]
+      .filter((element) => !element.hasAttribute("disabled"));
+    if (!focusable.length) return;
+    const first = focusable[0];
+    const last = focusable[focusable.length - 1];
+    if (event.shiftKey && document.activeElement === first) {
+      event.preventDefault();
+      last.focus();
+    } else if (!event.shiftKey && document.activeElement === last) {
+      event.preventDefault();
+      first.focus();
+    }
+  }
+
+  const lastModule = modules.find((module) => module.id === progress.lastModuleId);
+  const continueModule = lastModule && isUnlocked(lastModule) && !completed.has(lastModule.id)
+    ? lastModule
+    : modules.find((module) => isUnlocked(module) && hasStarted(module, progress) && !completed.has(module.id))
+      ?? modules.find((module) => isUnlocked(module) && !completed.has(module.id))
+      ?? modules[31];
 
   if (examMode) {
     return <ExamSimulator
+      key={`${examMode}-${examAttempt}`}
       mode={examMode}
+      attempt={examAttempt}
       page={examPage}
       answers={examAnswers}
       submitted={examSubmitted}
       previousScore={progress.examScores[examMode]}
       onPage={setExamPage}
       onAnswer={(index, answer) => { setExamAnswers((current) => ({ ...current, [index]: answer })); setExamSubmitted(false); }}
-      onSubmit={(score) => { setExamSubmitted(true); updateProgress((current) => ({ ...current, examScores: { ...current.examScores, [examMode]: score } })); }}
+      onSubmit={(score, completedAttempt) => { setExamSubmitted(true); updateProgress((current) => ({ ...current, examScores: { ...current.examScores, [examMode]: score }, examCompleted: completedAttempt ? { ...current.examCompleted, [examMode]: true } : current.examCompleted })); }}
+      onRetry={() => { setExamPage(0); setExamAnswers({}); setExamSubmitted(false); setExamAttempt((value) => value + 1); window.scrollTo({ top: 0, behavior: scrollBehavior() }); }}
       onClose={closeExam}
     />;
   }
 
   return (
     <main>
+      <a className="skip-link" href="#academy">Saltar al contenido del módulo</a>
+      <div className="sr-only" aria-live="polite" aria-atomic="true">{announcement}</div>
       <header className="site-header">
         <a className="brand" href="#top" aria-label="Inicio de Lakehouse Lab"><span className="brand-mark"><i /><i /><i /></span>Lakehouse Lab</a>
         <nav aria-label="Navegación principal"><a href="#roadmap">Mapa</a><a href="#catalog">Temario</a><a href="#academy">Academia</a></nav>
-        <div className="header-progress"><span>{percent}%</span><div><i style={{ width: `${percent}%` }} /></div></div>
+        <div className="header-progress"><span>{percent}%</span><div role="progressbar" aria-label="Progreso total" aria-valuemin={0} aria-valuemax={100} aria-valuenow={percent}><i style={{ width: `${percent}%` }} /></div></div>
       </header>
 
       <div id="top" className="page-shell">
+        {lockedNotice && <div className="access-notice" role="alert"><div><b>Contenido bloqueado</b><p>{lockedNotice}</p></div><button aria-label="Cerrar aviso" onClick={() => setLockedNotice(null)}>×</button></div>}
         <section className="hero" aria-labelledby="hero-title">
           <div className="hero-copy">
             <p className="eyebrow">Data Engineer Associate → Professional</p>
             <h1 id="hero-title">De lakehouse<br />a producción<span>.</span></h1>
-            <p className="hero-text">Una academia de ingeniería Databricks: 32 módulos, 160 lecciones, 30 laboratorios y dos proyectos para dominar el examen y el trabajo real.</p>
+            <p className="hero-text">Una academia de ingeniería Databricks con 32 módulos, 160 lecciones desarrolladas, 30 prácticas guiadas, dos capstones y evaluación por dominios.</p>
             <div className="hero-actions">
               <button className="primary-button" onClick={() => openModule(continueModule)}>Continuar: módulo {continueModule.number}<span>→</span></button>
-              <button className="secondary-button" onClick={() => document.getElementById("roadmap")?.scrollIntoView({ behavior:"smooth" })}>Explorar el mapa</button>
+              <button className="secondary-button" onClick={() => document.getElementById("roadmap")?.scrollIntoView({ behavior: scrollBehavior() })}>Explorar el mapa</button>
             </div>
-            <div className="hero-proof"><span>100 h</span><span>Multinube</span><span>Blueprint 2026</span><span>Práctica razonada</span></div>
+            <div className="hero-proof"><span>100 h</span><span>Multinube</span><span>Blueprints vigentes</span><span>Práctica razonada</span></div>
           </div>
           <div className="hero-dashboard">
             <div className="hero-progress-card">
-              <div className="progress-orbit" style={{ "--progress": `${percent * 3.6}deg` } as React.CSSProperties}><strong>{percent}%</strong><small>completado</small></div>
+              <div className="progress-orbit" role="progressbar" aria-label="Progreso ponderado de la academia" aria-valuemin={0} aria-valuemax={100} aria-valuenow={percent} style={{ "--progress": `${percent * 3.6}deg` } as React.CSSProperties}><strong>{percent}%</strong><small>completado</small></div>
               <div><p>Tu progreso</p><b>{completed.size} de 32 módulos</b><span>{formatHours(completedMinutes)} de {formatHours(totalMinutes)}</span></div>
             </div>
             <div className="mini-path" aria-label="Estructura de la academia">
@@ -264,140 +493,203 @@ export default function Home() {
 
         <section className="exam-strip" aria-label="Simulacros de certificación">
           <div><p className="eyebrow">Evaluación acumulativa</p><h2>Dos hitos. Una carrera completa.</h2></div>
-          <button disabled={!completed.has("m11")} onClick={() => openExam("associate")}><span>Associate</span><b>45 preguntas · 90 min</b><small>{progress.examScores.associate !== undefined ? `Último resultado: ${progress.examScores.associate}%` : completed.has("m11") ? "Listo para comenzar" : "Se desbloquea al completar el módulo 11"}</small></button>
-          <button disabled={!(["m17","m22","m27","m31"].every((id) => completed.has(id)))} onClick={() => openExam("professional")}><span>Professional</span><b>59 preguntas · 120 min</b><small>{progress.examScores.professional !== undefined ? `Último resultado: ${progress.examScores.professional}%` : ["m17","m22","m27","m31"].every((id) => completed.has(id)) ? "Listo para comenzar" : "Se desbloquea al completar las cuatro ramas"}</small></button>
+          <button aria-disabled={!completed.has("m11")} onClick={() => openExam("associate")}><span>Associate</span><b>45 preguntas · 90 min</b><small>{progress.examScores.associate !== undefined ? `Último resultado: ${progress.examScores.associate}%` : completed.has("m11") ? "Listo para comenzar" : "Se desbloquea al completar el módulo 11"}</small></button>
+          <button aria-disabled={!(["m17","m22","m27","m31"].every((id) => completed.has(id)))} onClick={() => openExam("professional")}><span>Professional</span><b>59 preguntas · 120 min</b><small>{progress.examScores.professional !== undefined ? `Último resultado: ${progress.examScores.professional}%` : ["m17","m22","m27","m31"].every((id) => completed.has(id)) ? "Listo para comenzar" : "Se desbloquea al completar las cuatro ramas"}</small></button>
         </section>
 
         <section id="roadmap" className="roadmap" aria-labelledby="roadmap-title">
           <div className="section-heading"><div><p className="eyebrow">Mapa de dominio</p><h2 id="roadmap-title">Un núcleo. Cuatro especializaciones.</h2></div><p>Completa el tronco común para abrir las cuatro ramas. El proyecto Professional converge todo lo aprendido.</p></div>
-          <TrackRow track="core" completed={completed} isUnlocked={isUnlocked} onOpen={openModule} />
+          <TrackRow track="core" completed={completed} isUnlocked={isUnlocked} onLink={handleModuleLink} />
           <div className="roadmap-split"><span /><span /><span /><span /></div>
           <div className="branch-grid">
-            {(["streaming","pipelines","performance","delivery"] as TrackId[]).map((track) => <TrackRow key={track} track={track} completed={completed} isUnlocked={isUnlocked} onOpen={openModule} compact />)}
+            {(["streaming","pipelines","performance","delivery"] as TrackId[]).map((track) => <TrackRow key={track} track={track} completed={completed} isUnlocked={isUnlocked} onLink={handleModuleLink} compact />)}
           </div>
           <div className="roadmap-merge"><span /><span /><span /><span /></div>
-          <TrackRow track="final" completed={completed} isUnlocked={isUnlocked} onOpen={openModule} />
+          <TrackRow track="final" completed={completed} isUnlocked={isUnlocked} onLink={handleModuleLink} />
         </section>
 
         <section id="catalog" className="catalog" aria-labelledby="catalog-title">
-          <div className="section-heading"><div><p className="eyebrow">Catálogo completo</p><h2 id="catalog-title">Busca por habilidad, nivel o estado.</h2></div><button className="text-button" onClick={resetAcademy}>Reiniciar academia</button></div>
+          <div className="section-heading"><div><p className="eyebrow">Catálogo completo</p><h2 id="catalog-title">Busca por habilidad, nivel o estado.</h2></div><button ref={resetButtonRef} className="text-button danger" onClick={() => setResetPending(true)}>Reiniciar academia</button></div>
           <div className="filters">
             <label><span>Buscar</span><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Ej. Auto Loader, ABAC, skew…" /></label>
             <label><span>Rama</span><select value={trackFilter} onChange={(event) => setTrackFilter(event.target.value as TrackId | "all")}><option value="all">Todas</option>{trackOrder.map((track) => <option key={track} value={track}>{trackMeta[track].name}</option>)}</select></label>
-            <label><span>Estado</span><select value={statusFilter} onChange={(event) => setStatusFilter(event.target.value as typeof statusFilter)}><option value="all">Todos</option><option value="available">Disponibles</option><option value="completed">Superados</option></select></label>
-            <div className="result-count"><strong>{filteredModules.length}</strong><span>módulos</span></div>
+            <label><span>Nivel</span><select value={levelFilter} onChange={(event) => setLevelFilter(event.target.value as LevelFilter)}><option value="all">Todos</option><option value="associate">Associate</option><option value="professional">Professional</option></select></label>
+            <label><span>Tema</span><select value={topicFilter} onChange={(event) => setTopicFilter(event.target.value as TopicFilter)}><option value="all">Todos</option>{Object.entries(topicGroups).map(([value, group]) => <option key={value} value={value}>{group.label}</option>)}</select></label>
+            <label><span>Estado</span><select value={statusFilter} onChange={(event) => setStatusFilter(event.target.value as StatusFilter)}><option value="all">Todos</option><option value="available">Sin empezar</option><option value="in-progress">En curso</option><option value="completed">Superados</option><option value="locked">Bloqueados</option></select></label>
+            <div className="result-count" aria-live="polite"><strong>{filteredModules.length}</strong><span>módulos</span></div>
           </div>
           <div className="module-grid">
-            {filteredModules.map((module) => <ModuleCard key={module.id} module={module} unlocked={isUnlocked(module)} done={completed.has(module.id)} onOpen={openModule} />)}
+            {filteredModules.map((module) => <ModuleCard key={module.id} module={module} unlocked={isUnlocked(module)} done={completed.has(module.id)} progress={moduleProgressPercent(module, progress)} onLink={handleModuleLink} />)}
           </div>
-          {!filteredModules.length && <div className="empty-state"><b>No hay módulos con esos filtros.</b><button onClick={() => { setSearch(""); setTrackFilter("all"); setStatusFilter("all"); }}>Limpiar filtros</button></div>}
+          {!filteredModules.length && <div className="empty-state"><b>No hay módulos con esos filtros.</b><button onClick={() => { setSearch(""); setTrackFilter("all"); setLevelFilter("all"); setTopicFilter("all"); setStatusFilter("all"); }}>Limpiar filtros</button></div>}
         </section>
 
         <section id="academy" className="academy" aria-labelledby="module-title">
           <aside className="academy-sidebar">
             <p className="eyebrow">Academia</p>
-            <div className="sidebar-list">
-              {modules.map((module) => <button key={module.id} disabled={!isUnlocked(module)} onClick={() => openModule(module)} className={activeModule.id === module.id ? "active" : completed.has(module.id) ? "done" : ""}><span>{completed.has(module.id) ? "✓" : module.number}</span><div><b>{module.short}</b><small>{trackMeta[module.track].name}</small></div></button>)}
-            </div>
+            <nav className="sidebar-list" aria-label="Módulos de la academia">
+              {modules.map((module) => <a key={module.id} href={`?module=${module.slug}`} aria-disabled={!isUnlocked(module)} aria-current={activeModule.id === module.id ? "step" : undefined} onClick={(event) => handleModuleLink(event, module)} className={activeModule.id === module.id ? "active" : completed.has(module.id) ? "done" : ""}><span>{completed.has(module.id) ? "✓" : module.number}</span><div><b>{module.short}</b><small>{!isUnlocked(module) ? `Requiere ${module.prerequisites.map((id) => modules.find((item) => item.id === id)?.number).join(", ")}` : trackMeta[module.track].name}</small></div></a>)}
+            </nav>
           </aside>
 
           <div className="academy-content">
             <div className="module-header">
-              <div><p className="eyebrow">Módulo {activeModule.number} · {activeModule.level} · {formatHours(activeModule.minutes)}</p><h2 id="module-title">{activeModule.title}</h2><p>{activeModule.description}</p></div>
-              <div className={`mastery ${completed.has(activeModule.id) ? "passed" : ""}`}><strong>{completed.has(activeModule.id) ? "✓" : `${Math.round(((progress.completedLessons[activeModule.id]?.length ?? 0) / activeModule.lessons.length) * 100)}%`}</strong><span>{completed.has(activeModule.id) ? "Superado" : "Lecciones"}</span></div>
+              <div><p className="eyebrow">Módulo {activeModule.number} · {activeModule.level} · {formatHours(activeModule.minutes)}</p><h2 id="module-title" ref={moduleHeadingRef} tabIndex={-1}>{activeModule.title}</h2><p>{activeModule.description}</p></div>
+              <div className={`mastery ${completed.has(activeModule.id) ? "passed" : ""}`} role="progressbar" aria-label={`Progreso del módulo ${activeModule.number}`} aria-valuemin={0} aria-valuemax={100} aria-valuenow={moduleProgressPercent(activeModule, progress)}><strong>{completed.has(activeModule.id) ? "✓" : `${moduleProgressPercent(activeModule, progress)}%`}</strong><span>{completed.has(activeModule.id) ? "Superado" : "Módulo"}</span></div>
             </div>
             <div className="module-metadata"><span>{trackMeta[activeModule.track].name}</span>{activeModule.examDomains.map((domain) => <span key={domain}>{domain}</span>)}</div>
             <div className="academy-tabs" role="tablist" aria-label="Contenido del módulo">
-              <button role="tab" aria-selected={view === "lessons"} className={view === "lessons" ? "active" : ""} onClick={() => setView("lessons")}>01 · Lecciones <i>{progress.completedLessons[activeModule.id]?.length ?? 0}/5</i></button>
-              <button role="tab" aria-selected={view === "lab"} className={view === "lab" ? "active" : ""} onClick={() => setView("lab")}>02 · Laboratorio <i>{progress.labsPassed.includes(activeModule.id) ? "✓" : ""}</i></button>
-              <button role="tab" aria-selected={view === "quiz"} className={view === "quiz" ? "active" : ""} onClick={() => setView("quiz")}>03 · Test <i>{progress.quizScores[activeModule.id] ?? "—"}/4</i></button>
+              <button id="tab-lessons" role="tab" aria-controls="panel-lessons" aria-selected={view === "lessons"} tabIndex={view === "lessons" ? 0 : -1} className={view === "lessons" ? "active" : ""} onKeyDown={(event) => handleTabKey(event, "lessons")} onClick={() => selectView("lessons")}>01 · Lecciones <i>{progress.completedLessons[activeModule.id]?.length ?? 0}/5</i></button>
+              <button id="tab-lab" role="tab" aria-controls="panel-lab" aria-selected={view === "lab"} tabIndex={view === "lab" ? 0 : -1} className={view === "lab" ? "active" : ""} onKeyDown={(event) => handleTabKey(event, "lab")} onClick={() => selectView("lab")}>02 · {activeModule.kind === "capstone" ? "Proyecto" : "Laboratorio"} <i>{progress.labsPassed.includes(activeModule.id) ? "✓" : ""}</i></button>
+              <button id="tab-quiz" role="tab" aria-controls="panel-quiz" aria-selected={view === "quiz"} tabIndex={view === "quiz" ? 0 : -1} className={view === "quiz" ? "active" : ""} onKeyDown={(event) => handleTabKey(event, "quiz")} onClick={() => selectView("quiz")}>03 · Test <i>{progress.quizScores[activeModule.id] ?? "—"}/4</i></button>
             </div>
 
-            {view === "lessons" && <LessonsView module={activeModule} completedLessons={progress.completedLessons[activeModule.id] ?? []} onToggle={toggleLesson} onNext={() => setView("lab")} />}
-            {view === "lab" && <LabView module={activeModule} code={progress.labCode[activeModule.id] ?? activeModule.lab.starterCode} cloud={cloud} result={labResult} passed={progress.labsPassed.includes(activeModule.id)} showSolution={showSolution} onCloud={setCloud} onCode={setLabCode} onRun={runLab} onSolution={() => setShowSolution((value) => !value)} onNext={() => setView("quiz")} />}
-            {view === "quiz" && <QuizView module={activeModule} answers={progress.quizAnswers[activeModule.id] ?? {}} submitted={submittedQuiz} score={progress.quizScores[activeModule.id]} requirementsMet={(progress.completedLessons[activeModule.id]?.length ?? 0) >= activeModule.lessons.length && progress.labsPassed.includes(activeModule.id)} onAnswer={chooseQuizAnswer} onSubmit={submitQuiz} onBack={() => setView("lessons")} />}
+            {view === "lessons" && <LessonsView module={activeModule} completedLessons={progress.completedLessons[activeModule.id] ?? []} onToggle={toggleLesson} onNext={() => selectView("lab")} />}
+            {view === "lab" && <LabView module={activeModule} code={progress.labCode[activeModule.id] ?? activeModule.lab.starterCode} cloud={cloud} result={labResult} passed={progress.labsPassed.includes(activeModule.id)} confirmed={progress.labConfirmed.includes(activeModule.id)} showSolution={showSolution} onCloud={setCloud} onCode={setLabCode} onConfirm={setLabConfirmed} onRun={runLab} onSolution={() => setShowSolution((value) => !value)} onNext={() => selectView("quiz")} />}
+            {view === "quiz" && <QuizView module={activeModule} answers={progress.quizAnswers[activeModule.id] ?? {}} submitted={submittedQuiz} score={progress.quizScores[activeModule.id]} requirementsMet={(progress.completedLessons[activeModule.id]?.length ?? 0) >= activeModule.lessons.length && progress.labsPassed.includes(activeModule.id) && (activeModule.id === "m12" ? progress.examCompleted.associate === true : activeModule.id === "m32" ? progress.examCompleted.professional === true : true)} examRequired={activeModule.id === "m12" ? "associate" : activeModule.id === "m32" ? "professional" : null} examDone={activeModule.id === "m12" ? progress.examCompleted.associate === true : activeModule.id === "m32" ? progress.examCompleted.professional === true : true} onExam={openExam} onAnswer={chooseQuizAnswer} onSubmit={submitQuiz} onRetry={resetQuizAttempt} onBack={() => selectView("lessons")} />}
+            {completed.has(activeModule.id) && <div className="completion-banner" role="status"><div><span>✓</span><div><b>Módulo {activeModule.number} superado</b><p>{activeModule.id === "m12" ? "Las cuatro especializaciones ya están abiertas." : activeModule.id === "m32" ? "Has completado toda la academia." : "Tu progreso se ha guardado en este dispositivo."}</p></div></div>{activeModule.id !== "m32" && (activeModule.id === "m12" ? <button className="primary-button" onClick={() => document.getElementById("roadmap")?.scrollIntoView({ behavior: scrollBehavior() })}>Elegir especialización <span>→</span></button> : <button className="primary-button" onClick={() => openModule(continueModule)}>Continuar con {continueModule.number} <span>→</span></button>)}</div>}
           </div>
         </section>
       </div>
+
+      {resetPending && <div className="dialog-backdrop" onKeyDown={handleResetDialogKey}><div ref={resetDialogRef} className="confirm-dialog" role="dialog" aria-modal="true" aria-labelledby="reset-title" aria-describedby="reset-description"><p className="eyebrow">Acción irreversible</p><h2 id="reset-title">¿Reiniciar toda la academia?</h2><p id="reset-description">Se borrarán lecciones, laboratorios, tests y simulacros guardados en este dispositivo.</p><div><button className="secondary-button" autoFocus onClick={closeResetDialog}>Conservar progreso</button><button className="danger-button" onClick={resetAcademy}>Sí, borrar progreso</button></div></div></div>}
 
       <footer><a className="brand" href="#top"><span className="brand-mark"><i /><i /><i /></span>Lakehouse Lab</a><p>Contenido original basado en documentación oficial · no contiene preguntas reales de examen.</p><a href="#top">Volver arriba ↑</a></footer>
     </main>
   );
 }
 
-function TrackRow({ track, completed, isUnlocked, onOpen, compact = false }: { track: TrackId; completed: Set<string>; isUnlocked: (module: CurriculumModule) => boolean; onOpen: (module: CurriculumModule) => void; compact?: boolean }) {
+function TrackRow({ track, completed, isUnlocked, onLink, compact = false }: { track: TrackId; completed: Set<string>; isUnlocked: (module: CurriculumModule) => boolean; onLink: (event: MouseEvent<HTMLAnchorElement>, module: CurriculumModule) => void; compact?: boolean }) {
   const items = modules.filter((module) => module.track === track);
   const meta = trackMeta[track];
   return <article className={`track-row track-${meta.color} ${compact ? "compact" : ""}`}>
     <div className="track-heading"><span>{meta.eyebrow}</span><h3>{meta.name}</h3><p>{meta.description}</p></div>
-    <div className="track-modules">{items.map((module) => <button key={module.id} onClick={() => onOpen(module)} disabled={!isUnlocked(module)} className={completed.has(module.id) ? "done" : isUnlocked(module) ? "ready" : "locked"}><span>{completed.has(module.id) ? "✓" : module.number}</span><b>{module.short}</b><small>{formatHours(module.minutes)}</small></button>)}</div>
+    <div className="track-modules">{items.map((module) => <a key={module.id} href={`?module=${module.slug}`} onClick={(event) => onLink(event, module)} aria-disabled={!isUnlocked(module)} title={!isUnlocked(module) ? `Requiere ${module.prerequisites.join(", ")}` : undefined} className={completed.has(module.id) ? "done" : isUnlocked(module) ? "ready" : "locked"}><span>{completed.has(module.id) ? "✓" : module.number}</span><b>{module.short}</b><small>{isUnlocked(module) ? formatHours(module.minutes) : `Requiere ${module.prerequisites.map((id) => modules.find((item) => item.id === id)?.number).join(", ")}`}</small></a>)}</div>
   </article>;
 }
 
-function ModuleCard({ module, unlocked, done, onOpen }: { module: CurriculumModule; unlocked: boolean; done: boolean; onOpen: (module: CurriculumModule) => void }) {
+function ModuleCard({ module, unlocked, done, progress, onLink }: { module: CurriculumModule; unlocked: boolean; done: boolean; progress: number; onLink: (event: MouseEvent<HTMLAnchorElement>, module: CurriculumModule) => void }) {
   const prerequisiteNames = module.prerequisites.map((id) => modules.find((item) => item.id === id)?.number).filter(Boolean).join(", ");
-  return <button className={`module-card track-${trackMeta[module.track].color}`} onClick={() => onOpen(module)} disabled={!unlocked}>
+  return <a href={`?module=${module.slug}`} aria-disabled={!unlocked} className={`module-card track-${trackMeta[module.track].color}`} onClick={(event) => onLink(event, module)}>
     <span className="module-number">{done ? "✓" : module.number}</span>
     <span className="module-track">{trackMeta[module.track].name}</span>
     <b>{module.title}</b>
     <p>{module.description}</p>
-    <div><span>{formatHours(module.minutes)}</span><span>5 lecciones</span><span>1 lab</span></div>
+    <div><span>{formatHours(module.minutes)}</span><span>5 lecciones</span><span>{module.kind === "capstone" ? "Proyecto final" : "1 práctica"}</span>{progress > 0 && !done && <span>{progress}% completado</span>}</div>
     <small className={done ? "done" : unlocked ? "ready" : "locked"}>{done ? "Módulo superado" : unlocked ? "Abrir módulo →" : `Requiere ${prerequisiteNames}`}</small>
-  </button>;
+  </a>;
 }
 
 function LessonsView({ module, completedLessons, onToggle, onNext }: { module: CurriculumModule; completedLessons: string[]; onToggle: (id: string) => void; onNext: () => void }) {
-  return <div className="lessons-view" role="tabpanel">
+  return <div id="panel-lessons" className="lessons-view" role="tabpanel" aria-labelledby="tab-lessons" tabIndex={0}>
     <div className="outcomes"><span>Al terminar podrás</span>{module.outcomes.map((outcome) => <p key={outcome}>✓ {outcome}</p>)}</div>
     {module.lessons.map((lesson, index) => {
       const done = completedLessons.includes(lesson.id);
       return <article className={`lesson ${done ? "done" : ""}`} key={lesson.id}>
         <div className="lesson-index">{String(index + 1).padStart(2,"0")}</div>
-        <div className="lesson-copy"><p className="eyebrow">{lesson.kicker}</p><h3>{lesson.title}</h3><p className="lead">{lesson.summary}</p><p>{lesson.detail}</p><div className="decision-grid">{lesson.decisions.map((decision) => <span key={decision}>{decision}</span>)}</div></div>
+        <div className="lesson-copy">
+          <p className="eyebrow">{lesson.kicker}</p><h3>{lesson.title}</h3><p className="lead">{lesson.summary}</p>
+          <div className="lesson-explanation">{lesson.explanation.map((paragraph) => <p key={paragraph}>{paragraph}</p>)}</div>
+          <div className="key-points"><h4>Qué debes retener</h4><div>{lesson.keyPoints.map((point) => <span key={point}>✓ {point}</span>)}</div></div>
+          <div className="code-example"><div className="code-example-header"><div><span>{lesson.example.language}</span><b>{lesson.example.title}</b></div><CopyCodeButton code={lesson.example.code} /></div><pre><code>{lesson.example.code}</code></pre><p>{lesson.example.note}</p></div>
+          <div className="lesson-guidance"><div className="pitfalls"><h4>Errores frecuentes</h4>{lesson.pitfalls.map((pitfall) => <p key={pitfall}>× {pitfall}</p>)}</div><div className="exam-decision"><h4>Decisión de examen</h4><p>{lesson.examDecision}</p></div></div>
+          <details className="checkpoint"><summary>Comprueba tu razonamiento</summary><p><b>{lesson.checkpoint.question}</b></p><p>{lesson.checkpoint.answer}</p></details>
+        </div>
         <button className="lesson-check" onClick={() => onToggle(lesson.id)} aria-pressed={done}>{done ? "✓ Leída" : "Marcar leída"}</button>
       </article>;
     })}
-    <div className="source-card"><div><span>Fuente oficial · revisada {module.source.reviewedAt}</span><b>{module.source.label}</b></div><a href={module.source.href} target="_blank" rel="noreferrer">Abrir documentación ↗</a></div>
+    <div className="sources-card"><div><span>Referencias oficiales</span><b>Revisadas para esta versión</b></div><ul>{module.sources.map((source) => <li key={source.href}><a href={source.href} target="_blank" rel="noreferrer">{source.label} <span>↗</span></a><small>Revisada {source.reviewedAt}</small></li>)}</ul></div>
     <div className="view-next"><span>{completedLessons.length}/5 lecciones completadas</span><button className="primary-button" onClick={onNext}>Ir al laboratorio <span>→</span></button></div>
   </div>;
 }
 
-function LabView({ module, code, cloud, result, passed, showSolution, onCloud, onCode, onRun, onSolution, onNext }: { module: CurriculumModule; code: string; cloud: "AWS"|"Azure"|"GCP"; result: { checks:boolean[]; passed:boolean } | null; passed:boolean; showSolution:boolean; onCloud:(cloud:"AWS"|"Azure"|"GCP")=>void; onCode:(code:string)=>void; onRun:()=>void; onSolution:()=>void; onNext:()=>void }) {
+function CopyCodeButton({ code }: { code: string }) {
+  const [status, setStatus] = useState<"idle" | "copied" | "failed">("idle");
+  async function copy() {
+    try {
+      await navigator.clipboard.writeText(code);
+      setStatus("copied");
+      window.setTimeout(() => setStatus("idle"), 1800);
+    } catch {
+      setStatus("failed");
+    }
+  }
+  return <button type="button" onClick={copy} aria-live="polite">{status === "copied" ? "✓ Copiado" : status === "failed" ? "No se pudo copiar" : "Copiar código"}</button>;
+}
+
+function LabView({ module, code, cloud, result, passed, confirmed, showSolution, onCloud, onCode, onConfirm, onRun, onSolution, onNext }: { module: CurriculumModule; code: string; cloud: "AWS"|"Azure"|"GCP"; result: { checks:boolean[]; passed:boolean } | null; passed:boolean; confirmed:boolean; showSolution:boolean; onCloud:(cloud:"AWS"|"Azure"|"GCP")=>void; onCode:(code:string)=>void; onConfirm:(confirmed:boolean)=>void; onRun:()=>void; onSolution:()=>void; onNext:()=>void }) {
   const cloudNote = module.lab.cloudNotes.find((item) => item.cloud === cloud)!;
-  return <div className="lab-view" role="tabpanel">
-    <div className="lab-brief"><span>⌘</span><div><p className="eyebrow">Práctica guiada · {formatHours(Math.max(60, module.minutes - 90))}</p><h3>{module.lab.title}</h3><p>{module.lab.goal}</p></div></div>
+  const clouds = ["AWS", "Azure", "GCP"] as const;
+  const practiceMinutes = Math.round(module.minutes * (module.kind === "capstone" ? .4 : module.kind === "branch-project" ? .5 : .35));
+  function handleCloudKey(event: KeyboardEvent<HTMLButtonElement>, currentCloud: typeof cloud) {
+    if (!["ArrowLeft", "ArrowRight", "Home", "End"].includes(event.key)) return;
+    event.preventDefault();
+    const index = clouds.indexOf(currentCloud);
+    const nextIndex = event.key === "Home" ? 0 : event.key === "End" ? clouds.length - 1 : (index + (event.key === "ArrowRight" ? 1 : -1) + clouds.length) % clouds.length;
+    onCloud(clouds[nextIndex]);
+    requestAnimationFrame(() => document.getElementById(`cloud-${clouds[nextIndex]}`)?.focus());
+  }
+  return <div id="panel-lab" className="lab-view" role="tabpanel" aria-labelledby="tab-lab" tabIndex={0}>
+    <div className="lab-brief"><span>⌘</span><div><p className="eyebrow">{module.kind === "capstone" ? "Proyecto integrador" : "Práctica guiada"} · {formatHours(practiceMinutes)}</p><h3>{module.lab.title}</h3><p>{module.lab.goal}</p><small>{module.lab.scenario}</small></div></div>
     <ol className="lab-steps">{module.lab.steps.map((step,index) => <li key={step}><span>{index+1}</span><p>{step}</p></li>)}</ol>
-    <div className="cloud-panel"><div className="cloud-tabs" role="tablist" aria-label="Variante de nube">{(["AWS","Azure","GCP"] as const).map((item) => <button role="tab" aria-selected={cloud===item} className={cloud===item?"active":""} onClick={() => onCloud(item)} key={item}>{item}</button>)}</div><p>{cloudNote.note}</p></div>
-    <div className="editor"><div className="editor-bar"><div><i/><i/><i/><b>{module.lab.solution.trimStart().startsWith("SELECT") || module.lab.solution.trimStart().startsWith("CREATE") || module.lab.solution.trimStart().startsWith("ALTER") || module.lab.solution.trimStart().startsWith("MERGE") ? "solution.sql" : "solution.py"}</b></div><button onClick={onSolution}>{showSolution ? "Ocultar solución" : "Ver referencia"}</button></div><textarea value={showSolution ? module.lab.solution : code} onChange={(event) => onCode(event.target.value)} readOnly={showSolution} spellCheck={false} aria-label="Editor del laboratorio"/><div className="editor-actions"><span>Sandbox didáctico · no ejecuta un clúster real</span><button onClick={onRun}>▶ Validar solución</button></div></div>
-    {result && <div className={`lab-result ${result.passed ? "passed":"failed"}`}><div><strong>{result.passed ? "✓ Laboratorio validado" : "Revisa los checks pendientes"}</strong><span>{result.checks.filter(Boolean).length}/{result.checks.length} checks</span></div>{module.lab.checks.map((check,index) => <p key={check.label} className={result.checks[index]?"ok":"missing"}>{result.checks[index]?"✓":"×"} {check.label}</p>)}</div>}
+    <div className="evidence-card"><h4>Evidencia que debes conservar</h4><ul>{module.lab.expectedEvidence.map((evidence) => <li key={evidence}>{evidence}</li>)}</ul></div>
+    <div className="cloud-panel"><div className="cloud-tabs" role="tablist" aria-label="Variante de nube">{clouds.map((item) => <button id={`cloud-${item}`} role="tab" aria-controls="cloud-note" aria-selected={cloud===item} tabIndex={cloud===item?0:-1} className={cloud===item?"active":""} onKeyDown={(event) => handleCloudKey(event, item)} onClick={() => onCloud(item)} key={item}>{item}</button>)}</div><p id="cloud-note" role="tabpanel" aria-labelledby={`cloud-${cloud}`}>{cloudNote.note}</p></div>
+    <div className="editor"><div className="editor-bar"><div><i/><i/><i/><b>{module.lab.solution.trimStart().match(/^(SELECT|CREATE|ALTER|MERGE|WITH|INSERT|GRANT)/) ? "solution.sql" : "solution.py"}</b></div><div className="editor-tools"><CopyCodeButton code={showSolution ? module.lab.solution : code} /><button disabled={!showSolution && !result && !passed} title={!result && !passed ? "Haz primero un intento de comprobación" : undefined} onClick={onSolution}>{showSolution ? "Ocultar referencia" : "Ver referencia"}</button></div></div><textarea value={showSolution ? module.lab.solution : code} onChange={(event) => onCode(event.target.value)} readOnly={showSolution} spellCheck={false} aria-label="Editor del laboratorio" aria-describedby="sandbox-note"/><div className="editor-actions"><span id="sandbox-note">Autocomprobación de estructura; ejecuta el código en tu workspace real.</span><button onClick={onRun}>▶ Comprobar estructura</button></div></div>
+    <label className="evidence-confirm"><input type="checkbox" checked={confirmed} onChange={(event) => onConfirm(event.target.checked)} /><span><b>He ejecutado la práctica en Databricks</b><small>He comparado la salida con la evidencia esperada y no he incluido credenciales en el código.</small></span></label>
+    {result && <div className={`lab-result ${result.passed ? "passed":"failed"}`} role="status"><div><strong>{result.passed ? "✓ Práctica completada" : "Revisa la estructura o la confirmación"}</strong><span>{result.checks.filter(Boolean).length}/{result.checks.length} comprobaciones</span></div>{module.lab.checks.map((check,index) => <p key={check.label} className={result.checks[index]?"ok":"missing"}>{result.checks[index]?"✓":"×"} {check.label}</p>)}{!confirmed && <p className="missing">× Falta confirmar la ejecución real</p>}</div>}
     {passed && !result && <div className="lab-result passed"><strong>✓ Laboratorio ya superado</strong></div>}
-    <div className="view-next"><span>{passed ? "Práctica completada" : "Completa todos los checks para avanzar"}</span><button className="primary-button" onClick={onNext}>Hacer el test <span>→</span></button></div>
+    <div className="view-next"><span>{passed ? "Práctica completada" : "La comprobación no sustituye la ejecución en Databricks"}</span><button className="primary-button" onClick={onNext}>Hacer el test <span>→</span></button></div>
   </div>;
 }
 
-function QuizView({ module, answers, submitted, score, requirementsMet, onAnswer, onSubmit, onBack }: { module: CurriculumModule; answers:Record<number,number>; submitted:boolean; score?:number; requirementsMet:boolean; onAnswer:(question:number,option:number)=>void; onSubmit:()=>void; onBack:()=>void }) {
-  return <div className="quiz-view" role="tabpanel">
-    <div className="quiz-intro"><div><p className="eyebrow">Evaluación razonada</p><h3>Necesitas 3 de 4 respuestas correctas.</h3><p>La explicación aparece al enviar. Para superar el módulo también debes completar las cinco lecciones y el laboratorio.</p></div><strong>{Object.keys(answers).length}/4</strong></div>
-    <div className="quiz-list">{module.quiz.map((question,index) => <fieldset key={question.question}><legend><span>{String(index+1).padStart(2,"0")}</span>{question.question}</legend><div>{question.options.map((option,optionIndex) => { const selected=answers[index]===optionIndex; const correct=question.answer===optionIndex; return <label key={option} className={submitted ? correct?"correct":selected?"incorrect":"" : selected?"selected":""}><input type="radio" name={`${module.id}-${index}`} checked={selected} onChange={() => onAnswer(index,optionIndex)} /><span>{String.fromCharCode(65+optionIndex)}</span>{option}</label>; })}</div>{submitted && <p className="quiz-feedback">{question.explanation}</p>}</fieldset>)}</div>
-    <div className="quiz-submit"><button className="secondary-button" onClick={onBack}>← Volver a lecciones</button><div>{submitted && <p className={(score??0)>=3&&requirementsMet?"pass":"warn"}>{(score??0)>=3 ? requirementsMet ? "Módulo superado. El siguiente ya está disponible." : "Test aprobado; completa lecciones y laboratorio." : `Resultado: ${score ?? 0}/4. Repasa las explicaciones.`}</p>}<button className="primary-button" disabled={Object.keys(answers).length<4} onClick={onSubmit}>Corregir test <span>→</span></button></div></div>
+function QuizView({ module, answers, submitted, score, requirementsMet, examRequired, examDone, onExam, onAnswer, onSubmit, onRetry, onBack }: { module: CurriculumModule; answers:Record<number,number>; submitted:boolean; score?:number; requirementsMet:boolean; examRequired:StoredExamMode|null; examDone:boolean; onExam:(mode:StoredExamMode)=>void; onAnswer:(question:number,option:number)=>void; onSubmit:()=>void; onRetry:()=>void; onBack:()=>void }) {
+  return <div id="panel-quiz" className="quiz-view" role="tabpanel" aria-labelledby="tab-quiz" tabIndex={0}>
+    <div className="quiz-intro"><div><p className="eyebrow">Evaluación razonada</p><h3>Necesitas 3 de 4 respuestas correctas.</h3><p>Las preguntas plantean decisiones técnicas. Para superar el módulo también debes completar las lecciones y ejecutar la práctica.</p></div><strong>{Object.keys(answers).length}/4</strong></div>
+    <div className="quiz-list">{module.quiz.map((question,index) => <fieldset key={question.question}><legend><span>{String(index+1).padStart(2,"0")}</span>{question.question}</legend><small className="domain-label">{question.domain}</small><div>{question.options.map((option,optionIndex) => { const selected=answers[index]===optionIndex; const correct=question.answer===optionIndex; return <label key={option} className={submitted ? correct?"correct":selected?"incorrect":"" : selected?"selected":""}><input type="radio" name={`${module.id}-${index}`} checked={selected} disabled={submitted} onChange={() => onAnswer(index,optionIndex)} /><span>{String.fromCharCode(65+optionIndex)}</span>{option}</label>; })}</div>{submitted && <p className="quiz-feedback"><b>{answers[index] === question.answer ? "Correcta. " : "Respuesta recomendada. "}</b>{question.explanation}</p>}</fieldset>)}</div>
+    {examRequired && !examDone && <div className="capstone-exam"><div><p className="eyebrow">Requisito del capstone</p><h3>Completa el simulacro {examRequired === "associate" ? "Associate" : "Professional"}.</h3><p>El intento es obligatorio para cerrar el proyecto. El 80% sigue siendo sólo un indicador interno de preparación.</p></div><button className="primary-button" onClick={() => onExam(examRequired)}>Abrir simulacro <span>→</span></button></div>}
+    <div className="quiz-submit"><button className="secondary-button" onClick={onBack}>← Volver a lecciones</button><div aria-live="polite">{submitted && <p className={(score??0)>=3&&requirementsMet?"pass":"warn"}>{(score??0)>=3 ? requirementsMet ? "Módulo superado. El siguiente ya está disponible." : examRequired && !examDone ? "Test aprobado; falta completar el simulacro del capstone." : "Test aprobado; completa las lecciones y la práctica." : `Resultado: ${score ?? 0}/4. Repasa las explicaciones.`}</p>}{submitted ? <button className="secondary-button" onClick={onRetry}>Nuevo intento</button> : <button className="primary-button" disabled={Object.keys(answers).length<4} onClick={onSubmit}>Corregir test <span>→</span></button>}</div></div>
   </div>;
 }
 
-function ExamSimulator({ mode, page, answers, submitted, previousScore, onPage, onAnswer, onSubmit, onClose }: { mode:"associate"|"professional"; page:number; answers:Record<number,number>; submitted:boolean; previousScore?:number; onPage:(page:number)=>void; onAnswer:(index:number,answer:number)=>void; onSubmit:(score:number)=>void; onClose:()=>void }) {
-  const questions = useMemo(() => buildExamQuestions(mode), [mode]);
+function ExamSimulator({ mode, attempt, page, answers, submitted, previousScore, onPage, onAnswer, onSubmit, onRetry, onClose }: { mode:"associate"|"professional"; attempt:number; page:number; answers:Record<number,number>; submitted:boolean; previousScore?:number; onPage:(page:number)=>void; onAnswer:(index:number,answer:number)=>void; onSubmit:(score:number,completedAttempt:boolean)=>void; onRetry:()=>void; onClose:()=>void }) {
+  const questions = useMemo(() => buildExamQuestions(mode, attempt), [mode, attempt]);
+  const [priorScore] = useState(previousScore);
   const pageSize = 10;
   const pages = Math.ceil(questions.length/pageSize);
-  const visible = questions.slice(page*pageSize, (page+1)*pageSize);
+  const safePage = Math.min(Math.max(page, 0), pages - 1);
+  const visible = questions.slice(safePage*pageSize, (safePage+1)*pageSize);
   const score = questions.reduce((sum,question,index) => sum+(answers[index]===question.answer?1:0),0);
-  const percent = Math.round((score/questions.length)*100);
-  const answered = Object.keys(answers).length;
+  const exactRatio = score / questions.length;
+  const percent = Math.round(exactRatio*100);
+  const answered = Math.min(Object.keys(answers).length, questions.length);
+  const completedAttempt = answered === questions.length;
+  const isReady = completedAttempt && exactRatio >= .8;
   const blueprint = mode === "associate" ? associateBlueprint : professionalBlueprint;
+  const [secondsLeft, setSecondsLeft] = useState(mode === "associate" ? 90 * 60 : 120 * 60);
+  useEffect(() => {
+    if (submitted || secondsLeft <= 0) return;
+    const interval = window.setInterval(() => setSecondsLeft((value) => Math.max(0, value - 1)), 1000);
+    return () => window.clearInterval(interval);
+  }, [submitted, secondsLeft]);
+  useEffect(() => {
+    if (secondsLeft === 0 && !submitted) onSubmit(percent, completedAttempt);
+  }, [secondsLeft, submitted, onSubmit, percent, completedAttempt]);
+  const timer = `${String(Math.floor(secondsLeft / 60)).padStart(2,"0")}:${String(secondsLeft % 60).padStart(2,"0")}`;
+  const domainStats = Object.entries(questions.reduce<Record<string,{ correct:number; total:number; moduleIds:Set<string> }>>((stats, question, index) => {
+    const domain = question.domain || "Otros";
+    const current = stats[domain] ?? { correct:0, total:0, moduleIds:new Set<string>() };
+    current.total += 1;
+    if (answers[index] === question.answer) current.correct += 1;
+    if (question.moduleId) current.moduleIds.add(question.moduleId);
+    stats[domain] = current;
+    return stats;
+  }, {})).map(([domain, stat]) => ({ ...stat, domain })).sort((a,b) => (a.correct/a.total)-(b.correct/b.total));
   return <main className="exam-shell">
     <header className="exam-header"><button className="brand as-button" onClick={onClose}><span className="brand-mark"><i/><i/><i/></span>Lakehouse Lab</button><div><span>{mode === "associate" ? "Associate":"Professional"}</span><b>{questions.length} preguntas · simulacro original</b></div><button className="secondary-button" onClick={onClose}>Cerrar</button></header>
-    <div className="exam-progress"><i style={{width:`${(answered/questions.length)*100}%`}}/></div>
-    <section className="exam-hero"><p className="eyebrow">Simulacro {mode === "associate" ? "Associate":"Professional"}</p><h1>Piensa como ingeniero,<br/>no como memorizador<span>.</span></h1><p>Preguntas originales inspiradas en dominios oficiales. El 80% es una señal interna de preparación, no la nota oficial del examen.</p><div><span>{answered}/{questions.length} respondidas</span>{previousScore !== undefined && <span>Anterior: {previousScore}%</span>}<a href={blueprint} target="_blank" rel="noreferrer">Blueprint oficial ↗</a></div></section>
-    <section className="exam-questions"><div className="exam-page-heading"><span>Página {page+1} de {pages}</span><b>Preguntas {page*pageSize+1}—{Math.min((page+1)*pageSize,questions.length)}</b></div>{visible.map((question,localIndex) => { const index=page*pageSize+localIndex; return <fieldset key={index}><legend><span>{String(index+1).padStart(2,"0")}</span>{question.question}</legend><div>{question.options.map((option,optionIndex) => <label key={option} className={submitted ? question.answer===optionIndex?"correct":answers[index]===optionIndex?"incorrect":"" : answers[index]===optionIndex?"selected":""}><input type="radio" name={`exam-${index}`} checked={answers[index]===optionIndex} onChange={() => onAnswer(index,optionIndex)}/><span>{String.fromCharCode(65+optionIndex)}</span>{option}</label>)}</div>{submitted && <p className="quiz-feedback">{question.explanation}</p>}</fieldset> })}</section>
-    <div className="exam-nav"><button className="secondary-button" disabled={page===0} onClick={() => {onPage(page-1);window.scrollTo({top:0,behavior:"smooth"})}}>← Anterior</button><div>{Array.from({length:pages},(_,index)=><button key={index} aria-label={`Ir a página ${index+1}`} className={page===index?"active":""} onClick={() => onPage(index)}>{index+1}</button>)}</div>{page<pages-1?<button className="primary-button" onClick={() => {onPage(page+1);window.scrollTo({top:0,behavior:"smooth"})}}>Siguiente →</button>:<button className="primary-button" disabled={answered<questions.length} onClick={() => onSubmit(percent)}>Corregir simulacro →</button>}</div>
-    {submitted && <div className={`exam-result ${percent>=80?"passed":"failed"}`}><strong>{percent}%</strong><div><h2>{percent>=80?"Preparación sólida":"Aún hay dominios que reforzar"}</h2><p>{score} de {questions.length} respuestas correctas. Revisa las explicaciones y vuelve a intentarlo con un orden distinto.</p></div></div>}
+    <div className="exam-progress" role="progressbar" aria-label="Preguntas respondidas" aria-valuemin={0} aria-valuemax={questions.length} aria-valuenow={answered}><i style={{width:`${(answered/questions.length)*100}%`}}/></div>
+    <section className="exam-hero"><p className="eyebrow">Simulacro {mode === "associate" ? "Associate":"Professional"}</p><h1>Piensa como ingeniero,<br/>no como memorizador<span>.</span></h1><p>Escenarios originales mapeados a los dominios oficiales. El 80% es una señal interna de preparación, no la nota oficial del examen.</p><div><span>{answered}/{questions.length} respondidas</span><span aria-label={`Tiempo restante ${timer}`}>⏱ {timer}</span>{priorScore !== undefined && <span>Anterior: {priorScore}%</span>}<a href={blueprint} target="_blank" rel="noreferrer">Blueprint oficial ↗</a></div></section>
+    <section className="exam-questions"><div className="exam-page-heading"><span>Página {safePage+1} de {pages}</span><b>Preguntas {safePage*pageSize+1}—{Math.min((safePage+1)*pageSize,questions.length)}</b></div>{visible.map((question,localIndex) => { const index=safePage*pageSize+localIndex; return <fieldset key={`${question.moduleId}-${index}`}><legend><span>{String(index+1).padStart(2,"0")}</span>{question.question}</legend><small className="domain-label">{question.domain}</small><div>{question.options.map((option,optionIndex) => <label key={option} className={submitted ? question.answer===optionIndex?"correct":answers[index]===optionIndex?"incorrect":"" : answers[index]===optionIndex?"selected":""}><input type="radio" name={`exam-${index}`} checked={answers[index]===optionIndex} disabled={submitted} onChange={() => onAnswer(index,optionIndex)}/><span>{String.fromCharCode(65+optionIndex)}</span>{option}</label>)}</div>{submitted && <p className="quiz-feedback"><b>{answers[index]===question.answer?"Correcta. ":"Respuesta recomendada. "}</b>{question.explanation}</p>}</fieldset> })}</section>
+    <div className="exam-nav"><button className="secondary-button" disabled={safePage===0} onClick={() => {onPage(safePage-1);window.scrollTo({top:0,behavior:scrollBehavior()})}}>← Anterior</button><div>{Array.from({length:pages},(_,index)=><button key={index} aria-label={`Ir a página ${index+1}`} className={`${safePage===index?"active":""} ${questions.slice(index*pageSize,(index+1)*pageSize).every((_,local) => answers[index*pageSize+local] !== undefined)?"answered":""}`} onClick={() => onPage(index)}>{index+1}</button>)}</div>{safePage<pages-1?<button className="primary-button" onClick={() => {onPage(safePage+1);window.scrollTo({top:0,behavior:scrollBehavior()})}}>Siguiente →</button>:<button className="primary-button" disabled={answered<questions.length || submitted} onClick={() => onSubmit(percent, true)}>Corregir simulacro →</button>}</div>
+    {submitted && <section className="exam-summary" aria-live="polite"><div className={`exam-result ${isReady?"passed":"failed"}`}><strong>{percent}%</strong><div><h2>{!completedAttempt?"Intento no completado":isReady?"Preparación sólida":"Aún hay dominios que reforzar"}</h2><p>{!completedAttempt ? `El tiempo terminó con ${answered} de ${questions.length} preguntas respondidas. Este intento no completa el hito.` : `${score} de ${questions.length} respuestas correctas. Para alcanzar realmente el 80% necesitas al menos ${mode === "associate" ? 36 : 48} aciertos.`}</p><button className="secondary-button" onClick={onRetry}>Nuevo intento con otro orden</button></div></div><div className="domain-breakdown"><div><p className="eyebrow">Diagnóstico por dominio</p><h2>Empieza por tus áreas más débiles.</h2></div><div>{domainStats.map((stat) => { const ratio=Math.round((stat.correct/stat.total)*100); const moduleNumbers=[...stat.moduleIds].map((id)=>modules.find((module)=>module.id===id)?.number).filter(Boolean).join(", "); return <article key={stat.domain}><span>{ratio}%</span><div><b>{stat.domain}</b><small>{stat.correct}/{stat.total} correctas · repasa módulos {moduleNumbers}</small></div></article>; })}</div></div></section>}
   </main>;
 }

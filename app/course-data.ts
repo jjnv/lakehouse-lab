@@ -1,5 +1,13 @@
+import { coreContent } from "./curriculum/core-content";
+import { advancedContentA } from "./curriculum/advanced-content-a";
+import { advancedContentB } from "./curriculum/advanced-content-b";
+import { associateExamBank } from "./curriculum/associate-exam-bank";
+import { professionalExamBank } from "./curriculum/professional-exam-bank";
+import type { CodeLanguage, ModuleContentPack } from "./curriculum/content-types";
+
 export type TrackId = "core" | "streaming" | "pipelines" | "performance" | "delivery" | "final";
 export type ExamLevel = "Associate" | "Associate + Professional" | "Professional";
+export type ModuleKind = "standard" | "branch-project" | "capstone";
 
 export type SourceReference = {
   label: string;
@@ -14,6 +22,17 @@ export type Lesson = {
   summary: string;
   detail: string;
   decisions: string[];
+  explanation: [string, string];
+  keyPoints: [string, string, string];
+  example: {
+    language: CodeLanguage;
+    title: string;
+    code: string;
+    note: string;
+  };
+  pitfalls: [string, string];
+  examDecision: string;
+  checkpoint: { question: string; answer: string };
 };
 
 export type QuizQuestion = {
@@ -21,15 +40,19 @@ export type QuizQuestion = {
   options: string[];
   answer: number;
   explanation: string;
+  domain: string;
+  moduleId?: string;
 };
 
 export type Lab = {
   title: string;
   goal: string;
+  scenario: string;
   steps: string[];
   starterCode: string;
   solution: string;
   checks: { label: string; pattern: string }[];
+  expectedEvidence: string[];
   cloudNotes: { cloud: "AWS" | "Azure" | "GCP"; note: string }[];
 };
 
@@ -39,6 +62,7 @@ export type CurriculumModule = {
   slug: string;
   title: string;
   short: string;
+  kind: ModuleKind;
   track: TrackId;
   level: ExamLevel;
   minutes: number;
@@ -49,10 +73,17 @@ export type CurriculumModule = {
   quiz: QuizQuestion[];
   examDomains: string[];
   prerequisites: string[];
-  source: SourceReference;
+  sources: SourceReference[];
 };
 
-type ModuleSeed = Omit<CurriculumModule, "number" | "slug" | "lessons" | "lab" | "quiz" | "prerequisites" | "source"> & {
+export type ExamMapping = {
+  level: "Associate" | "Professional";
+  domain: string;
+  objectives: string[];
+  moduleIds: string[];
+};
+
+type ModuleSeed = Omit<CurriculumModule, "number" | "slug" | "kind" | "lessons" | "lab" | "quiz" | "prerequisites" | "sources"> & {
   topics: string[];
   practice: string;
   snippet: string;
@@ -110,6 +141,7 @@ const seeds: ModuleSeed[] = [
 ];
 
 const lessonKickers = ["Modelo mental", "Implementación", "Operación", "Diagnóstico", "Decisión de diseño"];
+const contentPacks: Record<string, ModuleContentPack> = { ...coreContent, ...advancedContentA, ...advancedContentB };
 
 function slugify(value: string) {
   return value.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "");
@@ -123,57 +155,49 @@ function prerequisitesFor(index: number, track: TrackId): string[] {
   return previous.track === track ? [previous.id] : ["m12"];
 }
 
-function makeLessons(seed: ModuleSeed): Lesson[] {
-  return seed.topics.map((topic, index) => ({
+function moduleKind(seed: ModuleSeed): ModuleKind {
+  if (["m12", "m32"].includes(seed.id)) return "capstone";
+  if (["m17", "m22", "m27"].includes(seed.id)) return "branch-project";
+  return "standard";
+}
+
+function packFor(seed: ModuleSeed): ModuleContentPack {
+  const pack = contentPacks[seed.id];
+  if (!pack) throw new Error(`Falta contenido desarrollado para ${seed.id}`);
+  return pack;
+}
+
+function makeLessons(seed: ModuleSeed, pack: ModuleContentPack): Lesson[] {
+  return seed.topics.map((topic, index) => {
+    const content = pack.lessons[index];
+    return {
     id: `${seed.id}-l${index + 1}`,
     kicker: lessonKickers[index],
     title: topic,
-    summary: `Esta lección sitúa ${topic.toLowerCase()} dentro de ${seed.title.toLowerCase()}, con una decisión técnica concreta y criterios para comprobarla.`,
-    detail: index === 0
-      ? `${seed.description} Empieza por el modelo mental: identifica qué estado persiste, qué componente ejecuta la carga y dónde se aplican los controles. El objetivo no es memorizar nombres, sino poder defender la arquitectura ante requisitos de volumen, latencia, seguridad y coste.`
-      : `Trabaja el tema con datos representativos y compara el resultado esperado con las señales de ejecución. Documenta supuestos, límites y el comportamiento ante reintentos o cambios de esquema; en producción, una solución correcta también debe ser observable, gobernable y recuperable.`,
-    decisions: [seed.outcomes[index % seed.outcomes.length], `Evita aplicar ${topic.toLowerCase()} como receta universal`, "Valida la decisión con métricas y una condición de aceptación"],
-  }));
+    detail: content.explanation.join("\n\n"),
+    decisions: content.keyPoints,
+    ...content,
+    };
+  });
 }
 
-function makeLab(seed: ModuleSeed): Lab {
+function makeLab(pack: ModuleContentPack): Lab {
   return {
-    title: seed.track === "final" || ["m12", "m17", "m22", "m27"].includes(seed.id) ? seed.title : `Laboratorio: ${seed.short}`,
-    goal: seed.practice,
-    steps: ["Prepara un catálogo y esquema de aprendizaje sin credenciales incrustadas.", seed.practice, "Ejecuta dos veces o simula un fallo para comprobar idempotencia y recuperación.", "Registra resultado, métricas, supuestos y una mejora pendiente."],
-    starterCode: `# Completa el ejercicio de ${seed.short}\n# TODO: aplica la solución y documenta la evidencia\n`,
-    solution: seed.snippet,
-    checks: seed.checkTerms.map((term) => ({ label: `Incluye ${term}`, pattern: term.replace(/[.*+?^${}()|[\]\\]/g, "\\$&") })),
-    cloudNotes: [
-      { cloud:"AWS", note:"Usa S3 y una storage credential de Unity Catalog cuando el ejercicio necesite object storage." },
-      { cloud:"Azure", note:"Sustituye el almacenamiento por ADLS Gen2 y usa la identidad administrada o service principal autorizada." },
-      { cloud:"GCP", note:"Usa GCS y una storage credential respaldada por una service account con mínimo privilegio." },
-    ],
+    ...pack.lab,
+    cloudNotes: (["AWS", "Azure", "GCP"] as const).map((cloud) => ({ cloud, note: pack.lab.cloudNotes[cloud] })),
   };
-}
-
-function makeQuiz(seed: ModuleSeed): QuizQuestion[] {
-  return [
-    { question:`¿Cuál es el resultado principal del módulo ${seed.id.slice(1)}?`, options:[seed.outcomes[0],"Aumentar compute sin medir","Eliminar los controles de gobierno","Convertir toda carga en streaming"], answer:0, explanation:`El objetivo evaluado es ${seed.outcomes[0].toLowerCase()}; las demás opciones son decisiones sin contexto.` },
-    { question:"¿Qué enfoque es más sólido para producción?", options:["Copiar una receta sin revisar el workload",seed.outcomes[1],"Ocultar métricas para simplificar","Depender de una ejecución manual"], answer:1, explanation:`La opción correcta conecta la implementación con el resultado observable: ${seed.outcomes[1].toLowerCase()}.` },
-    { question:`¿Qué error conviene evitar al trabajar con ${seed.short}?`, options:["Documentar supuestos","Probar con datos representativos",`Aplicar ${seed.topics[2].toLowerCase()} como regla universal`,"Definir una condición de aceptación"], answer:2, explanation:"Una práctica útil en un contexto puede ser perjudicial en otro; hay que validar con evidencia y restricciones reales." },
-    { question:"¿Qué evidencia demuestra mejor que el laboratorio está terminado?", options:["Una captura sin contexto","Que el código no dé error una vez","Haber leído la documentación",`Resultado reproducible, métricas y explicación de ${seed.outcomes[2].toLowerCase()}`], answer:3, explanation:"La finalización exige resultado reproducible, evidencia y capacidad de explicar la decisión." },
-  ];
 }
 
 export const modules: CurriculumModule[] = seeds.map((seed, index) => ({
   ...seed,
   number: String(index + 1).padStart(2, "0"),
   slug: slugify(seed.title),
-  lessons: makeLessons(seed),
-  lab: makeLab(seed),
-  quiz: makeQuiz(seed),
+  kind: moduleKind(seed),
+  lessons: makeLessons(seed, packFor(seed)),
+  lab: makeLab(packFor(seed)),
+  quiz: packFor(seed).quiz.map((question) => ({ ...question, moduleId: seed.id })),
   prerequisites: prerequisitesFor(index, seed.track),
-  source: {
-    label: seed.sourcePath.startsWith("http") ? "Blueprint oficial de certificación" : "Documentación oficial de Databricks",
-    href: seed.sourcePath.startsWith("http") ? seed.sourcePath : `https://docs.databricks.com/aws/en${seed.sourcePath}`,
-    reviewedAt: "21 jul 2026",
-  },
+  sources: packFor(seed).sources,
 }));
 
 export const totalMinutes = modules.reduce((total, module) => total + module.minutes, 0);
@@ -181,22 +205,59 @@ export const totalMinutes = modules.reduce((total, module) => total + module.min
 export const associateBlueprint = "https://www.databricks.com/sites/default/files/2026-03/databricks-certified-data-engineer-associate-exam-guide-may-4-2026.pdf";
 export const professionalBlueprint = "https://www.databricks.com/sites/default/files/2025-11/databricks-certified-data-engineer-professional-exam-guide-november-30-2025_0.pdf";
 
-export function buildExamQuestions(level: "associate" | "professional"): QuizQuestion[] {
-  const count = level === "associate" ? 45 : 59;
-  const pool = level === "associate" ? modules.slice(0, 12) : modules;
-  return Array.from({ length: count }, (_, index) => {
-    const module = pool[index % pool.length];
-    const lesson = module.lessons[Math.floor(index / pool.length) % module.lessons.length];
-    const correctIndex = index % 4;
-    const correct = `${module.short}: ${lesson.title}`;
-    const distractors = ["Aumentar compute antes de investigar", "Eliminar el checkpoint para repetir la carga", "Conceder permisos amplios a usuarios individuales"];
-    const options = [...distractors];
-    options.splice(correctIndex, 0, correct);
+export const examMappings: ExamMapping[] = [
+  { level:"Associate", domain:"Databricks Intelligence Platform", objectives:["Arquitectura, Delta Lake y Unity Catalog", "Compute, limitaciones y coste"], moduleIds:["m01","m02","m06"] },
+  { level:"Associate", domain:"Data Ingestion and Loading", objectives:["Batch, streaming e incremental", "COPY INTO, Auto Loader y Lakeflow Connect"], moduleIds:["m08","m09"] },
+  { level:"Associate", domain:"Data Transformation and Modeling", objectives:["DataFrames complejos, joins y agregaciones", "Medallion, calidad y objetos Gold"], moduleIds:["m04","m05","m07"] },
+  { level:"Associate", domain:"Working with Lakeflow Jobs", objectives:["DAG, tareas, control flow y triggers"], moduleIds:["m10"] },
+  { level:"Associate", domain:"Implementing CI/CD", objectives:["Git folders, CLI y Declarative Automation Bundles"], moduleIds:["m03","m11"] },
+  { level:"Associate", domain:"Troubleshooting, Monitoring, and Optimization", objectives:["Spark UI, skew, spill, liquid clustering y predictive optimization"], moduleIds:["m02","m05","m06","m10"] },
+  { level:"Associate", domain:"Governance and Security", objectives:["Managed/external, GRANT/REVOKE/DENY, máscaras, filtros y ABAC"], moduleIds:["m06","m11"] },
+  { level:"Professional", domain:"Developing Code", objectives:["Proyectos Python, dependencias, UDF y pruebas"], moduleIds:["m28","m29"] },
+  { level:"Professional", domain:"Ingestion & Acquisition", objectives:["Formatos, buses, Auto Loader y append-only"], moduleIds:["m13","m15","m18"] },
+  { level:"Professional", domain:"Transformation, Cleansing, and Quality", objectives:["Transformaciones avanzadas, cuarentena y expectations"], moduleIds:["m14","m19"] },
+  { level:"Professional", domain:"Sharing and Federation", objectives:["Delta Sharing y Lakehouse Federation"], moduleIds:["m31"] },
+  { level:"Professional", domain:"Monitoring and Alerting", objectives:["System tables, Query Profile, Spark UI, event logs y alertas"], moduleIds:["m21","m26"] },
+  { level:"Professional", domain:"Cost & Performance Optimisation", objectives:["Photon, data skipping, deletion vectors, clustering y FinOps"], moduleIds:["m23","m24","m25","m27"] },
+  { level:"Professional", domain:"Security and Compliance", objectives:["ACL, ABAC, privacidad, retención y purga"], moduleIds:["m30"] },
+  { level:"Professional", domain:"Governance", objectives:["Descubrimiento, metadatos y herencia"], moduleIds:["m30"] },
+  { level:"Professional", domain:"Debugging and Deploying", objectives:["Repairs, diagnósticos, CLI, APIs y Bundles"], moduleIds:["m20","m26","m29"] },
+  { level:"Professional", domain:"Data Modelling", objectives:["Delta, liquid clustering y modelos dimensionales"], moduleIds:["m07","m24"] },
+];
+
+function seededRandom(seed: number) {
+  let value = seed >>> 0;
+  return () => {
+    value = (value * 1664525 + 1013904223) >>> 0;
+    return value / 4294967296;
+  };
+}
+
+function shuffled<T>(items: T[], random: () => number): T[] {
+  const copy = [...items];
+  for (let index = copy.length - 1; index > 0; index -= 1) {
+    const swap = Math.floor(random() * (index + 1));
+    [copy[index], copy[swap]] = [copy[swap], copy[index]];
+  }
+  return copy;
+}
+
+export function buildExamQuestions(level: "associate" | "professional", attempt = 1): QuizQuestion[] {
+  const random = seededRandom((level === "associate" ? 1709 : 2909) + attempt * 7919);
+  const bank: QuizQuestion[] = level === "associate"
+    ? associateExamBank.map((question) => ({ ...question, options: [...question.options] }))
+    : professionalExamBank.map(({ scenario, ...question }) => ({
+        ...question,
+        question: `${scenario} ${question.question}`,
+        options: [...question.options],
+      }));
+  return shuffled(bank, random).map((question) => {
+    const indexed = question.options.map((option, index) => ({ option, index }));
+    const options = shuffled(indexed, random);
     return {
-      question: `Escenario ${index + 1}: la decisión afecta a ${module.title}. ¿Qué área debes revisar primero para resolver el requisito descrito?`,
-      options,
-      answer: correctIndex,
-      explanation: `La respuesta se encuentra en ${module.number} · ${lesson.title}. Revisa el modelo, la señal observable y el criterio de aceptación antes de cambiar recursos.`,
+      ...question,
+      options: options.map((item) => item.option),
+      answer: options.findIndex((item) => item.index === question.answer),
     };
   });
 }
