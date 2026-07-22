@@ -49,6 +49,8 @@ export type QuizQuestion = {
   explanation: string;
   domain: string;
   moduleId?: string;
+  sourceLabel?: string;
+  sourceUrl?: string;
 };
 
 export type Lab = {
@@ -320,7 +322,8 @@ export function buildExamQuestions(level: "associate" | "professional", attempt 
         question: `${scenario} ${question.question}`,
         options: [...question.options],
       }));
-  return shuffled(bank, random).map((question) => {
+  const itemCount = level === "associate" ? 45 : 59;
+  return shuffled(bank, random).slice(0, itemCount).map((question) => {
     const indexed = question.options.map((option, index) => ({ option, index }));
     const options = shuffled(indexed, random);
     return {
@@ -330,3 +333,8 @@ export function buildExamQuestions(level: "associate" | "professional", attempt 
     };
   });
 }
+
+export const examPoolSizes = {
+  associate: associateExamBank.length,
+  professional: professionalExamBank.length,
+} as const;

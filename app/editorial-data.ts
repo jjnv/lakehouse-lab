@@ -1,4 +1,4 @@
-export const SITE_VERSION = "1.2.0";
+export const SITE_VERSION = "1.3.0";
 export const PUBLISHED_AT = "22 jul 2026";
 export const REVIEWED_AT = "22 jul 2026";
 
@@ -8,8 +8,8 @@ export const OFFICIAL_BLUEPRINTS = {
     href: "https://www.databricks.com/sites/default/files/2026-03/databricks-certified-data-engineer-associate-exam-guide-may-4-2026.pdf",
   },
   Professional: {
-    label: "Data Engineer Professional · septiembre de 2025",
-    href: "https://www.databricks.com/sites/default/files/2025-09/databricks-certified-data-engineer-professional-september-2025-exam-guide.pdf",
+    label: "Data Engineer Professional · 30 de noviembre de 2025",
+    href: "https://www.databricks.com/sites/default/files/2025-11/databricks-certified-data-engineer-professional-exam-guide-november-30-2025_0.pdf",
   },
 } as const;
 

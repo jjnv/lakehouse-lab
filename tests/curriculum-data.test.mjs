@@ -338,8 +338,11 @@ test("simulation banks are independent, original and cover their certification d
     read("app/curriculum/associate-exam-bank.ts"),
     read("app/curriculum/professional-exam-bank.ts"),
   ]);
-  const associate = examBank(associateSource, "associateExamBank", 45);
-  const professional = examBank(professionalSource, "professionalExamBank", 59);
+  const associate = examBank(associateSource, "associateExamBank", 50);
+  const professional = examBank(professionalSource, "professionalExamBank", 64);
+  assert.ok((associateSource.match(/sourceUrl:/g) ?? []).length >= 5, "Associate: las preguntas nuevas necesitan referencias oficiales");
+  assert.ok((professionalSource.match(/sourceUrl:/g) ?? []).length >= 5, "Professional: las preguntas nuevas necesitan referencias oficiales");
+  assert.match(courseSource, /slice\(0, itemCount\)/, "cada intento debe conservar el número oficial de preguntas");
   const modulePrompts = new Set(packEntries.flatMap(([, pack]) => array(pack, "quiz").map((item) => textProperty(unwrap(item), "question"))));
 
   for (const [name, questions] of [["Associate", associate], ["Professional", professional]]) {
@@ -372,7 +375,7 @@ test("dependency, progress and assessment gates cannot be bypassed by stale stat
   assert.match(courseSource, /previous\.track === track \? \[previous\.id\] : \["m12"\]/);
   assert.match(courseSource, /return \["m17", "m22", "m27", "m31"\]/);
   assert.match(progressSource, /STORAGE_KEY = "lakehouse-lab-progress-v2"/);
-  assert.match(progressSource, /CONTENT_VERSION = "lakehouse-lab-v1\.2\.0"/);
+  assert.match(progressSource, /CONTENT_VERSION = "lakehouse-lab-v1\.3\.0"/);
   assert.doesNotMatch(progressSource, /value\.contentVersion !== CONTENT_VERSION/);
   assert.match(progressSource, /gamification: sanitizeGamification\(value\.gamification\)/);
   assert.match(progressSource, /progress\.examCompleted\.associate === true/);

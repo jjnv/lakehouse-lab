@@ -22,7 +22,7 @@ export type ProgressState = {
 };
 
 export const STORAGE_KEY = "lakehouse-lab-progress-v2";
-export const CONTENT_VERSION = "lakehouse-lab-v1.2.0";
+export const CONTENT_VERSION = "lakehouse-lab-v1.3.0";
 
 export const emptyProgress: ProgressState = {
   contentVersion: CONTENT_VERSION,

@@ -1,6 +1,6 @@
 import type { ContentQuizQuestion } from "./content-types";
 
-export type AssociateExamQuestion = ContentQuizQuestion & { moduleId: string };
+export type AssociateExamQuestion = ContentQuizQuestion & { moduleId: string; sourceLabel?: string; sourceUrl?: string };
 
 export const associateExamBank: AssociateExamQuestion[] = [
   // Databricks Intelligence Platform · 6
@@ -201,6 +201,8 @@ export const associateExamBank: AssociateExamQuestion[] = [
     explanation: "Las ingestas pueden ejecutarse simultáneamente; conform debe esperar a las dos dependencias.",
     domain: "Working with Lakeflow Jobs",
     moduleId: "m10",
+    sourceLabel: "Databricks · schedules y triggers de Lakeflow Jobs",
+    sourceUrl: "https://docs.databricks.com/aws/en/jobs/triggers",
   },
   {
     question: "Una tarea validate produce el escalar invalid_ratio que una condición downstream debe comparar. ¿Cómo compartirlo?",
@@ -259,6 +261,8 @@ export const associateExamBank: AssociateExamQuestion[] = [
     explanation: "Las ramas aíslan el cambio y el pull request proporciona revisión; Git folders sincroniza el código con el proveedor.",
     domain: "Implementing CI/CD",
     moduleId: "m11",
+    sourceLabel: "Databricks · Declarative Automation Bundles",
+    sourceUrl: "https://docs.databricks.com/aws/en/dev-tools/bundles/faqs",
   },
   {
     question: "Antes de desplegar un Declarative Automation Bundle a test, el equipo quiere resolver variables y comprobar su esquema. ¿Qué comando usar?",
@@ -375,5 +379,55 @@ export const associateExamBank: AssociateExamQuestion[] = [
     explanation: "La storage credential encapsula la identidad cloud y la external location asocia esa identidad con una ruta gobernada.",
     domain: "Governance and Security",
     moduleId: "m11",
+  },
+  {
+    question: "Una tabla fuente se actualiza a horas impredecibles y el job consumidor debe comenzar cuando haya datos nuevos, sin mantener compute ejecutándose. ¿Qué disparador encaja mejor?",
+    options: ["Un schedule cada minuto", "Un table update trigger de Lakeflow Jobs", "Un cluster all-purpose permanente", "Un bucle while dentro de un notebook"],
+    answer: 1,
+    explanation: "El table update trigger inicia el job cuando se detectan cambios en las tablas monitorizadas y evita consultar por horario o mantener compute activo sin trabajo.",
+    domain: "Working with Lakeflow Jobs",
+    moduleId: "m10",
+    sourceLabel: "Databricks · schedules y triggers de Lakeflow Jobs",
+    sourceUrl: "https://docs.databricks.com/aws/en/jobs/triggers",
+  },
+  {
+    question: "El mismo proyecto debe promocionarse de dev a prod cambiando catálogo, identidad y tamaño de compute, pero no el código probado. ¿Qué diseño es más apropiado?",
+    options: ["Editar el notebook después de cada despliegue", "Mantener una rama con código distinto por entorno", "Usar targets, variables y overrides de un Declarative Automation Bundle", "Guardar los valores de prod en comentarios"],
+    answer: 2,
+    explanation: "Los targets y overrides permiten reutilizar el mismo artefacto versionado y aplicar configuración específica por entorno sin introducir deriva manual en el código.",
+    domain: "Implementing CI/CD",
+    moduleId: "m11",
+    sourceLabel: "Databricks · Declarative Automation Bundles",
+    sourceUrl: "https://docs.databricks.com/aws/en/dev-tools/bundles/faqs",
+  },
+  {
+    question: "Una policy ABAC enmascara columnas PII, pero un nuevo analista no puede consultar la tabla. ¿Qué debe comprobarse además de la policy?",
+    options: ["Que exista un grant base de SELECT y los privilegios USE necesarios", "Que el analista sea propietario del metastore", "Que la tabla tenga ZORDER", "Que el SQL warehouse no tenga auto-stop"],
+    answer: 0,
+    explanation: "Las policies de máscara y filtro restringen datos sobre permisos ya concedidos; no sustituyen SELECT ni los privilegios de recorrido en catálogo y esquema.",
+    domain: "Governance and Security",
+    moduleId: "m30",
+    sourceLabel: "Databricks · ABAC frente a filtros y máscaras de tabla",
+    sourceUrl: "https://docs.databricks.com/aws/en/data-governance/unity-catalog/abac/abac-vs-rls-cm",
+  },
+  {
+    question: "Existe un conector managed compatible con una fuente empresarial de gran volumen y se requiere baja latencia recurrente. ¿Qué opción debe evaluarse antes que la federación ad hoc?",
+    options: ["Copiar CSV manualmente", "Lakeflow Connect managed con destino gobernado", "Consultar siempre la base remota desde cada dashboard", "Exportar la fuente a un notebook local"],
+    answer: 1,
+    explanation: "La ingesta gestionada está orientada a cargas recurrentes y volúmenes altos; la federación resulta más adecuada para exploración ad hoc o pruebas sin mover los datos.",
+    domain: "Data Ingestion and Loading",
+    moduleId: "m09",
+    sourceLabel: "Databricks · query federation frente a Lakeflow Connect",
+    sourceUrl: "https://docs.databricks.com/aws/en/query-federation/database-federation",
+  },
+  {
+    question: "Un stage de Spark muestra pocas tareas muy largas, mucho shuffle read y spill, mientras la mayoría termina rápido. ¿Cuál es la primera hipótesis que debe validarse?",
+    options: ["Skew en las claves de particionado", "Falta de un Git folder", "Exceso de permisos USE SCHEMA", "Una retención de VACUUM demasiado larga"],
+    answer: 0,
+    explanation: "La combinación de stragglers, shuffle desproporcionado y spill suele indicar particiones sesgadas; debe medirse la distribución antes de cambiar compute o parámetros.",
+    domain: "Troubleshooting, Monitoring, and Optimization",
+    moduleId: "m05",
+    sourceLabel: "Databricks · diagnóstico de skew y spill en Spark UI",
+    sourceUrl: "https://docs.databricks.com/aws/en/optimizations/spark-ui-guide/",
   },
 ];

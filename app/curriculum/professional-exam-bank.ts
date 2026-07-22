@@ -30,6 +30,8 @@ export type ProfessionalExamQuestion = {
   explanation: string;
   domain: ProfessionalExamDomain;
   moduleId: `m${string}`;
+  sourceLabel?: string;
+  sourceUrl?: string;
 };
 
 export const professionalExamBank = [
@@ -1035,6 +1037,91 @@ export const professionalExamBank = [
       "La bridge table representa explícitamente el many-to-many. Si una medida se reparte por segmento, el modelo debe definir ponderaciones o reglas de agregación para no multiplicar el revenue.",
     domain: "Section 10: Data Modelling",
     moduleId: "m07",
+  },
+  {
+    id: "pro-060",
+    scenario: "Un equipo conserva pipelines que usan APPLY CHANGES y quiere adoptar la nomenclatura recomendada sin rediseñar su lógica CDC.",
+    question: "¿Qué migración refleja la recomendación vigente de Databricks?",
+    options: [
+      "Sustituir APPLY CHANGES por AUTO CDC, conservando la sintaxis y validando el comportamiento del flujo.",
+      "Reescribir cada cambio como un INSERT append-only y eliminar las claves.",
+      "Mover el CDC a una Python UDF ejecutada fila a fila.",
+      "Usar Lakehouse Federation para modificar la tabla destino remota.",
+    ],
+    answer: 0,
+    explanation: "AUTO CDC reemplaza a APPLY CHANGES como nombre recomendado y mantiene la misma sintaxis. La migración debe validarse, pero no exige cambiar el modelo CDC.",
+    domain: "Section 1: Developing Code for Data Processing using Python and SQL",
+    moduleId: "m16",
+    sourceLabel: "Databricks · APIs AUTO CDC",
+    sourceUrl: "https://docs.databricks.com/aws/en/ldp/cdc",
+  },
+  {
+    id: "pro-061",
+    scenario: "Un repositorio usa Asset Bundles en producción. Tras el cambio de nombre a Declarative Automation Bundles, el equipo teme que sus comandos bundle y configuraciones dejen de funcionar.",
+    question: "¿Qué acción es técnicamente correcta?",
+    options: [
+      "Eliminar todos los targets y volver a crearlos desde la UI.",
+      "Seguir usando la configuración existente; el cambio de nombre no rompe el comando bundle ni sus recursos.",
+      "Convertir el bundle a un notebook monolítico.",
+      "Renombrar manualmente cada clave YAML de asset a declarative.",
+    ],
+    answer: 1,
+    explanation: "El cambio de nombre es no disruptivo. Los comandos y configuraciones existentes continúan funcionando, aunque la documentación y el curso usen el nombre nuevo.",
+    domain: "Section 9: Debugging and Deploying",
+    moduleId: "m29",
+    sourceLabel: "Databricks · Declarative Automation Bundles FAQ",
+    sourceUrl: "https://docs.databricks.com/aws/en/dev-tools/bundles/faqs",
+  },
+  {
+    id: "pro-062",
+    scenario: "FinOps quiere atribuir con precisión coste por job run. Algunos jobs comparten un cluster all-purpose con notebooks interactivos y otros usan job compute dedicado.",
+    question: "¿Qué conjunto ofrece la atribución más fiable?",
+    options: [
+      "Los jobs de all-purpose, porque todo el uso pertenece al último job ejecutado.",
+      "Job compute o serverless, uniendo usage_metadata con las tablas system.lakeflow y precios.",
+      "El número de notebooks por workspace multiplicado por el precio de lista.",
+      "La duración del cluster sin considerar concurrencia ni SKU.",
+    ],
+    answer: 1,
+    explanation: "Job compute y serverless exponen metadatos de job y run adecuados para unir consumo, precios y definición del job. En compute compartido la atribución exacta es ambigua.",
+    domain: "Section 6: Cost & Performance Optimisation",
+    moduleId: "m25",
+    sourceLabel: "Databricks · monitorizar coste y rendimiento de Jobs",
+    sourceUrl: "https://docs.databricks.com/aws/en/admin/system-tables/jobs-cost",
+  },
+  {
+    id: "pro-063",
+    scenario: "Un catálogo contiene cientos de tablas. Las columnas etiquetadas como PII deben quedar enmascaradas, incluso cuando aparezcan tablas nuevas, y los propietarios no deben poder retirar la protección.",
+    question: "¿Qué diseño satisface mejor el control centralizado?",
+    options: [
+      "Una vista distinta creada manualmente por cada propietario.",
+      "Una policy ABAC a nivel de catálogo basada en governed tags, más grants base separados.",
+      "Un DENY aplicado al SQL warehouse.",
+      "Copiar todas las columnas PII a un catálogo sin usuarios.",
+    ],
+    answer: 1,
+    explanation: "ABAC permite asociar una policy al catálogo y hacerla coincidir dinámicamente con tablas y columnas etiquetadas. Los grants base siguen controlándose por separado.",
+    domain: "Section 7: Ensuring Data Security and Compliance",
+    moduleId: "m30",
+    sourceLabel: "Databricks · conceptos ABAC de Unity Catalog",
+    sourceUrl: "https://docs.databricks.com/aws/en/data-governance/unity-catalog/abac/core-concepts",
+  },
+  {
+    id: "pro-064",
+    scenario: "Un equipo necesita explorar una base externa sin mover datos durante una prueba de concepto. Si el caso se convierte en un dashboard de alto volumen y baja latencia, aceptará materializar los datos.",
+    question: "¿Qué secuencia de decisiones es la más defendible?",
+    options: [
+      "Empezar con query federation y, si el patrón se vuelve recurrente y exigente, evaluar Lakeflow Connect managed.",
+      "Crear desde el primer día un export manual de CSV y mantenerlo para producción.",
+      "Usar Delta Sharing para escribir en la base externa.",
+      "Mantener siempre federation porque nunca depende del rendimiento de la fuente.",
+    ],
+    answer: 0,
+    explanation: "La federación evita movimiento y encaja en exploración ad hoc; la ingesta gestionada suele escalar mejor para grandes volúmenes, recurrencia y menor latencia de consulta.",
+    domain: "Section 4: Data Sharing and Federation",
+    moduleId: "m31",
+    sourceLabel: "Databricks · query federation frente a Lakeflow Connect",
+    sourceUrl: "https://docs.databricks.com/aws/en/query-federation/database-federation",
   },
 ] as const satisfies readonly ProfessionalExamQuestion[];
 
