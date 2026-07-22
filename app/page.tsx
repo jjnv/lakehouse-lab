@@ -1,4 +1,4 @@
-import { chatGPTSignInPath, getChatGPTUser } from "./chatgpt-auth";
+import { getSessionUser, sessionStartPath } from "./session-auth";
 import PublicShell from "./components/public/PublicShell";
 import { CONTENT_REVIEW_DATE } from "./project-info";
 
@@ -8,12 +8,12 @@ const capabilities = [
   { number: "01", title: "Modelo mental", copy: "Explicaciones que conectan arquitectura, operación y decisiones reales." },
   { number: "02", title: "Práctica guiada", copy: "Laboratorios con objetivos, pasos, comprobaciones y evidencia de finalización." },
   { number: "03", title: "Evaluación", copy: "Tests por módulo y simulacros con revisión por dominio." },
-  { number: "04", title: "Progreso propio", copy: "Historial sincronizado, exportable y eliminable desde la cuenta." },
+  { number: "04", title: "Progreso propio", copy: "Historial persistente, exportable y eliminable desde tu espacio." },
 ];
 
 export default async function RootPage() {
-  const user = await getChatGPTUser();
-  const accountHref = user ? "/inicio" : chatGPTSignInPath("/inicio");
+  const user = await getSessionUser();
+  const accountHref = user ? "/inicio" : sessionStartPath("/inicio");
   const accountLabel = user ? "Ir a mi espacio" : "Empezar gratis";
 
   return (
@@ -28,7 +28,7 @@ export default async function RootPage() {
               <a className="public-primary" href={accountHref}>{accountLabel}<span aria-hidden="true">→</span></a>
               <a className="public-secondary" href="/demo">Explorar la demo</a>
             </div>
-            <p className="public-trust">El acceso con ChatGPT solo identifica tu cuenta para guardar el progreso. Puedes exportarlo o eliminarlo cuando quieras.</p>
+            <p className="public-trust">El acceso crea un identificador privado en este navegador para guardar tu progreso, sin pedir nombre ni correo. Puedes exportarlo o eliminarlo cuando quieras.</p>
           </div>
           <div className="public-product-preview" aria-label="Vista previa del producto">
             <div className="public-preview-top"><span>Ruta Professional</span><b>Semana 1 de 20</b></div>
@@ -88,7 +88,7 @@ export default async function RootPage() {
 
         <section className="public-cta" aria-labelledby="cta-heading">
           <p className="public-kicker">Empieza por una muestra</p>
-          <h2 id="cta-heading">Comprueba el método antes de crear una cuenta.</h2>
+          <h2 id="cta-heading">Comprueba el método antes de crear tu espacio.</h2>
           <div className="public-actions"><a className="public-primary" href="/demo">Abrir la demo<span aria-hidden="true">→</span></a><a className="public-secondary" href={accountHref}>{accountLabel}</a></div>
         </section>
       </main>

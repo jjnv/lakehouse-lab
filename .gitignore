@@ -40,7 +40,7 @@ playwright-report/
 next-env.d.ts
 *.tsbuildinfo
 /dist/
+/.data/
 /.wrangler/
-/.sites-runtime/
 /outputs/
 /work/

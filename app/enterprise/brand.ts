@@ -145,7 +145,7 @@ function validSupportEmail(value: string | undefined) {
   return normalized && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalized) ? normalized : null;
 }
 
-/** Applies Sites tenant variables independently so one invalid value cannot break access. */
+/** Applies runtime brand variables independently so one invalid value cannot break access. */
 export function resolveTenantBrandConfig(base: BrandConfig, overrides: TenantBrandOverrides): BrandConfig {
   const organizationName = validOrganizationName(overrides.organizationName) ?? base.organizationName;
   const configuredLogo = overrides.logoUrl?.trim();

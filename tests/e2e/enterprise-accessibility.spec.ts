@@ -1,5 +1,6 @@
 import AxeBuilder from "@axe-core/playwright";
 import { expect, test, type Page } from "@playwright/test";
+import { createHash } from "node:crypto";
 
 const routes = [
   { path: "/inicio", heading: "Inicio" },
@@ -164,13 +165,11 @@ test("la interfaz hace reflow a 320 CSS px", async ({ page }) => {
 
 test("dos identidades autenticadas conservan progreso aislado", async ({ browser, baseURL }) => {
   const suffix = `${Date.now()}-${process.pid}`;
-  const identityHeaders = (email: string, name: string) => ({
-    "oai-authenticated-user-email": email,
-    "oai-authenticated-user-full-name": encodeURIComponent(name),
-    "oai-authenticated-user-full-name-encoding": "percent-encoded-utf-8",
+  const identityHeaders = (seed: string) => ({
+    "x-lakehouse-test-session": createHash("sha256").update(seed).digest("hex"),
   });
-  const contextA = await browser.newContext({ extraHTTPHeaders: identityHeaders(`isolation-a-${suffix}@example.com`, "Persona A") });
-  const contextB = await browser.newContext({ extraHTTPHeaders: identityHeaders(`isolation-b-${suffix}@example.com`, "Persona B") });
+  const contextA = await browser.newContext({ extraHTTPHeaders: identityHeaders(`isolation-a-${suffix}`) });
+  const contextB = await browser.newContext({ extraHTTPHeaders: identityHeaders(`isolation-b-${suffix}`) });
   try {
     const pageA = await contextA.newPage();
     const dashboardAResponse = await pageA.request.get(`${baseURL}/api/me/dashboard`);
@@ -198,5 +197,25 @@ test("dos identidades autenticadas conservan progreso aislado", async ({ browser
   } finally {
     await contextA.close();
     await contextB.close();
+  }
+});
+
+test("un visitante crea un espacio anónimo con una cookie privada", async ({ browser, baseURL }) => {
+  const context = await browser.newContext({ extraHTTPHeaders: {} });
+  try {
+    const page = await context.newPage();
+    await page.goto(`${baseURL}/`);
+    const start = page.getByRole("link", { name: "Empezar gratis" }).first();
+    await expect(start).toHaveAttribute("href", /\/entrar\?return_to=/);
+    await start.click();
+    await expect(page).toHaveURL(/\/inicio$/);
+    await waitForWorkspace(page);
+
+    const cookie = (await context.cookies()).find((item) => item.name === "lakehouse_session");
+    expect(cookie).toMatchObject({ httpOnly: true, sameSite: "Lax" });
+    expect(cookie?.value).toMatch(/^[a-f0-9]{64}$/);
+    expect((await page.request.get(`${baseURL}/api/me/dashboard`)).ok()).toBeTruthy();
+  } finally {
+    await context.close();
   }
 });

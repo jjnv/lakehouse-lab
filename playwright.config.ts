@@ -14,9 +14,7 @@ export default defineConfig({
   use: {
     baseURL,
     extraHTTPHeaders: {
-      "oai-authenticated-user-email": "qa.employee@example.com",
-      "oai-authenticated-user-full-name": encodeURIComponent("Empleado de prueba"),
-      "oai-authenticated-user-full-name-encoding": "percent-encoded-utf-8",
+      "x-lakehouse-test-session": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
     },
     locale: "es-ES",
     timezoneId: "Europe/Madrid",
@@ -26,14 +24,12 @@ export default defineConfig({
   },
   webServer: startsLocalServer
     ? {
-        command: `vite --host 127.0.0.1 --port ${localPort} --strictPort`,
-        url: `${baseURL}/api/me/dashboard`,
+        command: `node node_modules/next/dist/bin/next dev --hostname 127.0.0.1 --port ${localPort}`,
+        url: `${baseURL}/`,
         reuseExistingServer: false,
         timeout: 120_000,
         env: {
-          SITES_DEV_USER_EMAIL: "qa.employee@example.com",
-          SITES_DEV_USER_NAME: "Empleado de prueba",
-          SITES_PERSIST_STATE_PATH: ".wrangler/e2e",
+          TURSO_DATABASE_URL: "file:.data/e2e.db",
         },
       }
     : undefined,

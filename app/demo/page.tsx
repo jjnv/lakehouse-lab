@@ -1,19 +1,19 @@
-import { chatGPTSignInPath, getChatGPTUser } from "../chatgpt-auth";
+import { getSessionUser, sessionStartPath } from "../session-auth";
 import PublicShell from "../components/public/PublicShell";
 import { modules } from "../course-data";
 
 export const dynamic = "force-dynamic";
 
 export default async function DemoPage() {
-  const user = await getChatGPTUser();
-  const accountHref = user ? "/inicio" : chatGPTSignInPath("/inicio");
+  const user = await getSessionUser();
+  const accountHref = user ? "/inicio" : sessionStartPath("/inicio");
   const accountLabel = user ? "Ir a mi espacio" : "Guardar mi progreso";
   const sampleModules = modules.slice(0, 6);
 
   return <PublicShell active="demo" accountHref={accountHref} accountLabel={accountLabel}>
     <main id="public-main" className="public-document-main" tabIndex={-1}>
       <section className="demo-intro">
-        <div><p className="public-kicker">Demo pública · sin registro</p><h1>Así se aprende dentro de Lakehouse Lab.</h1><p>Esta muestra no escribe datos ni guarda actividad. El espacio personal añade progreso sincronizado, repasos, evaluaciones y expediente.</p></div>
+        <div><p className="public-kicker">Demo pública · sin registro</p><h1>Así se aprende dentro de Lakehouse Lab.</h1><p>Esta muestra no escribe datos ni guarda actividad. El espacio personal añade progreso persistente, repasos, evaluaciones y expediente.</p></div>
         <a className="public-primary" href={accountHref}>{accountLabel}<span aria-hidden="true">→</span></a>
       </section>
       <section className="demo-workspace" aria-label="Demostración de la plataforma">

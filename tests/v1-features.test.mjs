@@ -18,7 +18,8 @@ async function filesUnder(path) {
 
 const sources = Object.fromEntries(await Promise.all([
   "package.json",
-  ".openai/hosting.json",
+  "vercel.json",
+  "next.config.ts",
   "app/page.tsx",
   "app/layout.tsx",
   "app/editorial-data.ts",
@@ -32,7 +33,8 @@ const sources = Object.fromEntries(await Promise.all([
   "app/components/enterprise/getShellContext.ts",
   "app/components/enterprise/useDashboard.ts",
   "app/enterprise/auth.ts",
-  "app/chatgpt-auth.ts",
+  "app/session-auth.ts",
+  "app/entrar/route.ts",
   "app/enterprise/curriculum.ts",
   "app/enterprise/assessment.ts",
   "app/enterprise/assessment-private.ts",
@@ -71,7 +73,7 @@ test("declares the enterprise release as version 2.0.0 everywhere that identifie
   assert.equal(packageJson.version, "2.0.0");
   assert.match(sources["app/editorial-data.ts"], /SITE_VERSION = "2\.0\.0"/u);
   assert.match(sources["app/progress.ts"], /CONTENT_VERSION = "lakehouse-lab-v2\.0\.0"/u);
-  assert.match(sources["app/page.tsx"], /getChatGPTUser\(\)/u);
+  assert.match(sources["app/page.tsx"], /getSessionUser\(\)/u);
   assert.match(sources["app/page.tsx"], /href="\/demo"/u);
   assert.match(sources["app/layout.tsx"], /PROJECT_NAME/u);
   assert.match(sources["app/layout.tsx"], /robots:\s*\{\s*index:\s*true,\s*follow:\s*true\s*\}/u);
@@ -89,11 +91,13 @@ test("uses real routes and protects every enterprise page with the signed-in lea
 
   const shellContext = sources["app/components/enterprise/getShellContext.ts"];
   assert.ok(shellContext.indexOf("await requireLearner(returnTo)") < shellContext.indexOf("await getOrganizationBranding"));
-  assert.match(sources["app/enterprise/auth.ts"], /await requireChatGPTUser\(returnTo\)/u);
+  assert.match(sources["app/enterprise/auth.ts"], /await requireSessionUser\(returnTo\)/u);
   assert.match(sources["app/enterprise/auth.ts"], /return ensureLearner\(\{/u);
-  assert.match(sources["app/chatgpt-auth.ts"], /oai-authenticated-user-email/u);
-  assert.match(sources["app/chatgpt-auth.ts"], /process\.env\.NODE_ENV !== "production"/u);
-  assert.match(sources["app/chatgpt-auth.ts"], /if \(!value\.startsWith\("\/"\) \|\| value\.startsWith\("\/\/"\)\) return "\/"/u);
+  assert.match(sources["app/session-auth.ts"], /SESSION_COOKIE_NAME = "lakehouse_session"/u);
+  assert.match(sources["app/session-auth.ts"], /process\.env\.NODE_ENV !== "production"/u);
+  assert.match(sources["app/session-auth.ts"], /if \(!value\.startsWith\("\/"\) \|\| value\.startsWith\("\/\/"\)\) return "\/"/u);
+  assert.match(sources["app/entrar/route.ts"], /httpOnly:\s*true/u);
+  assert.match(sources["app/entrar/route.ts"], /sameSite:\s*"lax"/u);
   assert.match(sources["app/api/_shared.ts"], /withLearner/u);
   assert.match(sources["app/api/_shared.ts"], /401, "AUTHENTICATION_REQUIRED"/u);
   assert.match(sources["app/api/_shared.ts"], /403, "ACCESS_DENIED"/u);
@@ -104,7 +108,7 @@ test("uses real routes and protects every enterprise page with the signed-in lea
   }
 });
 
-test("course navigation remains reliable and dashboard reads avoid sequential D1 round trips", () => {
+test("course navigation remains reliable and dashboard reads avoid sequential database round trips", () => {
   for (const [path, source] of clientComponentSources) {
     assert.doesNotMatch(source, /from ["']next\/link["']/u, `${path} must use resilient document navigation`);
   }
@@ -212,18 +216,20 @@ test("retains static accessibility contracts in the shell, course and assessment
   for (const breakpoint of [1200, 900, 700, 400]) assert.match(styles, new RegExp(`@media\\(max-width:${breakpoint}px\\)`));
 });
 
-test("persists enterprise learning in D1 and generates protected PDF credentials", () => {
+test("persists enterprise learning in Turso and generates protected PDF credentials", () => {
   const packageJson = JSON.parse(sources["package.json"]);
-  const hosting = JSON.parse(sources[".openai/hosting.json"]);
-  assert.equal(hosting.d1, "DB");
+  const vercel = JSON.parse(sources["vercel.json"]);
+  assert.equal(vercel.framework, "nextjs");
+  assert.equal(packageJson.dependencies["@libsql/client"], "0.17.4");
   assert.equal(packageJson.dependencies["pdf-lib"], "1.17.1");
 
   const db = sources["db/index.ts"];
-  assert.match(db, /from "cloudflare:workers"/u);
-  assert.match(db, /drizzle\(runtimeEnv\.DB, \{ schema \}\)/u);
+  assert.match(db, /from "@libsql\/client"/u);
+  assert.match(db, /from "drizzle-orm\/libsql"/u);
+  assert.match(db, /TURSO_DATABASE_URL/u);
   const schema = sources["db/schema.ts"];
   for (const table of ["organizations", "users", "organizationMemberships", "learnerAssignments", "lessonProgress", "assessmentAttempts", "assessmentResponses", "learningEvents", "progressSnapshots", "credentials", "legacyImports", "auditEvents"]) {
-    assert.match(schema, new RegExp(`export const ${table} = sqliteTable\\(`), `missing D1 table ${table}`);
+    assert.match(schema, new RegExp(`export const ${table} = sqliteTable\\(`), `missing SQLite table ${table}`);
   }
 
   const service = sources["app/enterprise/learning-service.ts"];

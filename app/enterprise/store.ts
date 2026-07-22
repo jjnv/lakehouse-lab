@@ -1,5 +1,4 @@
 import { and, eq } from "drizzle-orm";
-import { env } from "cloudflare:workers";
 import { getDb } from "../../db";
 import {
   assignments,
@@ -37,7 +36,7 @@ export const PROFESSIONAL_CURRICULUM_VERSION_ID = "professional-v1";
 export const PROFESSIONAL_ASSIGNMENT_ID = "professional-v1-auto";
 export const PROFESSIONAL_ENROLLMENT_DAYS = 140;
 
-type SitesTenantEnvironment = {
+type RuntimeEnvironment = {
   ORG_DISPLAY_NAME?: string;
   ORG_LOGO_URL?: string;
   ORG_BRAND_COLOR?: string;
@@ -46,12 +45,12 @@ type SitesTenantEnvironment = {
   ORG_SUPPORT_EMAIL?: string;
 };
 
-function sitesTenantEnvironment() {
-  return env as unknown as SitesTenantEnvironment;
+function runtimeEnvironment(): RuntimeEnvironment {
+  return process.env as RuntimeEnvironment;
 }
 
 function runtimeBrandConfig(base: BrandConfig) {
-  const runtime = sitesTenantEnvironment();
+  const runtime = runtimeEnvironment();
   return resolveTenantBrandConfig(base, {
     organizationName: runtime.ORG_DISPLAY_NAME,
     logoUrl: runtime.ORG_LOGO_URL,
@@ -62,7 +61,7 @@ function runtimeBrandConfig(base: BrandConfig) {
 }
 
 function runtimeOrganizationTimezone(fallback = "Europe/Madrid") {
-  const candidate = sitesTenantEnvironment().ORG_TIMEZONE?.trim();
+  const candidate = runtimeEnvironment().ORG_TIMEZONE?.trim();
   if (!candidate) return fallback;
   try {
     new Intl.DateTimeFormat("es-ES", { timeZone: candidate }).format(new Date(0));

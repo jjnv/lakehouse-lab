@@ -9,7 +9,7 @@ export const dynamic = "force-dynamic";
 const JSON_HEADERS = {
   "content-type": "application/json; charset=utf-8",
   "cache-control": "private, no-store, max-age=0",
-  vary: "Cookie, oai-authenticated-user-email",
+  vary: "Cookie",
 };
 
 export function json(data: unknown, init: ResponseInit = {}) {
@@ -65,7 +65,7 @@ export async function readJson(request: Request): Promise<unknown> {
 export async function withLearner(handler: (learner: LearnerContext) => Promise<Response>) {
   try {
     const learner = await getLearner();
-    if (!learner) return errorResponse(401, "AUTHENTICATION_REQUIRED", "Inicia sesión con una cuenta ChatGPT autorizada.", false);
+    if (!learner) return errorResponse(401, "AUTHENTICATION_REQUIRED", "Inicia tu espacio personal para guardar el progreso.", false);
     return await handler(learner);
   } catch (error) {
     if (error instanceof LearningApiError) return errorResponse(error.status, error.code, error.message, error.retryable, error.currentRevision);

@@ -1,20 +1,20 @@
 # Lakehouse Lab
 
-Plataforma educativa independiente en español para aprender ingeniería de datos sobre Databricks mediante una ruta de 20 semanas, 32 módulos, laboratorios, evaluaciones y progreso sincronizado.
+Plataforma educativa independiente en español para aprender ingeniería de datos sobre Databricks mediante una ruta de 20 semanas, 32 módulos, laboratorios, evaluaciones y progreso persistente.
 
 > Proyecto personal e independiente. No está afiliado, patrocinado ni avalado por Databricks.
 
-[Ver la aplicación](https://databricks-learning-path.jjxn.chatgpt.site) · [Explorar la demo sin registro](https://databricks-learning-path.jjxn.chatgpt.site/demo) · [Reportar una incidencia](https://github.com/jjnv/lakehouse-lab/issues)
+[Explorar el código](https://github.com/jjnv/lakehouse-lab) · [Reportar una incidencia](https://github.com/jjnv/lakehouse-lab/issues)
 
 ![Vista de presentación de Lakehouse Lab](public/og-public.png)
 
 ## Qué incluye
 
 - Portada y demo públicas sin registro.
-- Espacio personal con inicio de sesión mediante ChatGPT.
+- Espacio personal anónimo, sin pedir nombre ni correo.
 - 160 lecciones, 32 laboratorios y simulacros Associate y Professional.
 - Búsqueda global de módulos, lecciones y conceptos con navegación al punto exacto del temario.
-- Progreso persistente en Cloudflare D1 y repasos espaciados.
+- Progreso persistente en Turso y repasos espaciados.
 - Evaluaciones corregidas en el servidor sin enviar claves de respuesta al cliente.
 - Exportación y eliminación del progreso.
 - Credenciales de finalización verificables y exportables en PDF.
@@ -23,34 +23,43 @@ Plataforma educativa independiente en español para aprender ingeniería de dato
 ## Arquitectura
 
 - Next.js 16, React 19 y TypeScript.
-- vinext y Cloudflare Workers.
-- Cloudflare D1 con Drizzle ORM.
-- Autenticación gestionada por el dispatcher de Sites.
+- Vercel Functions con el runtime de Node.js.
+- Turso Serverless SQLite y Drizzle ORM.
+- Sesión anónima mediante una cookie privada, aleatoria, `HttpOnly` y `SameSite`.
 - Pruebas de contrato, currículo, renderizado, aislamiento de usuarios y accesibilidad.
 
-Las páginas públicas no requieren identidad. Las rutas de aprendizaje y todas las operaciones de escritura resuelven la persona autenticada en el servidor; ninguna API acepta un correo o `userId` enviado por el cliente.
+Las páginas públicas no requieren identidad. Al empezar, la aplicación crea un identificador aleatorio en el navegador y lo usa como credencial opaca; ninguna API acepta un correo o `userId` enviado por el cliente.
+
+## Publicar en Vercel
+
+1. Importa `jjnv/lakehouse-lab` desde el panel de Vercel.
+2. Añade **Turso Cloud** desde el Marketplace de Vercel y conéctalo al proyecto. La integración crea `TURSO_DATABASE_URL` y `TURSO_AUTH_TOKEN`.
+3. Opcionalmente define `NEXT_PUBLIC_SITE_URL` con el dominio definitivo para los metadatos sociales.
+4. Ejecuta un nuevo despliegue. El proceso aplica las migraciones pendientes y compila la aplicación automáticamente.
+
+La configuración incluida fija el preset de Next.js, la región europea y el flujo de compilación. Los secretos permanecen en Vercel y nunca se guardan en el repositorio.
 
 ## Desarrollo local
 
-Requisitos: Node.js `>=22.13.0`, Bash y las utilidades GNU utilizadas por los scripts del proyecto.
+Requisitos: Node.js `>=22.13.0`.
 
 ```bash
 npm ci
 npm run dev
 ```
 
-Para simular una cuenta local, crea un archivo `.env.local` sin publicarlo:
+Sin variables de Turso se utiliza una base SQLite local dentro de `.data/`. Para trabajar con una base remota:
 
 ```dotenv
-SITES_DEV_USER_EMAIL=learner@example.com
-SITES_DEV_USER_NAME=Persona de prueba
+TURSO_DATABASE_URL=libsql://...
+TURSO_AUTH_TOKEN=...
 ```
 
 ## Comprobaciones
 
 ```bash
-npm test
 npm run lint
+npm test
 npm run test:e2e
 ```
 

@@ -1,14 +1,14 @@
-import { getChatGPTUser, requireChatGPTUser } from "../chatgpt-auth";
+import { getSessionUser, requireSessionUser } from "../session-auth";
 import { ensureLearner, LearnerAccessError } from "./store";
 import type { EnterpriseRole, LearnerContext } from "./types";
 
 /**
- * Resolves the server-injected ChatGPT identity, creates the learner record on
- * first access and guarantees the idempotent professional-v1 enrollment.
+ * Resolves the private browser session, creates the learner record on first
+ * access and guarantees the idempotent professional-v1 enrollment.
  * Call only from server components, server actions or route handlers.
  */
 export async function requireLearner(returnTo = "/"): Promise<LearnerContext> {
-  const identity = await requireChatGPTUser(returnTo);
+  const identity = await requireSessionUser(returnTo);
   return ensureLearner({
     email: identity.email,
     displayName: identity.displayName,
@@ -22,7 +22,7 @@ export async function requireLearner(returnTo = "/"): Promise<LearnerContext> {
  * raises LearnerAccessError.
  */
 export async function getLearner(): Promise<LearnerContext | null> {
-  const identity = await getChatGPTUser();
+  const identity = await getSessionUser();
   if (!identity) return null;
   return ensureLearner({
     email: identity.email,

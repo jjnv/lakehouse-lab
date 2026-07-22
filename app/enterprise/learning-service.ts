@@ -1172,7 +1172,7 @@ export async function submitAssessment(learner: LearnerContext, attemptId: strin
     eq(assessmentAttempts.userId, learner.user.id),
     eq(assessmentAttempts.status, "started"),
   ));
-  if ((submitted.meta?.changes ?? 0) !== 1) {
+  if (submitted.rowsAffected !== 1) {
     throw new LearningApiError(422, "ATTEMPT_IMMUTABLE", "Este intento ya fue enviado.");
   }
   await db.delete(assessmentResponses).where(eq(assessmentResponses.attemptId, attemptId));

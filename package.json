@@ -3,7 +3,6 @@
   "version": "2.0.0",
   "private": true,
   "description": "Ruta práctica e independiente en español para aprender ingeniería de datos y arquitectura lakehouse.",
-  "homepage": "https://databricks-learning-path.jjxn.chatgpt.site",
   "repository": {
     "type": "git",
     "url": "https://github.com/jjnv/lakehouse-lab.git"
@@ -23,17 +22,19 @@
     "node": ">=22.13.0"
   },
   "scripts": {
-    "install:ci": "bash scripts/install-ci.sh",
-    "dev": "WRANGLER_LOG_PATH=.wrangler/wrangler.log vite",
-    "build": "bash scripts/build-verified.sh",
-    "start": "WRANGLER_LOG_PATH=.wrangler/wrangler.log vinext start",
+    "predev": "node scripts/migrate.mjs",
+    "dev": "next dev",
+    "build": "next build",
+    "vercel-build": "node scripts/migrate.mjs && next build",
+    "start": "next start",
     "test": "npm run build && node --test tests/*.test.mjs",
     "test:e2e": "playwright test",
-    "validate:artifact": "bash scripts/validate-artifact.sh",
-    "lint": "bash scripts/sites-env.sh -- eslint . --ignore-pattern dist --ignore-pattern .next",
-    "db:generate": "bash scripts/sites-env.sh -- drizzle-kit generate"
+    "lint": "eslint . --ignore-pattern .next --ignore-pattern dist",
+    "db:generate": "drizzle-kit generate",
+    "db:migrate": "node scripts/migrate.mjs"
   },
   "dependencies": {
+    "@libsql/client": "0.17.4",
     "drizzle-orm": "0.45.2",
     "next": "16.2.6",
     "pdf-lib": "1.17.1",
@@ -42,24 +43,17 @@
   },
   "devDependencies": {
     "@axe-core/playwright": "^4.12.1",
-    "@cloudflare/vite-plugin": "1.37.1",
-    "@cloudflare/workers-types": "4.20260515.1",
     "@playwright/test": "^1.61.1",
     "@tailwindcss/postcss": "4.2.1",
     "@types/node": "22.19.19",
     "@types/react": "19.2.14",
     "@types/react-dom": "19.2.3",
-    "@vitejs/plugin-react": "6.0.2",
-    "@vitejs/plugin-rsc": "0.5.26",
     "drizzle-kit": "0.31.10",
     "eslint": "9.39.4",
     "eslint-config-next": "16.2.6",
     "react-server-dom-webpack": "19.2.6",
     "tailwindcss": "4.2.1",
-    "typescript": "5.9.3",
-    "vinext": "0.0.50",
-    "vite": "8.0.13",
-    "wrangler": "4.92.0"
+    "typescript": "5.9.3"
   },
   "type": "module"
 }

@@ -11,7 +11,7 @@ type PublicShellProps = {
 
 export default function PublicShell({
   children,
-  accountHref = "/signin-with-chatgpt?return_to=%2Finicio",
+  accountHref = "/entrar?return_to=%2Finicio",
   accountLabel = "Entrar",
   active,
 }: PublicShellProps) {

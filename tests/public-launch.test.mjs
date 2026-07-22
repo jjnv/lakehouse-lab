@@ -10,7 +10,7 @@ test("the root is a public landing page instead of a protected redirect", () => 
   const rootPage = read("app/page.tsx");
   assert.doesNotMatch(rootPage, /redirect\s*\(\s*["']\/inicio/);
   assert.doesNotMatch(rootPage, /requireLearner|requireEnterprisePageContext/);
-  assert.match(rootPage, /getChatGPTUser\(\)/);
+  assert.match(rootPage, /getSessionUser\(\)/);
   assert.match(rootPage, /Explorar la demo/);
   assert.match(rootPage, /No está afiliado|proyecto independiente/i);
 });
@@ -18,7 +18,7 @@ test("the root is a public landing page instead of a protected redirect", () => 
 test("the demo and legal pages remain anonymous-compatible", () => {
   for (const route of ["demo", "acerca-de", "privacidad", "terminos"]) {
     const source = read(`app/${route}/page.tsx`);
-    assert.doesNotMatch(source, /requireLearner|requireChatGPTUser|requireEnterprisePageContext/, `${route} must remain public`);
+    assert.doesNotMatch(source, /requireLearner|requireSessionUser|requireEnterprisePageContext/, `${route} must remain public`);
   }
   assert.match(read("app/demo/page.tsx"), /no escribe datos|no guarda actividad/i);
   assert.match(read("app/privacidad/page.tsx"), /exportar|eliminación|conserva/i);
@@ -41,15 +41,15 @@ test("public mutations and responses include launch security hardening", () => {
   assert.match(sharedApi, /fetchSite === "cross-site"/);
   assert.match(sharedApi, /origin !== expectedOrigin/);
 
-  const worker = read("worker/index.ts");
+  const nextConfig = read("next.config.ts").toLowerCase();
   for (const header of ["content-security-policy", "x-content-type-options", "x-frame-options", "referrer-policy", "permissions-policy"]) {
-    assert.ok(worker.includes(header), `worker is missing ${header}`);
+    assert.ok(nextConfig.includes(header), `Next.js config is missing ${header}`);
   }
 });
 
-test("signed-in navigation exposes account and legal controls", () => {
+test("personal navigation exposes return and legal controls", () => {
   const shell = read("app/components/enterprise/AppShell.tsx");
-  for (const expected of ["Cerrar sesión", "/acerca-de", "/privacidad"]) {
+  for (const expected of ["Volver a la portada", "/acerca-de", "/privacidad"]) {
     assert.ok(shell.includes(expected), `enterprise shell is missing ${expected}`);
   }
 });

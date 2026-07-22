@@ -44,7 +44,7 @@ function LegacyImportCard({ dashboard, candidate, onImport, onDismiss }: {
   return <section className="ent-import-card" aria-labelledby="legacy-import-heading">
     <div><p className="ent-kicker">Importación opcional</p><h2 id="legacy-import-heading">Hemos encontrado progreso en este navegador.</h2><p>Compáralo antes de decidir. Nunca se subirán código, borradores, respuestas antiguas ni texto de recuerdo activo.</p></div>
     <div className="ent-import-comparison" role="group" aria-label="Comparación del progreso">
-      <article><span>Tu cuenta</span><strong>{serverLessons} lecciones</strong><small>{serverLabs} laboratorios · revisión {dashboard.revision.value}</small></article>
+      <article><span>Tu espacio</span><strong>{serverLessons} lecciones</strong><small>{serverLabs} laboratorios · revisión {dashboard.revision.value}</small></article>
       <span aria-hidden="true">→</span>
       <article><span>Este navegador</span><strong>{candidate.summary.lessons} lecciones</strong><small>{candidate.summary.labs} laboratorios · {candidate.summary.quizzes} tests</small></article>
     </div>
@@ -78,7 +78,7 @@ export function EmployeeHomeV2() {
         <div className="ent-card-topline"><span>Siguiente actividad</span><small>{completedModules}/32 módulos</small></div>
         <p className="ent-focus-type">{dashboard.nextActivity.kind.replaceAll("_", " ")}</p>
         <h3>{dashboard.nextActivity.label}</h3>
-        <p>Continúa con una actividad concreta. Tu avance se guardará en la cuenta y estará disponible en tus otros dispositivos.</p>
+        <p>Continúa con una actividad concreta. Tu avance se guardará en el espacio privado asociado a este navegador.</p>
         <a className="ent-primary-action" href={dashboard.nextActivity.href}>Continuar <span aria-hidden="true">→</span></a>
       </article>
       <aside className="ent-week-card" aria-labelledby="weekly-goal-heading">
@@ -240,10 +240,10 @@ export function LearnerSettingsV2() {
   const deleting = deletePending;
   return <>
   <div className="ent-page-stack" inert={confirmDelete ? true : undefined}>
-    <section className="ent-page-intro" aria-labelledby="settings-heading"><div><p className="ent-kicker">Cuenta y preferencias</p><h2 id="settings-heading">Ajustes</h2><p>Tu identidad procede de ChatGPT. El progreso se vincula a tu cuenta; este navegador solo conserva preferencias y borradores privados.</p></div><SaveState value={state.saveState} onRetry={state.refresh} /></section>
+    <section className="ent-page-intro" aria-labelledby="settings-heading"><div><p className="ent-kicker">Cuenta y preferencias</p><h2 id="settings-heading">Ajustes</h2><p>Tu espacio utiliza un identificador privado guardado en este navegador. No solicitamos nombre ni correo; puedes exportar o eliminar todo tu progreso.</p></div><SaveState value={state.saveState} onRetry={state.refresh} /></section>
     <section className="ent-settings-grid-v2">
-      <article><p className="ent-kicker">Perfil</p><h2>{dashboard.learner.displayName}</h2><dl><div><dt>Cuenta</dt><dd>{dashboard.learner.email}</dd></div><div><dt>Idioma</dt><dd>Español</dd></div><div><dt>Zona horaria</dt><dd>{dashboard.learner.timezone}</dd></div></dl></article>
-      <article><p className="ent-kicker">Organización</p><h2>{dashboard.brand.organizationName}</h2><p>Los colores y el co-branding se gestionan mediante la configuración segura de Sites.</p><div className="ent-brand-swatches" aria-hidden="true"><span style={{ background: dashboard.brand.primaryColor }} /><span style={{ background: dashboard.brand.accentColor }} /></div>{dashboard.brand.supportEmail ? <a href={`mailto:${dashboard.brand.supportEmail}`}>Contactar con soporte</a> : null}</article>
+      <article><p className="ent-kicker">Perfil</p><h2>{dashboard.learner.displayName}</h2><dl><div><dt>Cuenta</dt><dd>Sesión anónima</dd></div><div><dt>Idioma</dt><dd>Español</dd></div><div><dt>Zona horaria</dt><dd>{dashboard.learner.timezone}</dd></div></dl></article>
+      <article><p className="ent-kicker">Organización</p><h2>{dashboard.brand.organizationName}</h2><p>Los colores y el co-branding se gestionan mediante variables privadas del despliegue.</p><div className="ent-brand-swatches" aria-hidden="true"><span style={{ background: dashboard.brand.primaryColor }} /><span style={{ background: dashboard.brand.accentColor }} /></div>{dashboard.brand.supportEmail ? <a href={`mailto:${dashboard.brand.supportEmail}`}>Contactar con soporte</a> : null}</article>
     </section>
     <section className="ent-account-actions" aria-labelledby="data-heading"><div><p className="ent-kicker">Tus datos</p><h2 id="data-heading">Portabilidad y control</h2><p>Descarga una copia personal o elimina el progreso de aprendizaje. La matrícula seguirá existiendo para que puedas empezar de nuevo.</p></div><div><a className="ent-secondary-action" href="/api/me/export" download>Exportar mis datos</a><button ref={deleteTriggerRef} type="button" className="ent-danger-action" aria-haspopup="dialog" onClick={() => { setDeleteError(null); setConfirmDelete(true); }}>Eliminar progreso</button></div></section>
   </div>

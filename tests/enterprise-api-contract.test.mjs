@@ -56,12 +56,12 @@ test("legacy imports are unique and survive a learner progress reset", () => {
   assert.doesNotMatch(service, /delete\(legacyImports\)/);
 });
 
-test("Sites tenant variables are validated server-side and reach the certificate", () => {
+test("runtime tenant variables are validated server-side and reach the certificate", () => {
   const store = read("app/enterprise/store.ts");
   const brand = read("app/enterprise/brand.ts");
   const service = read("app/enterprise/learning-service.ts");
   for (const key of ["ORG_DISPLAY_NAME", "ORG_LOGO_URL", "ORG_BRAND_COLOR", "ORG_ACCENT_COLOR", "ORG_TIMEZONE", "ORG_SUPPORT_EMAIL"]) {
-    assert.match(store, new RegExp(key), `${key} must be resolved from the Sites runtime`);
+    assert.match(store, new RegExp(key), `${key} must be resolved from the deployment runtime`);
   }
   assert.match(brand, /primaryColor:\s*["']#694BB5["']/);
   assert.match(brand, /accentColor:\s*["']#B94740["']/);

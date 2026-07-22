@@ -154,7 +154,9 @@ export default function AppShell({ active, title, eyebrow = "Lakehouse Lab", chi
         <nav className="ent-nav ent-nav-secondary" aria-label="Configuración">
           <p>Cuenta</p>
           <a href="/ajustes" aria-current={active === "settings" ? "page" : undefined} onClick={() => closeDrawer(false)}><span aria-hidden="true">AJ</span>Ajustes</a>
-          <a href="/signout-with-chatgpt?return_to=%2F" onClick={() => closeDrawer(false)}><span aria-hidden="true">CS</span>Cerrar sesión</a>
+          {/* A document navigation intentionally resets the private workspace state. */}
+          {/* eslint-disable-next-line @next/next/no-html-link-for-pages */}
+          <a href="/" onClick={() => closeDrawer(false)}><span aria-hidden="true">↖</span>Volver a la portada</a>
           <p>Proyecto</p>
           <a href="/acerca-de" onClick={() => closeDrawer(false)}><span aria-hidden="true">PR</span>Acerca de</a>
           <a href="/privacidad" onClick={() => closeDrawer(false)}><span aria-hidden="true">PV</span>Privacidad</a>
@@ -162,7 +164,7 @@ export default function AppShell({ active, title, eyebrow = "Lakehouse Lab", chi
 
         <div className="ent-rail-note">
           <span aria-hidden="true" />
-          <p><b>Progreso sincronizado</b><small>Vinculado a tu cuenta</small></p>
+          <p><b>Progreso persistente</b><small>Vinculado a este navegador</small></p>
         </div>
       </aside>
 
