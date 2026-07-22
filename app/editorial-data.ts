@@ -1,4 +1,4 @@
-export const SITE_VERSION = "1.5.0";
+export const SITE_VERSION = "1.5.1";
 export const PUBLISHED_AT = "22 jul 2026";
 export const REVIEWED_AT = "22 jul 2026";
 

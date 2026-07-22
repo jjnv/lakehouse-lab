@@ -4,7 +4,7 @@ import test from "node:test";
 
 const root = new URL("../", import.meta.url);
 const read = (path) => readFile(new URL(path, root), "utf8");
-const [course, editorial, game, page, progress, layout, packageSource, examAugmentations] = await Promise.all([
+const [course, editorial, game, page, progress, layout, packageSource, examAugmentations, styles] = await Promise.all([
   read("app/course-data.ts"),
   read("app/editorial-data.ts"),
   read("app/gamification.ts"),
@@ -13,15 +13,16 @@ const [course, editorial, game, page, progress, layout, packageSource, examAugme
   read("app/layout.tsx"),
   read("package.json"),
   read("app/curriculum/exam-augmentations.ts"),
+  read("app/globals.css"),
 ]);
 
-test("publishes an auditable 1.5.0 editorial record and current official blueprints", () => {
-  assert.match(editorial, /SITE_VERSION = "1\.5\.0"/);
+test("publishes an auditable 1.5.1 editorial record and current official blueprints", () => {
+  assert.match(editorial, /SITE_VERSION = "1\.5\.1"/);
   assert.match(editorial, /may-4-2026\.pdf/);
   assert.match(editorial, /professional-exam-guide-november-30-2025_0\.pdf/);
   assert.match(page, /Revisión trimestral/);
   assert.match(page, /cobertura interna del curso, no pesos oficiales ni suficiencia/);
-  assert.equal(JSON.parse(packageSource).version, "1.5.0");
+  assert.equal(JSON.parse(packageSource).version, "1.5.1");
   assert.match(layout, /og-v1-1\.png/);
 });
 
@@ -95,6 +96,16 @@ test("keeps both simulators open and labels every question origin", () => {
   assert.match(page, /No usamos dumps ni preguntas activas del examen/);
   const openExam = page.slice(page.indexOf("function openExam"), page.indexOf("function closeExam"));
   assert.doesNotMatch(openExam, /isUnlocked|completedModules|blocked/);
+});
+
+test("contains long exam questions and presents lab validation honestly", () => {
+  assert.match(styles, /\.exam-questions fieldset\{width:100%;overflow:hidden\}/);
+  assert.match(styles, /\.exam-questions legend\{[^}]*overflow-wrap:anywhere/);
+  assert.match(styles, /\.exam-questions label\{[^}]*overflow-wrap:anywhere/);
+  assert.match(page, /Este editor no ejecuta Databricks ni Spark/);
+  assert.match(page, /Registro basado en tu declaración/);
+  assert.match(page, /<details className="lab-spec"/);
+  assert.match(page, /Revisar preparación/);
 });
 
 test("gamification uses persistent unique rewards, combos, streaks and nine levels", () => {

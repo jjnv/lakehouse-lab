@@ -21,17 +21,17 @@ export async function generateMetadata(): Promise<Metadata> {
 
   return {
     metadataBase,
-    title: "Lakehouse Lab v1.5.0 — Academia Databricks Data Engineering",
+    title: "Lakehouse Lab v1.5.1 — Academia Databricks Data Engineering",
     description: "Academia Databricks limpia para el uso diario: continúa, aprende y explora 32 módulos con explicaciones progresivas y trazabilidad oficial.",
     openGraph: {
-      title: "Lakehouse Lab v1.5.0 — De Associate a Professional",
+      title: "Lakehouse Lab v1.5.1 — De Associate a Professional",
       description: "Una experiencia diaria simplificada con 160 lecciones, trazabilidad oficial, práctica versionada y progreso local.",
       type: "website",
       images: [{ url: "/og-v1-1.png", width: 1744, height: 909, alt: "Lakehouse Lab: aprendizaje progresivo de Associate a Professional" }],
     },
     twitter: {
       card: "summary_large_image",
-      title: "Lakehouse Lab v1.5.0 — Academia Databricks",
+      title: "Lakehouse Lab v1.5.1 — Academia Databricks",
       description: "32 módulos explicados por capas en una interfaz diaria limpia, con blueprints auditables, práctica y XP.",
       images: ["/og-v1-1.png"],
     },
