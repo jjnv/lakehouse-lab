@@ -94,6 +94,22 @@ test("la tarjeta del catálogo abre el curso completo", async ({ page }) => {
   await expect(page.getByRole("heading", { level: 2, name: "Data Intelligence Platform y arquitectura lakehouse" })).toBeVisible();
 });
 
+test("la búsqueda global lleva al concepto exacto del temario", async ({ page }) => {
+  await page.goto("/inicio");
+  await waitForWorkspace(page);
+  const search = page.getByRole("searchbox", { name: "Buscar conceptos en el temario" });
+  await search.fill("watermark");
+  const result = page.locator(".ent-search-result").filter({ hasText: "Watermark" }).first();
+  await expect(result).toBeVisible();
+  await result.click();
+  await expect(page).toHaveURL(/\/curso\/estado-ventanas-watermarks-y-datos-tardios\?lesson=.*&concept=concept-/);
+  await waitForWorkspace(page);
+  const concept = page.locator('.ent-mental-model article[id^="concept-"]').filter({ hasText: "Watermark" }).first();
+  await expect(concept).toBeVisible();
+  await expect(concept).toBeFocused();
+  await expectWcag22Aa(page);
+});
+
 test("el diálogo destructivo mantiene una salida segura", async ({ page }) => {
   await page.goto("/ajustes");
   await waitForWorkspace(page);

@@ -54,6 +54,24 @@ test("signed-in navigation exposes account and legal controls", () => {
   }
 });
 
+test("signed-in navigation offers a private curriculum concept search", () => {
+  const shell = read("app/components/enterprise/AppShell.tsx");
+  const search = read("app/components/enterprise/CurriculumSearch.tsx");
+  const route = read("app/api/search/route.ts");
+  const curriculum = read("app/enterprise/curriculum.ts");
+  const course = read("app/components/enterprise/CourseWorkspace.tsx");
+  assert.match(shell, /<CurriculumSearch\s*\/>/);
+  assert.match(search, /Buscar conceptos en el temario/);
+  assert.match(search, /Ctrl K/);
+  assert.match(search, /aria-live="polite"/);
+  assert.match(route, /withLearner/);
+  assert.match(route, /searchCurriculum\(query\)/);
+  assert.match(curriculum, /lesson\.deepDive\.concepts/);
+  assert.match(curriculum, /normalize\("NFD"\)/);
+  assert.match(course, /requestedConcept/);
+  assert.match(course, /conceptAnchor\(lesson\.id, concept\.term\)/);
+});
+
 test("public-source documentation declares independent branding and licensing", () => {
   const readme = read("README.md");
   assert.match(readme, /No está afiliado, patrocinado ni avalado por Databricks/);

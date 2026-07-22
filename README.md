@@ -13,6 +13,7 @@ Plataforma educativa independiente en español para aprender ingeniería de dato
 - Portada y demo públicas sin registro.
 - Espacio personal con inicio de sesión mediante ChatGPT.
 - 160 lecciones, 32 laboratorios y simulacros Associate y Professional.
+- Búsqueda global de módulos, lecciones y conceptos con navegación al punto exacto del temario.
 - Progreso persistente en Cloudflare D1 y repasos espaciados.
 - Evaluaciones corregidas en el servidor sin enviar claves de respuesta al cliente.
 - Exportación y eliminación del progreso.

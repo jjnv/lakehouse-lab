@@ -7,6 +7,7 @@ import {
   type KeyboardEvent,
 } from "react";
 import type { PublicModule } from "../../enterprise/curriculum";
+import { conceptAnchor } from "../../enterprise/search-anchor";
 import AssessmentPanel from "./AssessmentPanel";
 import { SaveState, useDashboard } from "./useDashboard";
 
@@ -29,6 +30,7 @@ export default function CourseWorkspace({ module }: { module: PublicModule }) {
   const [labChecks, setLabChecks] = useState<string[]>([]);
   const [message, setMessage] = useState("");
   const tabRefs = useRef<Array<HTMLButtonElement | null>>([]);
+  const courseReady = Boolean(!state.loading && state.dashboard);
 
   const progress = state.dashboard?.progress.find(
     (item) => item.moduleId === module.id,
@@ -44,6 +46,7 @@ export default function CourseWorkspace({ module }: { module: PublicModule }) {
     moduleIndex >= 0 ? state.dashboard?.modules[moduleIndex + 1] : null;
 
   useEffect(() => {
+    if (!courseReady) return;
     const frame = requestAnimationFrame(() => {
       const params = new URLSearchParams(window.location.search);
       const requestedSection = params.get("section") ?? params.get("view");
@@ -55,6 +58,7 @@ export default function CourseWorkspace({ module }: { module: PublicModule }) {
         setSection(requestedSection);
       }
       const lesson = params.get("lesson");
+      const requestedConcept = params.get("concept") ?? (window.location.hash.startsWith("#concept-") ? window.location.hash.slice(1) : null);
       if (lesson && module.lessons.some((item) => item.id === lesson)) {
         setSection("lessons");
         requestAnimationFrame(() => {
@@ -63,8 +67,12 @@ export default function CourseWorkspace({ module }: { module: PublicModule }) {
           ) as HTMLDetailsElement | null;
           if (target) {
             target.open = true;
-            target.scrollIntoView({ block: "start" });
-            target.querySelector("summary")?.focus();
+            requestAnimationFrame(() => {
+              const conceptTarget = requestedConcept ? document.getElementById(requestedConcept) : null;
+              const focusTarget = conceptTarget ?? target.querySelector<HTMLElement>("summary");
+              focusTarget?.scrollIntoView({ block: "center" });
+              focusTarget?.focus();
+            });
           }
         });
       } else {
@@ -82,7 +90,7 @@ export default function CourseWorkspace({ module }: { module: PublicModule }) {
       setRecall(saved);
     });
     return () => cancelAnimationFrame(frame);
-  }, [module.lessons]);
+  }, [courseReady, module.lessons]);
 
   function changeSection(nextSection: CourseSection, focus = true) {
     setSection(nextSection);
@@ -376,7 +384,7 @@ export default function CourseWorkspace({ module }: { module: PublicModule }) {
                     <h4>{lesson.deepDive.mentalModel}</h4>
                     <div>
                       {lesson.deepDive.concepts.map((concept) => (
-                        <article key={concept.term}>
+                        <article id={conceptAnchor(lesson.id, concept.term)} key={concept.term} tabIndex={-1}>
                           <strong>{concept.term}</strong>
                           <p>{concept.definition}</p>
                           <small>{concept.whyItMatters}</small>

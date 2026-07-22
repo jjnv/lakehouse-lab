@@ -2,7 +2,8 @@ import { buildExamQuestions, modules, trackMeta, type CurriculumModule, type Qui
 import { CONTENT_VERSION } from "../progress";
 import { prepareAssessment, type PrivateAssessmentDefinition, type PreparedAssessment } from "./assessment-private";
 import type { AssessmentKind, AssessmentTimingMode } from "./assessment";
-import type { ModuleSummary } from "./contracts";
+import type { CurriculumSearchResult, ModuleSummary } from "./contracts";
+import { conceptAnchor } from "./search-anchor";
 
 export const LEARNING_PHASES = [
   { id: "fundamentos", name: "Fundamentos lakehouse", track: "core" },
@@ -47,6 +48,112 @@ export function moduleSummaries(): ModuleSummary[] {
     };
   });
 }
+
+type IndexedCurriculumResult = CurriculumSearchResult & {
+  searchableLabel: string;
+  searchableDescription: string;
+  searchableLocation: string;
+  order: number;
+};
+
+function normalizeSearchText(value: string) {
+  return value
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLocaleLowerCase("es")
+    .replace(/[^a-z0-9+#./-]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+const curriculumSearchIndex: IndexedCurriculumResult[] = modules.flatMap((module, moduleIndex) => {
+  const phase = phaseByTrack.get(module.track) ?? LEARNING_PHASES[0];
+  const moduleLocation = `Módulo ${module.number} · ${phase.name}`;
+  const moduleResult: IndexedCurriculumResult = {
+    id: `module:${module.id}`,
+    kind: "module",
+    label: module.title,
+    description: module.description,
+    location: moduleLocation,
+    href: `/curso/${module.slug}`,
+    searchableLabel: normalizeSearchText(`${module.title} ${module.short}`),
+    searchableDescription: normalizeSearchText(`${module.description} ${module.outcomes.join(" ")} ${module.examDomains.join(" ")}`),
+    searchableLocation: normalizeSearchText(moduleLocation),
+    order: moduleIndex * 100,
+  };
+
+  const lessonResults = module.lessons.flatMap((lesson, lessonIndex): IndexedCurriculumResult[] => {
+    const lessonLocation = `${moduleLocation} · Lección ${lessonIndex + 1}`;
+    const lessonResult: IndexedCurriculumResult = {
+      id: `lesson:${lesson.id}`,
+      kind: "lesson",
+      label: lesson.title,
+      description: lesson.summary,
+      location: lessonLocation,
+      href: `/curso/${module.slug}?lesson=${encodeURIComponent(lesson.id)}#lesson-${lesson.id}`,
+      searchableLabel: normalizeSearchText(`${lesson.title} ${lesson.kicker}`),
+      searchableDescription: normalizeSearchText(`${lesson.summary} ${lesson.detail} ${lesson.keyPoints.join(" ")} ${lesson.decisions.join(" ")}`),
+      searchableLocation: normalizeSearchText(`${lessonLocation} ${module.title}`),
+      order: moduleIndex * 100 + lessonIndex * 10 + 1,
+    };
+    const conceptResults = lesson.deepDive.concepts.map((concept, conceptIndex): IndexedCurriculumResult => {
+      const anchor = conceptAnchor(lesson.id, concept.term);
+      return {
+        id: `concept:${lesson.id}:${conceptIndex}`,
+        kind: "concept",
+        label: concept.term,
+        description: concept.definition,
+        location: `${lessonLocation} · ${lesson.title}`,
+        href: `/curso/${module.slug}?lesson=${encodeURIComponent(lesson.id)}&concept=${encodeURIComponent(anchor)}#${anchor}`,
+        searchableLabel: normalizeSearchText(concept.term),
+        searchableDescription: normalizeSearchText(`${concept.definition} ${concept.whyItMatters}`),
+        searchableLocation: normalizeSearchText(`${lessonLocation} ${lesson.title} ${module.title}`),
+        order: moduleIndex * 100 + lessonIndex * 10 + conceptIndex + 2,
+      };
+    });
+    return [lessonResult, ...conceptResults];
+  });
+
+  return [moduleResult, ...lessonResults];
+});
+
+function searchScore(entry: IndexedCurriculumResult, query: string, tokens: string[]) {
+  const haystack = `${entry.searchableLabel} ${entry.searchableDescription} ${entry.searchableLocation}`;
+  if (!tokens.every((token) => haystack.includes(token))) return -1;
+  let score = entry.kind === "concept" ? 12 : entry.kind === "lesson" ? 6 : 3;
+  if (entry.searchableLabel === query) score += 240;
+  else if (entry.searchableLabel.startsWith(query)) score += 150;
+  else if (entry.searchableLabel.includes(query)) score += 105;
+  if (entry.searchableDescription.includes(query)) score += 45;
+  if (entry.searchableLocation.includes(query)) score += 20;
+  for (const token of tokens) {
+    if (entry.searchableLabel.includes(token)) score += 22;
+    if (entry.searchableDescription.includes(token)) score += 8;
+    if (entry.searchableLocation.includes(token)) score += 3;
+  }
+  return score;
+}
+
+export function searchCurriculum(input: string, limit = 8): CurriculumSearchResult[] {
+  const query = normalizeSearchText(input).slice(0, 100);
+  if (query.length < 2) return [];
+  const tokens = query.split(" ").filter((token) => token.length > 1).slice(0, 8);
+  if (!tokens.length) return [];
+  return curriculumSearchIndex
+    .map((entry) => ({ entry, score: searchScore(entry, query, tokens) }))
+    .filter((candidate) => candidate.score >= 0)
+    .sort((left, right) => right.score - left.score || left.entry.order - right.entry.order)
+    .slice(0, Math.max(1, Math.min(limit, 12)))
+    .map(({ entry }) => ({
+      id: entry.id,
+      kind: entry.kind,
+      label: entry.label,
+      description: entry.description,
+      location: entry.location,
+      href: entry.href,
+    }));
+}
+
 export function findModuleBySlug(slug: string): CurriculumModule | null {
   return modules.find((module) => module.slug === slug) ?? null;
 }

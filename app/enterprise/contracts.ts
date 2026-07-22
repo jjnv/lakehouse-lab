@@ -57,6 +57,15 @@ export type ModuleSummary = {
   prerequisiteIds: string[];
 };
 
+export type CurriculumSearchResult = {
+  id: string;
+  kind: "concept" | "lesson" | "module";
+  label: string;
+  description: string;
+  location: string;
+  href: string;
+};
+
 export type ModuleProgressPublic = {
   moduleId: string;
   completedLessonIds: string[];

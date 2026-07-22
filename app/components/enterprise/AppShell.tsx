@@ -5,6 +5,7 @@
 import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import { DEFAULT_BRAND_CONFIG } from "../../enterprise/brand";
 import type { BrandConfig } from "../../enterprise/types";
+import CurriculumSearch from "./CurriculumSearch";
 
 export type EnterpriseArea = "home" | "learning" | "catalog" | "record" | "settings";
 
@@ -167,7 +168,8 @@ export default function AppShell({ active, title, eyebrow = "Lakehouse Lab", chi
 
       <div className="ent-workspace" inert={drawerOpen && mobileNavigation ? true : undefined}>
         <header className="ent-topbar">
-          <div><span>{eyebrow}</span><h1>{title}</h1></div>
+          <div className="ent-topbar-title"><span>{eyebrow}</span><h1>{title}</h1></div>
+          <CurriculumSearch />
           <a href="/ajustes" className="ent-topbar-account" aria-label="Abrir ajustes del espacio"><span aria-hidden="true">{accountLabel.slice(0, 2).toLocaleUpperCase("es")}</span><b>{accountLabel}</b></a>
         </header>
         <main id="main-content" className="ent-main" tabIndex={-1}>{children}</main>

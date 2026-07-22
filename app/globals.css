@@ -385,3 +385,31 @@ footer{padding:30px max(24px,calc((100vw - var(--content))/2));background:#fffdf
 .ent-topbar .ent-topbar-account>span{color:#fff}
 .ent-course-tabs button{min-width:0}
 @media(max-width:400px){.ent-course-tabs button span{display:none}}
+
+/* Global curriculum search */
+.ent-topbar{display:grid;grid-template-columns:minmax(150px,1fr) minmax(300px,520px) minmax(150px,1fr)}
+.ent-topbar>.ent-topbar-title{min-width:0;display:flex;align-items:baseline;gap:12px}
+.ent-topbar>.ent-global-search{position:relative;display:block;align-self:center;width:100%;min-width:0}
+.ent-global-search form{height:44px;display:grid;grid-template-columns:25px minmax(0,1fr) auto;align-items:center;border:1px solid #cfd5dc;border-radius:10px;padding:0 10px;background:#f8f9fa;box-shadow:0 1px 2px rgba(26,33,42,.04)}
+.ent-global-search form:focus-within{border-color:var(--tenant-primary,#513a92);background:#fff;box-shadow:0 0 0 3px color-mix(in srgb,var(--tenant-primary,#513a92) 14%,transparent)}
+.ent-search-symbol{display:grid;place-items:center;color:var(--tenant-primary,#513a92);font-size:19px!important;font-weight:850;line-height:1}
+.ent-global-search input{width:100%;height:42px;border:0;outline:0;background:transparent;color:var(--ent-text);font-size:13px}
+.ent-global-search input::placeholder{color:#69727e;opacity:1}
+.ent-global-search kbd{border:1px solid #d8dde3;border-bottom-width:2px;border-radius:5px;padding:2px 6px;background:#fff;color:#68717d;font:700 10px var(--mono)}
+.ent-search-popover{position:absolute;z-index:90;top:52px;left:0;width:min(620px,calc(100vw - 32px));overflow:hidden;border:1px solid #ccd2d9;border-radius:13px;background:#fff;box-shadow:0 20px 58px rgba(25,32,42,.19)}
+.ent-search-status{min-height:38px;display:flex;align-items:center;margin:0;padding:8px 13px;border-bottom:1px solid var(--ent-border);background:#f7f8fa;color:#5d6672;font-size:12px!important}
+.ent-search-popover ul{max-height:min(520px,calc(100dvh - 190px));overflow:auto;display:grid;margin:0;padding:5px;list-style:none}
+.ent-search-popover li+li{border-top:1px solid #edf0f3}
+.ent-search-result{min-height:84px;display:grid;grid-template-columns:76px minmax(0,1fr);gap:2px 10px;border-radius:8px;padding:11px 10px;color:var(--ent-text);text-decoration:none}
+.ent-search-result:hover,.ent-search-result:focus-visible{background:#f3f0f9}
+.ent-search-result>span{grid-row:1/4;align-self:start;width:max-content;border-radius:999px;padding:3px 7px;background:#e9e3f4;color:var(--tenant-primary,#513a92);font-size:10px!important;font-weight:850;text-transform:uppercase;letter-spacing:.04em}
+.ent-search-result strong{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:14px;line-height:1.35}
+.ent-search-result p{overflow:hidden;display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;margin:0;color:#515a66;font-size:12px!important;line-height:1.45}
+.ent-search-result small{display:flex;justify-content:space-between;gap:10px;color:#68717d;font-size:11px!important}.ent-search-result small b{color:var(--tenant-primary,#513a92);font-size:15px}
+.ent-search-popover footer{min-height:42px;display:flex;justify-content:space-between;align-items:center;gap:18px;margin:0;padding:8px 13px;border-top:1px solid var(--ent-border);background:#f7f8fa;color:#68717d;text-align:left}
+.ent-search-popover footer span,.ent-search-popover footer a{font-size:11px!important}.ent-search-popover footer a{color:var(--tenant-primary,#513a92);font-weight:820}
+.ent-topbar-account{justify-self:end}
+.ent-mental-model article[tabindex="-1"]{scroll-margin-top:150px}
+.ent-mental-model article[tabindex="-1"]:focus{outline:3px solid #246db2;outline-offset:4px;background:#fff}
+@media(max-width:1100px){.ent-topbar{grid-template-columns:minmax(150px,.65fr) minmax(280px,1.35fr)}.ent-topbar>.ent-global-search{justify-self:end}.ent-search-popover{right:0;left:auto}}
+@media(max-width:700px){.ent-topbar{grid-template-columns:1fr}.ent-topbar>.ent-global-search{justify-self:stretch}.ent-search-popover{right:auto;left:0;width:100%}.ent-topbar>.ent-topbar-title{display:grid;gap:1px}.ent-global-search kbd{display:none}.ent-search-result{grid-template-columns:1fr}.ent-search-result>span{grid-row:auto;margin-bottom:2px}.ent-search-popover footer>span{display:none}.ent-search-popover footer{justify-content:flex-end}}
