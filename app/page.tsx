@@ -753,6 +753,13 @@ function LessonsView({ module, completedLessons, preview, onToggle, onSource, on
   const mappedCoverage = examMappings.filter((mapping) => mapping.moduleIds.includes(module.id));
   const blueprintCoverage = mappedCoverage.length ? mappedCoverage : [{ level: module.level, domain: module.examDomains.join(" · "), objectives: module.outcomes }];
   const firstIncompleteLessonId = module.lessons.find((lesson) => !completedLessons.includes(lesson.id))?.id;
+  useEffect(() => {
+    if (!firstIncompleteLessonId) return;
+    const panel = document.getElementById("panel-lessons");
+    if (panel?.querySelector("details.lesson[open]")) return;
+    const nextLesson = panel?.querySelector<HTMLDetailsElement>(`details.lesson[data-lesson-id="${firstIncompleteLessonId}"]`);
+    if (nextLesson) nextLesson.open = true;
+  }, [module.id, firstIncompleteLessonId]);
   return <div id="panel-lessons" className="lessons-view" role="tabpanel" aria-labelledby="tab-lessons" tabIndex={0}>
     <div className="lesson-context-list">
       <details className="outcomes compact-theory"><summary><span>Objetivos</span><b>Lo que podrás explicar al terminar</b><i>{module.outcomes.length}</i></summary><div>{module.outcomes.map((outcome) => <p key={outcome}>✓ {outcome}</p>)}</div></details>
@@ -772,7 +779,7 @@ function LessonsView({ module, completedLessons, preview, onToggle, onSource, on
       const previousLesson = index > 0 ? module.lessons[index - 1] : null;
       const nextLesson = module.lessons[index + 1] ?? null;
       const learningStage = ["Fundamentos", "Conecta", "Opera", "Decide", "Integra"][index];
-      return <details className={`lesson ${done ? "done" : ""}`} name={`lessons-${module.id}`} key={lesson.id} open={lesson.id === firstIncompleteLessonId}>
+      return <details className={`lesson ${done ? "done" : ""}`} name={`lessons-${module.id}`} data-lesson-id={lesson.id} key={lesson.id} open={lesson.id === firstIncompleteLessonId}>
         <summary className="lesson-summary"><span className="lesson-index">{String(index + 1).padStart(2,"0")}</span><div><small>{learningStage} · ≈ {lessonMinutes} min</small><h3>{lesson.title}</h3><p>{lesson.summary}</p></div><i>{done ? "✓" : "+"}</i></summary>
         <div className="lesson-copy">
           <p className="eyebrow">{lesson.kicker} · {learningStage}</p><h3>{lesson.title}</h3>

@@ -46,6 +46,7 @@ test("uses progressive disclosure without removing theoretical content", () => {
   assert.match(page, /className="cloud-context compact-theory"/);
   assert.match(page, /className="blueprint-coverage compact-theory"/);
   assert.match(page, /name=\{`lessons-\$\{module\.id\}`\}/);
+  assert.match(page, /querySelector\("details\.lesson\[open\]"\)/);
   assert.match(page, /className="lesson-sources"/);
   for (const retained of ["lesson.explanation[0]", "lesson.deepDive.mentalModel", "lesson.deepDive.concepts", "lesson.deepDive.mechanics", "lesson.deepDive.workedScenario", "lesson.example.code", "lesson.keyPoints", "lesson.pitfalls", "lesson.examDecision", "lesson.checkpoint"]) assert.ok(page.includes(retained), `${retained} must remain available`);
 });
