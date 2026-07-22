@@ -60,6 +60,12 @@ export type Lab = {
   freeEdition: { supported: boolean; simulation: boolean; note: string };
   runtime: { free: string; classic: string };
   prerequisites: string[];
+  environment: string;
+  compute: string;
+  permissions: string[];
+  dataset: { name: string; acquisition: string };
+  reproducibility: { status: "specified" | "independently-verified"; independentRuns: number; note: string };
+  deliberateFailure: { scenario: string; recovery: string };
   estimatedCost: { free: string; paid: Record<"AWS" | "Azure" | "GCP", string>; assumptions: string };
   expectedOutcome: string;
   cleanup: string[];
@@ -74,6 +80,42 @@ export type Lab = {
   checks: { label: string; pattern: string }[];
   expectedEvidence: string[];
   cloudNotes: { cloud: "AWS" | "Azure" | "GCP"; note: string }[];
+};
+
+type SpecificSource = Omit<SourceReference, "reviewedAt">;
+
+const specificSourcesByModule: Partial<Record<string, SpecificSource[]>> = {
+  m01: [
+    { id: "m01-network-architecture", label: "Arquitectura de red: control plane y compute planes", href: "https://docs.databricks.com/aws/en/security/network/deployment-architecture", publisher: "Databricks", cloud: "AWS", version: "Arquitectura de referencia 2026" },
+    { id: "m01-serverless-network", label: "Red del serverless compute plane", href: "https://docs.databricks.com/aws/en/security/network/serverless-network-security/", publisher: "Databricks", cloud: "AWS", version: "Serverless 2026" },
+    { id: "m01-serverless-network-azure", label: "Red serverless en Azure Databricks", href: "https://learn.microsoft.com/en-us/azure/databricks/security/network/serverless-network-security/", publisher: "Databricks", cloud: "Azure", version: "Serverless 2026" },
+    { id: "m01-serverless-network-gcp", label: "Red serverless en Google Cloud", href: "https://docs.databricks.com/gcp/en/security/network/serverless-network-security/", publisher: "Databricks", cloud: "GCP", version: "Serverless 2026" },
+    { id: "m01-sql-warehouse", label: "SQL warehouses: propósito y tipos de compute", href: "https://docs.databricks.com/aws/en/compute/sql-warehouse", publisher: "Databricks", cloud: "Multinube", version: "SQL warehouses 2026" },
+  ],
+  m02: [
+    { id: "m02-serverless-compute", label: "Conectar y ejecutar con serverless compute", href: "https://docs.databricks.com/aws/en/compute/serverless", publisher: "Databricks", cloud: "AWS", version: "Serverless 2026" },
+    { id: "m02-sql-behavior", label: "Dimensionado, escalado y colas de SQL warehouses", href: "https://docs.databricks.com/aws/en/compute/sql-warehouse/warehouse-behavior", publisher: "Databricks", cloud: "AWS", version: "SQL warehouses 2026" },
+    { id: "m02-serverless-sql", label: "Arquitectura y requisitos de SQL warehouses serverless", href: "https://docs.databricks.com/aws/en/admin/sql/serverless", publisher: "Databricks", cloud: "AWS", version: "Serverless SQL 2026" },
+  ],
+  m06: [
+    { id: "m06-delta-log", label: "Delta Lake y su transaction log", href: "https://docs.databricks.com/aws/en/delta", publisher: "Databricks", cloud: "Multinube", version: "Delta Lake 2026" },
+    { id: "m06-acid", label: "Garantías ACID en Databricks", href: "https://docs.databricks.com/aws/en/lakehouse/acid", publisher: "Databricks", cloud: "Multinube", version: "Delta Lake 2026" },
+    { id: "m06-protocol", label: "Compatibilidad y protocolos de Delta Lake", href: "https://docs.databricks.com/aws/en/tables/features/feature-compatibility", publisher: "Databricks", cloud: "Multinube", version: "Protocolos Delta 2026" },
+    { id: "m06-open-protocol", label: "Versionado y compatibilidad del protocolo Delta", href: "https://docs.delta.io/versioning/", publisher: "Delta Lake", cloud: "Multinube", version: "Delta Lake OSS" },
+  ],
+  m11: [
+    { id: "m11-access-control", label: "Modelos de control de acceso en Unity Catalog", href: "https://docs.databricks.com/aws/en/data-governance/unity-catalog/access-control/", publisher: "Databricks", cloud: "Multinube", version: "Unity Catalog 2026" },
+    { id: "m11-privileges", label: "Referencia de privilegios de Unity Catalog", href: "https://docs.databricks.com/aws/en/data-governance/unity-catalog/access-control/privileges-reference", publisher: "Databricks", cloud: "Multinube", version: "Unity Catalog 2026" },
+    { id: "m11-workspace-binding", label: "Workspace-catalog bindings", href: "https://docs.databricks.com/aws/en/data-governance/unity-catalog/access-control/workspace-catalog-binding", publisher: "Databricks", cloud: "AWS", version: "Unity Catalog 2026" },
+    { id: "m11-workspace-binding-gcp", label: "Workspace-catalog bindings en Google Cloud", href: "https://docs.databricks.com/gcp/en/data-governance/unity-catalog/access-control/workspace-catalog-binding", publisher: "Databricks", cloud: "GCP", version: "Unity Catalog 2026" },
+  ],
+};
+
+const lessonSpecificSourceIds: Partial<Record<string, string[][]>> = {
+  m01: [["m01-network-architecture"], ["m01-network-architecture", "m01-serverless-network", "m01-serverless-network-azure", "m01-serverless-network-gcp"], ["m01-network-architecture"], ["m01-sql-warehouse", "m01-network-architecture"], ["m01-network-architecture", "m01-serverless-network"]],
+  m02: [["m02-serverless-compute", "m02-serverless-sql"], ["m02-sql-behavior", "m02-serverless-sql"], ["m02-sql-behavior"], ["m02-serverless-sql"], ["m02-sql-behavior"]],
+  m06: [["m06-delta-log", "m06-acid"], ["m06-delta-log"], ["m06-delta-log", "m06-protocol"], ["m06-acid", "m06-delta-log"], ["m06-delta-log", "m06-protocol", "m06-open-protocol"]],
+  m11: [["m11-access-control"], ["m11-privileges", "m11-workspace-binding", "m11-workspace-binding-gcp"], ["m11-access-control", "m11-workspace-binding"], ["m11-access-control"], ["m11-privileges"]],
 };
 
 export type CurriculumModule = {
@@ -188,9 +230,10 @@ function packFor(seed: ModuleSeed): ModuleContentPack {
 }
 
 function makeLessons(seed: ModuleSeed, pack: ModuleContentPack): Lesson[] {
-  const refIds = pack.sources.map((_, sourceIndex) => `${seed.id}-source-${sourceIndex + 1}`);
+  const broadRefIds = pack.sources.map((_, sourceIndex) => `${seed.id}-source-${sourceIndex + 1}`);
   return seed.topics.map((topic, index) => {
     const content = pack.lessons[index];
+    const refIds = lessonSpecificSourceIds[seed.id]?.[index] ?? broadRefIds;
     return {
     id: `${seed.id}-l${index + 1}`,
     kicker: lessonKickers[index],
@@ -211,10 +254,15 @@ function makeLab(seed: ModuleSeed, pack: ModuleContentPack): Lab {
       ? "1–5 USD"
       : "0,10–1,50 USD";
   const moduleRefIds = pack.sources.map((_, sourceIndex) => `${seed.id}-source-${sourceIndex + 1}`);
+  const requiresClassic = new Set(["m05", "m15", "m23", "m25", "m26"]).has(seed.id);
+  const usesSqlWarehouse = new Set(["m02", "m06", "m07", "m11", "m24", "m30", "m31"]).has(seed.id);
+  const permissions = ["USE CATALOG sobre el catálogo de aprendizaje", "USE SCHEMA y CREATE TABLE sobre el esquema aislado del laboratorio"];
+  if (usesSqlWarehouse) permissions.push("CAN USE sobre el SQL warehouse asignado");
+  if (requiresClassic) permissions.push("CAN ATTACH TO sobre el compute clásico asignado; no se requiere permiso de creación");
   return {
     ...pack.lab,
     id: `LAB-${seed.id.slice(1)}`,
-    version: "1.0.0",
+    version: "1.1.0",
     reviewedAt: REVIEWED_AT,
     freeEdition: {
       supported: !paidOnly,
@@ -232,6 +280,22 @@ function makeLab(seed: ModuleSeed, pack: ModuleContentPack): Lab {
       "Permiso para crear objetos en un catálogo de aprendizaje",
       "Dataset de práctica sin información sensible",
     ],
+    environment: paidOnly ? "Workspace Databricks de pago; Free Edition solo para la simulación reducida" : "Databricks Free Edition o workspace empresarial aislado",
+    compute: requiresClassic ? "Compute clásico · DBR 17.3 LTS / Spark 4.0" : usesSqlWarehouse ? "SQL warehouse serverless; alternativa clásica documentada" : "Serverless administrado por Databricks",
+    permissions,
+    dataset: {
+      name: `Dataset sintético lakehouse_lab_${seed.id}`,
+      acquisition: "Se genera con el código inicial del laboratorio; no requiere credenciales, descargas privadas ni datos personales.",
+    },
+    reproducibility: {
+      status: "specified",
+      independentRuns: 0,
+      note: "Procedimiento especificado y autocomprobado; ejecución independiente documentada todavía pendiente.",
+    },
+    deliberateFailure: {
+      scenario: "Ejecuta una vez con el catálogo o esquema equivocado para observar un fallo de resolución o privilegios.",
+      recovery: "Corrige USE CATALOG/USE SCHEMA, verifica privilegios mínimos y repite desde el cleanup idempotente.",
+    },
     estimatedCost: {
       free: "0 USD · sujeto a fair use y cuotas diarias",
       paid: { AWS: paidRange, Azure: paidRange, GCP: paidRange },
@@ -248,7 +312,7 @@ function makeLab(seed: ModuleSeed, pack: ModuleContentPack): Lab {
       { symptom: "Permiso denegado", fix: "Verifica USE CATALOG, USE SCHEMA y el privilegio mínimo sobre el objeto." },
       { symptom: "La salida no coincide", fix: "Reinicia desde el cleanup, valida el input y vuelve a ejecutar los pasos en orden." },
     ],
-    refIds: [...moduleRefIds, PLATFORM_REFERENCES.freeEdition.id, PLATFORM_REFERENCES.runtime.id, PLATFORM_REFERENCES.pricing.id],
+    refIds: [...moduleRefIds, ...(specificSourcesByModule[seed.id] ?? []).map((source) => source.id), PLATFORM_REFERENCES.freeEdition.id, PLATFORM_REFERENCES.runtime.id, PLATFORM_REFERENCES.pricing.id],
     cloudNotes: (["AWS", "Azure", "GCP"] as const).map((cloud) => ({ cloud, note: pack.lab.cloudNotes[cloud] })),
   };
 }
@@ -262,13 +326,13 @@ export const modules: CurriculumModule[] = seeds.map((seed, index) => ({
   lab: makeLab(seed, packFor(seed)),
   quiz: packFor(seed).quiz.map((question) => ({ ...question, moduleId: seed.id })),
   prerequisites: prerequisitesFor(index, seed.track),
-  sources: packFor(seed).sources.map((source, sourceIndex) => ({
+  sources: [...packFor(seed).sources.map((source, sourceIndex) => ({
     ...source,
     id: `${seed.id}-source-${sourceIndex + 1}`,
     publisher: "Databricks" as const,
     cloud: "Multinube",
     version: "Documentación vigente en julio de 2026",
-  })),
+  })), ...(specificSourcesByModule[seed.id] ?? []).map((source) => ({ ...source, reviewedAt: REVIEWED_AT }))],
 }));
 
 export const totalMinutes = modules.reduce((total, module) => total + module.minutes, 0);

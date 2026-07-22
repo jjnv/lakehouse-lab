@@ -14,13 +14,13 @@ const [course, editorial, game, page, progress, layout, packageSource] = await P
   read("package.json"),
 ]);
 
-test("publishes an auditable 1.3.0 editorial record and current official blueprints", () => {
-  assert.match(editorial, /SITE_VERSION = "1\.3\.0"/);
+test("publishes an auditable 1.4.0 editorial record and current official blueprints", () => {
+  assert.match(editorial, /SITE_VERSION = "1\.4\.0"/);
   assert.match(editorial, /may-4-2026\.pdf/);
   assert.match(editorial, /professional-exam-guide-november-30-2025_0\.pdf/);
   assert.match(page, /Revisión trimestral/);
-  assert.match(page, /cobertura del curso, no pesos oficiales del examen/);
-  assert.equal(JSON.parse(packageSource).version, "1.3.0");
+  assert.match(page, /cobertura interna del curso, no pesos oficiales ni suficiencia/);
+  assert.equal(JSON.parse(packageSource).version, "1.4.0");
   assert.match(layout, /og-v1-1\.png/);
 });
 
@@ -36,28 +36,40 @@ test("keeps the daily interface focused while retaining advanced content on dema
   assert.match(page, /<summary>Más filtros<\/summary>/);
 });
 
-test("maps every blueprint objective to theory, practice, assessment and modules", () => {
+test("maps every blueprint objective while separating designed from reproduced evidence", () => {
   const objectiveCalls = [...editorial.matchAll(/objective\("([^"]+)",\s*"(Associate|Professional)"/g)];
   assert.equal(objectiveCalls.filter((match) => match[2] === "Associate").length, 33);
   assert.equal(objectiveCalls.filter((match) => match[2] === "Professional").length, 45);
   const mappedCalls = [...editorial.matchAll(/objective\([^\n]+\["m\d{2}"/g)];
   assert.equal(mappedCalls.length, objectiveCalls.length);
-  assert.match(editorial, /theory: true, practice: true, assessment: true/);
-  assert.match(page, /cobertura teórica/i);
-  assert.match(page, /cobertura práctica/i);
-  assert.match(page, /cobertura evaluada/i);
+  assert.match(editorial, /theory: true, practice: true, assessment: true, reproduced: false/);
+  assert.match(page, /Objetivo mencionado ≠ objetivo explicado ≠ habilidad demostrada/);
+  assert.match(page, /Reproducidos/);
+  assert.match(page, /Diseñado · no reproducido/);
   assert.match(page, /Abrir \$\{target === "lessons" \? "lecciones"/);
 });
 
 test("gives every lesson source ids and every lab a versioned operating spec", () => {
-  assert.match(course, /const refIds = pack\.sources\.map/);
+  assert.match(course, /lessonSpecificSourceIds/);
+  assert.match(course, /const refIds = lessonSpecificSourceIds/);
   assert.match(course, /\n\s+refIds,/);
   assert.match(course, /id: `LAB-\$\{seed\.id\.slice\(1\)\}`/);
-  for (const field of ["version", "reviewedAt", "freeEdition", "runtime", "prerequisites", "estimatedCost", "expectedOutcome", "cleanup", "troubleshooting", "refIds"]) {
+  for (const field of ["version", "reviewedAt", "freeEdition", "runtime", "prerequisites", "environment", "compute", "permissions", "dataset", "reproducibility", "deliberateFailure", "estimatedCost", "expectedOutcome", "cleanup", "troubleshooting", "refIds"]) {
     assert.match(course, new RegExp(`${field}:`), `missing lab field ${field}`);
   }
   assert.match(page, /Ficha versionada del laboratorio/);
   assert.match(page, /Límites de Free Edition/);
+});
+
+test("uses direct technical sources, honest authorship and three non-destructive study routes", () => {
+  for (const fragment of ["serverless-network-security", "privileges-reference", "workspace-catalog-binding", "feature-compatibility", "compute/sql-warehouse"]) assert.match(course, new RegExp(fragment));
+  assert.match(page, /Revisor externo pendiente/);
+  assert.match(page, /no afirma certificaciones/);
+  assert.match(page, /Ruta examen/);
+  assert.match(page, /Ruta práctica/);
+  assert.match(page, /Ruta profesional/);
+  assert.match(page, /Cambiar de ruta solo filtra y prioriza contenido; nunca borra progreso ni XP/);
+  assert.match(page, /Un principio común, tres implementaciones/);
 });
 
 test("preview mode cannot write progress, submit tests or reveal solutions", () => {

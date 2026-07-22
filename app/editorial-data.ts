@@ -1,4 +1,4 @@
-export const SITE_VERSION = "1.3.0";
+export const SITE_VERSION = "1.4.0";
 export const PUBLISHED_AT = "22 jul 2026";
 export const REVIEWED_AT = "22 jul 2026";
 
@@ -54,6 +54,7 @@ export type BlueprintObjective = {
   theory: boolean;
   practice: boolean;
   assessment: boolean;
+  reproduced: boolean;
 };
 
 function objective(
@@ -63,7 +64,7 @@ function objective(
   text: string,
   moduleIds: string[],
 ): BlueprintObjective {
-  return { id, level, domain, objective: text, moduleIds, theory: true, practice: true, assessment: true };
+  return { id, level, domain, objective: text, moduleIds, theory: true, practice: true, assessment: true, reproduced: false };
 }
 
 export const blueprintObjectives: BlueprintObjective[] = [
@@ -157,5 +158,14 @@ export function coverageFor(level: CertificationLevel) {
     theory: percentage((item) => item.theory),
     practice: percentage((item) => item.practice),
     assessment: percentage((item) => item.assessment),
+    reproduced: percentage((item) => item.reproduced),
+    counts: {
+      total: items.length,
+      mapped: items.filter((item) => item.moduleIds.length > 0).length,
+      explained: items.filter((item) => item.theory).length,
+      practiced: items.filter((item) => item.practice).length,
+      assessed: items.filter((item) => item.assessment).length,
+      reproduced: items.filter((item) => item.reproduced).length,
+    },
   };
 }

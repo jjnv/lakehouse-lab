@@ -375,7 +375,7 @@ test("dependency, progress and assessment gates cannot be bypassed by stale stat
   assert.match(courseSource, /previous\.track === track \? \[previous\.id\] : \["m12"\]/);
   assert.match(courseSource, /return \["m17", "m22", "m27", "m31"\]/);
   assert.match(progressSource, /STORAGE_KEY = "lakehouse-lab-progress-v2"/);
-  assert.match(progressSource, /CONTENT_VERSION = "lakehouse-lab-v1\.3\.0"/);
+  assert.match(progressSource, /CONTENT_VERSION = "lakehouse-lab-v1\.4\.0"/);
   assert.doesNotMatch(progressSource, /value\.contentVersion !== CONTENT_VERSION/);
   assert.match(progressSource, /gamification: sanitizeGamification\(value\.gamification\)/);
   assert.match(progressSource, /progress\.examCompleted\.associate === true/);

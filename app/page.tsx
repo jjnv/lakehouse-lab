@@ -63,6 +63,14 @@ const topicGroups = {
 type TopicFilter = keyof typeof topicGroups | "all";
 type StatusFilter = "all" | "available" | "in-progress" | "completed" | "locked";
 type LevelFilter = "all" | "associate" | "professional";
+type StudyRoute = "exam" | "practice" | "professional";
+
+const STUDY_ROUTE_KEY = "lakehouse-lab-study-route";
+const studyRoutes: Record<StudyRoute, { label: string; description: string; moduleIds: string[]; focus: string }> = {
+  exam: { label: "Ruta examen", description: "Blueprint Associate sin desvíos: fundamentos, decisiones y simulacro.", moduleIds: modules.slice(0, 12).map((module) => module.id), focus: "Teoría + evaluación" },
+  practice: { label: "Ruta práctica", description: "Associate completo más los laboratorios Professional esenciales para operar con autonomía.", moduleIds: [...modules.slice(0, 12), ...modules.filter((module) => ["m13","m16","m18","m19","m20","m23","m26","m29","m30","m31"].includes(module.id))].map((module) => module.id), focus: "Examen + práctica esencial" },
+  professional: { label: "Ruta profesional", description: "Itinerario completo, cuatro ramas, proyectos y capstone Professional.", moduleIds: modules.map((module) => module.id), focus: "Academia completa" },
+};
 
 function formatHours(minutes: number) {
   const roundedMinutes = Math.round(minutes);
@@ -121,6 +129,7 @@ export default function Home() {
   const [levelFilter, setLevelFilter] = useState<LevelFilter>("all");
   const [topicFilter, setTopicFilter] = useState<TopicFilter>("all");
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
+  const [studyRoute, setStudyRoute] = useState<StudyRoute>("professional");
   const [cloud, setCloud] = useState<"AWS" | "Azure" | "GCP">("AWS");
   const [labResult, setLabResult] = useState<{ checks: boolean[]; passed: boolean } | null>(null);
   const [showSolution, setShowSolution] = useState(false);
@@ -145,6 +154,8 @@ export default function Home() {
   const completedMinutes = modules.reduce((sum, module) => sum + earnedMinutes(module, progress), 0);
   const percent = Math.round((completedMinutes / totalMinutes) * 100);
   const level = levelFor(progress.gamification.xp);
+  const routeModuleIds = studyRoutes[studyRoute].moduleIds;
+  const routeModuleSet = useMemo(() => new Set(routeModuleIds), [routeModuleIds]);
 
   const isUnlocked = (module: CurriculumModule) => moduleIsUnlocked(module, completed);
 
@@ -163,9 +174,9 @@ export default function Home() {
         (statusFilter === "in-progress" && started && !completed.has(module.id)) ||
         (statusFilter === "available" && unlocked && !started && !completed.has(module.id)) ||
         (statusFilter === "locked" && !unlocked);
-      return matchesText && matchesTrack && matchesLevel && matchesTopic && matchesStatus;
+      return routeModuleSet.has(module.id) && matchesText && matchesTrack && matchesLevel && matchesTopic && matchesStatus;
     });
-  }, [search, trackFilter, levelFilter, topicFilter, statusFilter, completed, progress]);
+  }, [search, trackFilter, levelFilter, topicFilter, statusFilter, completed, progress, routeModuleSet]);
 
   useEffect(() => {
     const frame = requestAnimationFrame(() => {
@@ -173,6 +184,8 @@ export default function Home() {
       try {
         restored = sanitizeProgress(JSON.parse(localStorage.getItem(STORAGE_KEY) || "null"));
       } catch {}
+      const savedRoute = localStorage.getItem(STUDY_ROUTE_KEY);
+      if (savedRoute === "exam" || savedRoute === "practice" || savedRoute === "professional") setStudyRoute(savedRoute);
       setProgress(restored);
       progressRef.current = restored;
 
@@ -217,6 +230,10 @@ export default function Home() {
       try { localStorage.setItem(STORAGE_KEY, JSON.stringify(progress)); } catch {}
     }
   }, [progress, loaded]);
+
+  useEffect(() => {
+    if (loaded) localStorage.setItem(STUDY_ROUTE_KEY, studyRoute);
+  }, [studyRoute, loaded]);
 
   useEffect(() => {
     const onPopState = () => {
@@ -529,10 +546,10 @@ export default function Home() {
   }
 
   const lastModule = modules.find((module) => module.id === progress.lastModuleId);
-  const continueModule = lastModule && isUnlocked(lastModule) && !completed.has(lastModule.id)
+  const continueModule = lastModule && routeModuleSet.has(lastModule.id) && isUnlocked(lastModule) && !completed.has(lastModule.id)
     ? lastModule
-    : modules.find((module) => isUnlocked(module) && hasStarted(module, progress) && !completed.has(module.id))
-      ?? modules.find((module) => isUnlocked(module) && !completed.has(module.id))
+    : modules.find((module) => routeModuleSet.has(module.id) && isUnlocked(module) && hasStarted(module, progress) && !completed.has(module.id))
+      ?? modules.find((module) => routeModuleSet.has(module.id) && isUnlocked(module) && !completed.has(module.id))
       ?? modules[31];
 
   if (examMode) {
@@ -609,7 +626,9 @@ export default function Home() {
         </section>
 
         <section id="catalog" className="catalog" aria-labelledby="catalog-title">
-          <div className="section-heading"><div><p className="eyebrow">Ruta completa</p><h2 id="catalog-title">Todos los módulos, en un solo lugar.</h2><p>Abre cualquier módulo. Si aún no está desbloqueado, entrarás en vista previa sin modificar tu progreso.</p></div><button ref={resetButtonRef} className="text-button danger" onClick={() => setResetPending(true)}>Reiniciar progreso</button></div>
+          <div className="section-heading"><div><p className="eyebrow">{studyRoutes[studyRoute].label}</p><h2 id="catalog-title">Elige cuánto necesitas recorrer.</h2><p>Abre cualquier módulo de la ruta. Si aún no está desbloqueado, entrarás en vista previa sin modificar tu progreso.</p></div><button ref={resetButtonRef} className="text-button danger" onClick={() => setResetPending(true)}>Reiniciar progreso</button></div>
+          <div className="study-routes" role="radiogroup" aria-label="Ruta de estudio">{(Object.entries(studyRoutes) as [StudyRoute, typeof studyRoutes[StudyRoute]][]).map(([id, route]) => { const minutes = modules.filter((module) => route.moduleIds.includes(module.id)).reduce((sum, module) => sum + module.minutes, 0); return <button key={id} role="radio" aria-checked={studyRoute === id} className={studyRoute === id ? "active" : ""} onClick={() => setStudyRoute(id)}><span>{route.focus}</span><b>{route.label}</b><p>{route.description}</p><small>{route.moduleIds.length} módulos · {formatHours(minutes)}</small></button>; })}</div>
+          <p className="route-note">Cambiar de ruta solo filtra y prioriza contenido; nunca borra progreso ni XP.</p>
           <div className="filters">
             <label><span>Buscar</span><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Ej. Auto Loader, ABAC, skew…" /></label>
             <details className="filter-disclosure"><summary>Más filtros</summary><div><label><span>Rama</span><select value={trackFilter} onChange={(event) => setTrackFilter(event.target.value as TrackId | "all")}><option value="all">Todas</option>{trackOrder.map((track) => <option key={track} value={track}>{trackMeta[track].name}</option>)}</select></label><label><span>Nivel</span><select value={levelFilter} onChange={(event) => setLevelFilter(event.target.value as LevelFilter)}><option value="all">Todos</option><option value="associate">Associate</option><option value="professional">Professional</option></select></label><label><span>Tema</span><select value={topicFilter} onChange={(event) => setTopicFilter(event.target.value as TopicFilter)}><option value="all">Todos</option>{Object.entries(topicGroups).map(([value, group]) => <option key={value} value={value}>{group.label}</option>)}</select></label><label><span>Estado</span><select value={statusFilter} onChange={(event) => setStatusFilter(event.target.value as StatusFilter)}><option value="all">Todos</option><option value="available">Sin empezar</option><option value="in-progress">En curso</option><option value="completed">Superados</option><option value="locked">Bloqueados</option></select></label></div></details>
@@ -625,7 +644,7 @@ export default function Home() {
           <aside className="academy-sidebar">
             <p className="eyebrow">Academia</p>
             <nav className="sidebar-list" aria-label="Módulos de la academia">
-              {modules.map((module) => <a key={module.id} href={`?module=${module.slug}`} data-preview={!isUnlocked(module) || undefined} aria-current={activeModule.id === module.id ? "step" : undefined} onClick={(event) => handleModuleLink(event, module)} className={activeModule.id === module.id ? "active" : completed.has(module.id) ? "done" : !isUnlocked(module) ? "preview-link" : ""}><span>{completed.has(module.id) ? "✓" : module.number}</span><div><b>{module.short}</b><small>{!isUnlocked(module) ? `Vista previa · requiere ${module.prerequisites.map((id) => modules.find((item) => item.id === id)?.number).join(", ")}` : trackMeta[module.track].name}</small></div></a>)}
+              {modules.filter((module) => routeModuleSet.has(module.id) || module.id === activeModule.id).map((module) => <a key={module.id} href={`?module=${module.slug}`} data-preview={!isUnlocked(module) || undefined} aria-current={activeModule.id === module.id ? "step" : undefined} onClick={(event) => handleModuleLink(event, module)} className={activeModule.id === module.id ? "active" : completed.has(module.id) ? "done" : !isUnlocked(module) ? "preview-link" : ""}><span>{completed.has(module.id) ? "✓" : module.number}</span><div><b>{module.short}</b><small>{!isUnlocked(module) ? `Vista previa · requiere ${module.prerequisites.map((id) => modules.find((item) => item.id === id)?.number).join(", ")}` : trackMeta[module.track].name}</small></div></a>)}
             </nav>
           </aside>
 
@@ -675,12 +694,13 @@ function BlueprintMatrix({ onOpen }: { onOpen: (module: CurriculumModule, view?:
   const domains = [...new Set(items.map((item) => item.domain))];
   return <section id="blueprint-matrix" className="blueprint-matrix" aria-labelledby="matrix-title">
     <details className="daily-disclosure blueprint-disclosure"><summary><span><b id="matrix-title">Blueprint y cobertura</b><small>Objetivos oficiales y trazabilidad por lección, laboratorio y test</small></span><i>Abrir matriz</i></summary>
-    <div className="section-heading"><div><p className="eyebrow">Matriz auditable</p><h2>Blueprint completo, objetivo por objetivo.</h2></div><p>Los porcentajes expresan cobertura del curso, no pesos oficiales del examen. Las guías oficiales actuales no publican ponderaciones por dominio.</p></div>
+    <div className="section-heading"><div><p className="eyebrow">Matriz auditable</p><h2>Blueprint completo, objetivo por objetivo.</h2></div><p>Los porcentajes expresan cobertura interna del curso, no pesos oficiales ni suficiencia para aprobar.</p></div>
+    <div className="coverage-caveat" role="note"><strong>Objetivo mencionado ≠ objetivo explicado ≠ habilidad demostrada.</strong><p>El mapeo confirma que existe un artefacto asociado. No acredita por sí solo profundidad, dificultad equivalente al examen ni ejecución autónoma en un workspace real.</p></div>
     <div className="matrix-shell">
       <div className="matrix-tabs" role="tablist" aria-label="Certificación">{(["Associate","Professional"] as const).map((item) => <button key={item} role="tab" aria-selected={level === item} className={level === item ? "active" : ""} onClick={() => setLevel(item)}>{item}</button>)}</div>
-      <div className="coverage-stats"><article><strong>{coverage.total}%</strong><span>objetivos mapeados</span></article><article><strong>{coverage.theory}%</strong><span>cobertura teórica</span></article><article><strong>{coverage.practice}%</strong><span>cobertura práctica</span></article><article><strong>{coverage.assessment}%</strong><span>cobertura evaluada</span></article></div>
+      <div className="coverage-stats evidence-stats"><article><strong>{coverage.counts.mapped}/{coverage.counts.total}</strong><span>Mencionados</span><small>objetivo enlazado</small></article><article><strong>{coverage.counts.explained}/{coverage.counts.total}</strong><span>Explicados</span><small>auditoría editorial interna</small></article><article><strong>{coverage.counts.practiced}/{coverage.counts.total}</strong><span>Practicados</span><small>actividad diseñada</small></article><article><strong>{coverage.counts.assessed}/{coverage.counts.total}</strong><span>Evaluados</span><small>pregunta asociada</small></article><article><strong>{coverage.counts.reproduced}/{coverage.counts.total}</strong><span>Reproducidos</span><small>ejecución independiente</small></article></div>
       <div className="domain-coverage">{domains.map((domain) => { const domainItems = items.filter((item) => item.domain === domain); const covered = domainItems.filter((item) => item.moduleIds.length).length; const percentage = Math.round(covered / domainItems.length * 100); return <article key={domain}><div><b>{domain}</b><span>{covered}/{domainItems.length} objetivos</span></div><div role="progressbar" aria-label={`Cobertura de ${domain}`} aria-valuemin={0} aria-valuemax={100} aria-valuenow={percentage}><i style={{width:`${percentage}%`}} /></div><strong>{percentage}%</strong></article>; })}</div>
-      <div className="matrix-table-wrap"><table><thead><tr><th>Dominio y objetivo oficial</th><th>Lecciones</th><th>Laboratorios</th><th>Preguntas</th><th>Cobertura</th></tr></thead><tbody>{items.map((item) => <tr key={item.id}><td><small>{item.domain}</small><b>{item.objective}</b></td>{(["lessons", "lab", "quiz"] as const).map((target) => <td key={target}><div className="matrix-modules">{item.moduleIds.map((id) => { const module = modules.find((entry) => entry.id === id); return module ? <button key={id} onClick={() => onOpen(module, target)} aria-label={`Abrir ${target === "lessons" ? "lecciones" : target === "lab" ? "laboratorio" : "preguntas"} del módulo ${module.number}`}>M{module.number}</button> : null; })}</div></td>)}<td><span className={item.theory && item.practice && item.assessment ? "covered" : "gap"}>{item.theory && item.practice && item.assessment ? "3/3" : "Parcial"}</span></td></tr>)}</tbody></table></div>
+      <div className="matrix-table-wrap"><table><thead><tr><th>Dominio y objetivo oficial</th><th>Lecciones</th><th>Laboratorios</th><th>Preguntas</th><th>Evidencia</th></tr></thead><tbody>{items.map((item) => <tr key={item.id}><td><small>{item.domain}</small><b>{item.objective}</b></td>{(["lessons", "lab", "quiz"] as const).map((target) => <td key={target}><div className="matrix-modules">{item.moduleIds.map((id) => { const module = modules.find((entry) => entry.id === id); return module ? <button key={id} onClick={() => onOpen(module, target)} aria-label={`Abrir ${target === "lessons" ? "lecciones" : target === "lab" ? "laboratorio" : "preguntas"} del módulo ${module.number}`}>M{module.number}</button> : null; })}</div></td>)}<td><span className="gap">Diseñado · no reproducido</span></td></tr>)}</tbody></table></div>
       <div className="matrix-foot"><a href={OFFICIAL_BLUEPRINTS[level].href} target="_blank" rel="noreferrer">Abrir {OFFICIAL_BLUEPRINTS[level].label} ↗</a><span>Revalidado {REVIEWED_AT}</span></div>
     </div></details>
   </section>;
@@ -691,12 +711,16 @@ function EditorialSection() {
     <details className="daily-disclosure editorial-disclosure"><summary><span><b>Autoría, versión y changelog</b><small>Ficha editorial y procedimiento de revisión</small></span><i>Abrir ficha</i></summary><div className="editorial-disclosure-body">
     <div className="editorial-heading"><div><p className="eyebrow">Ficha editorial</p><h2 id="editorial-title">Contenido trazable y revisable.</h2><p>Lakehouse Lab publica qué versión estás estudiando, qué fuentes la respaldan y cómo se mantiene.</p></div><div className="version-seal"><span>Lakehouse Lab</span><strong>v{SITE_VERSION}</strong><small>Versión auditable vigente</small></div></div>
     <div className="editorial-grid">
-      <article><span>Autoría</span><h3>Lakehouse Lab</h3><p>Contenido original de formación, basado en documentación oficial y sin preguntas reales de examen.</p></article>
+      <article><span>Autor principal</span><h3>Lakehouse Lab · identidad editorial</h3><p>No se publica todavía una persona física verificable. El sitio no afirma certificaciones, empleo en Databricks ni experiencia productiva que no hayan sido acreditados públicamente.</p></article>
+      <article><span>Revisión técnica</span><h3>Revisor externo pendiente</h3><p>La revisión actual es editorial e interna. Ningún porcentaje de cobertura debe interpretarse como aval independiente.</p></article>
+      <article><span>Transparencia</span><h3>Sin respaldo comercial declarado</h3><p>Proyecto formativo independiente, no afiliado ni respaldado por Databricks. Conflictos de interés humanos: no verificables hasta publicar autoría nominal.</p></article>
+      <article><span>Errores y correcciones</span><h3>Historial público en esta ficha</h3><p>El changelog registra correcciones desde v1.0.0. El repositorio público y un canal externo de incidencias siguen pendientes; por ahora las correcciones se solicitan en la tarea que mantiene el sitio.</p></article>
       <article><span>Control de versión</span><h3>Publicado {PUBLISHED_AT}</h3><p>Última revisión: {REVIEWED_AT}. Major cambia blueprint o estructura; minor amplía contenido o labs; patch corrige fuentes o erratas.</p></article>
       <article><span>Blueprints base</span><h3>Associate + Professional</h3><p><a href={OFFICIAL_BLUEPRINTS.Associate.href} target="_blank" rel="noreferrer">Associate · mayo 2026 ↗</a><a href={OFFICIAL_BLUEPRINTS.Professional.href} target="_blank" rel="noreferrer">Professional · noviembre 2025 ↗</a></p></article>
       <article><span>Procedimiento de revisión</span><h3>Revisión trimestral y por evento</h3><ol><li>Comprobar guías, Runtime y release notes.</li><li>Verificar cada afirmación y laboratorio.</li><li>Actualizar matriz, costes y changelog.</li><li>Revalidar enlaces, progreso, accesibilidad y build.</li><li>Comprobación recomendada dos semanas antes de cada examen.</li></ol></article>
     </div>
-    <div className="changelog"><div><p className="eyebrow">Changelog</p><h3>v{SITE_VERSION} · {REVIEWED_AT}</h3><p>Corrección responsive y ampliación del banco de simulacros con escenarios originales basados en las guías oficiales vigentes.</p></div><ul><li>Texto contenido correctamente en tarjetas y lecciones, también en móvil.</li><li>Banco Associate ampliado a 50 preguntas para generar intentos de 45.</li><li>Banco Professional ampliado a 64 preguntas para generar intentos de 59.</li><li>Blueprint Professional revalidado contra la edición vigente de noviembre de 2025.</li></ul></div>
+    <div className="changelog"><div><p className="eyebrow">Changelog</p><h3>v{SITE_VERSION} · {REVIEWED_AT}</h3><p>Más precisión documental y menos afirmaciones de confianza implícitas.</p></div><ul><li>Fuentes específicas para arquitectura, redes serverless, SQL warehouses, privilegios, workspace bindings y protocolo Delta.</li><li>Matriz de evidencia por niveles: mencionado, explicado, practicado, evaluado y reproducido.</li><li>Fichas de laboratorio con compute, permisos, dataset, fallo intencionado y estado de verificación independiente.</li><li>Tres rutas: examen, práctica y profesional, sin alterar el progreso.</li><li>Contexto operativo común, AWS, Azure y GCP visible en cada módulo.</li></ul></div>
+    <div className="changelog changelog-previous"><div><p className="eyebrow">Versión anterior</p><h3>v1.3.0 · {REVIEWED_AT}</h3></div><ul><li>Corrección responsive y ampliación de los bancos de simulacro.</li><li>Blueprint Professional revalidado contra noviembre de 2025.</li></ul></div>
     <div className="changelog changelog-previous"><div><p className="eyebrow">Versión anterior</p><h3>v1.2.0 · {REVIEWED_AT}</h3></div><ul><li>Interfaz diaria centrada en continuar.</li><li>Mapa y catálogo unificados.</li><li>Recursos avanzados bajo demanda.</li><li>Filtros secundarios desplegables.</li></ul></div>
     <div className="changelog changelog-previous"><div><p className="eyebrow">Versión anterior</p><h3>v1.1.0 · {REVIEWED_AT}</h3></div><ul><li>Mapa de comprensión al inicio de cada módulo.</li><li>Puentes explícitos entre lecciones.</li><li>Explicaciones guiadas en cinco pasos.</li><li>Ejemplos después de construir la intuición.</li></ul></div>
     <div className="changelog changelog-previous"><div><p className="eyebrow">Versión inicial</p><h3>v1.0.0 · {PUBLISHED_AT}</h3></div><ul><li>Autoría, versionado y procedimiento editorial públicos.</li><li>Citas técnicas por lección y matriz completa de blueprints.</li><li>Vista previa segura de módulos bloqueados.</li><li>Laboratorios versionados y gamificación con XP, rachas, combos e insignias.</li></ul></div>
@@ -740,7 +764,12 @@ function LessonsView({ module, completedLessons, preview, onToggle, onSource, on
       <div><p className="eyebrow">Antes de empezar</p><h3 id={`learning-map-${module.id}`}>Construiremos el tema por capas.</h3><p>{module.prerequisites.length ? `Este módulo retoma lo aprendido en ${module.prerequisites.map((id) => modules.find((item) => item.id === id)?.short).filter(Boolean).join(", ")}.` : "No necesitas conocimientos previos de Databricks: empezamos por el problema que la plataforma intenta resolver."} Cada lección añade una pieza y reutiliza la anterior antes de introducir más detalle.</p></div>
       <ol>{module.lessons.map((lesson, index) => <li key={lesson.id}><span>{index + 1}</span><div><small>{["Fundamentos", "Conecta", "Opera", "Decide", "Integra"][index]}</small><b>{lesson.title}</b></div></li>)}</ol>
     </section>
-    <section className="blueprint-coverage" aria-labelledby={`blueprint-${module.id}`}><div><p className="eyebrow">Cobertura de certificación</p><h3 id={`blueprint-${module.id}`}>Qué parte del blueprint estás preparando</h3><p>Estos objetivos aparecen integrados en la teoría, el laboratorio y las preguntas del módulo.</p></div><div>{blueprintCoverage.map((mapping) => <article key={`${mapping.level}-${mapping.domain}`}><span>{mapping.level}</span><b>{mapping.domain}</b><ul>{mapping.objectives.map((objective) => <li key={objective}>{objective}</li>)}</ul></article>)}</div></section>
+    <section className="cloud-context" aria-labelledby={`cloud-context-${module.id}`}>
+      <div><p className="eyebrow">Contexto multinube</p><h3 id={`cloud-context-${module.id}`}>Un principio común, tres implementaciones.</h3><p><b>Principio común:</b> {module.description} Los nombres de servicios, identidades, endpoints y perímetros cambian por proveedor; no traslades literalmente una configuración entre nubes.</p></div>
+      <div className="cloud-context-grid">{module.lab.cloudNotes.map((item) => <article key={item.cloud}><span>{item.cloud}</span><p>{item.note}</p></article>)}</div>
+      <p className="cloud-context-sources">Comprueba los detalles operativos en las fuentes etiquetadas AWS, Azure o GCP al final de cada lección.</p>
+    </section>
+    <section className="blueprint-coverage" aria-labelledby={`blueprint-${module.id}`}><div><p className="eyebrow">Cobertura de certificación</p><h3 id={`blueprint-${module.id}`}>Qué parte del blueprint estás preparando</h3><p>Estos objetivos están mapeados a teoría, práctica y preguntas. El mapeo no demuestra por sí solo profundidad ni dominio autónomo.</p></div><div>{blueprintCoverage.map((mapping) => <article key={`${mapping.level}-${mapping.domain}`}><span>{mapping.level}</span><b>{mapping.domain}</b><ul>{mapping.objectives.map((objective) => <li key={objective}>{objective}</li>)}</ul></article>)}</div></section>
     {module.lessons.map((lesson, index) => {
       const done = completedLessons.includes(lesson.id);
       const lessonMinutes = Math.round(module.minutes * (module.kind === "capstone" ? .3 : module.kind === "branch-project" ? .35 : .5) / module.lessons.length);
@@ -807,8 +836,9 @@ function LabView({ module, code, cloud, result, passed, confirmed, showSolution,
     <div className="lab-brief"><span>⌘</span><div><p className="eyebrow">{module.kind === "capstone" ? "Proyecto integrador" : "Práctica guiada"} · {formatHours(practiceMinutes)}</p><h3>{module.lab.title}</h3><p>{module.lab.goal}</p><small>{module.lab.scenario}</small></div></div>
     <section className="lab-spec" aria-label="Ficha versionada del laboratorio">
       <div className="lab-spec-head"><div><span>{module.lab.id}</span><strong>v{module.lab.version}</strong></div><small>Revisado {module.lab.reviewedAt}</small></div>
-      <div className="lab-spec-grid"><article><span>Entorno recomendado</span><b>{module.lab.freeEdition.supported ? "Free Edition compatible" : "Cuenta de pago · simulación disponible"}</b><p>{module.lab.freeEdition.note}</p></article><article><span>Runtime</span><b>{module.lab.runtime.free}</b><p>Compute clásico: {module.lab.runtime.classic}</p></article><article><span>Coste estimado</span><b>{module.lab.freeEdition.supported ? module.lab.estimatedCost.free : module.lab.estimatedCost.paid[cloud]}</b><p>Alternativa {cloud}: {module.lab.estimatedCost.paid[cloud]}. {module.lab.estimatedCost.assumptions}</p></article><article><span>Resultado esperado</span><b>Validación reproducible</b><p>{module.lab.expectedOutcome}</p></article></div>
+      <div className="lab-spec-grid"><article><span>Cloud y entorno</span><b>{cloud} · {module.lab.freeEdition.supported ? "Free Edition compatible" : "Cuenta de pago"}</b><p>{module.lab.environment}. {module.lab.freeEdition.note}</p></article><article><span>Runtime y compute</span><b>{module.lab.compute}</b><p>Referencia clásica: {module.lab.runtime.classic}</p></article><article><span>Coste estimado</span><b>{module.lab.freeEdition.supported ? module.lab.estimatedCost.free : module.lab.estimatedCost.paid[cloud]}</b><p>Alternativa {cloud}: {module.lab.estimatedCost.paid[cloud]}. {module.lab.estimatedCost.assumptions}</p></article><article><span>Estado de reproducibilidad</span><b>{module.lab.reproducibility.status === "independently-verified" ? "Verificado independientemente" : "Especificado · verificación pendiente"}</b><p>{module.lab.reproducibility.note} Ejecuciones independientes registradas: {module.lab.reproducibility.independentRuns}.</p></article><article><span>Dataset</span><b>{module.lab.dataset.name}</b><p>{module.lab.dataset.acquisition}</p></article><article><span>Resultado y validación</span><b>Salida verificable</b><p>{module.lab.expectedOutcome}</p></article></div>
       <div className="lab-prereqs"><span>Prerequisitos</span><ul>{module.lab.prerequisites.map((item) => <li key={item}>{item}</li>)}</ul></div>
+      <div className="lab-prereqs"><span>Privilegios mínimos</span><ul>{module.lab.permissions.map((item) => <li key={item}>{item}</li>)}</ul></div>
       <div className="lab-spec-links"><a href={PLATFORM_REFERENCES.freeEdition.href} target="_blank" rel="noreferrer">Límites de Free Edition ↗</a><a href={PLATFORM_REFERENCES.runtime.href} target="_blank" rel="noreferrer">Runtime soportados ↗</a><a href={PLATFORM_REFERENCES.pricing.href} target="_blank" rel="noreferrer">Precios oficiales ↗</a></div>
     </section>
     <ol className="lab-steps">{module.lab.steps.map((step,index) => <li key={step}><span>{index+1}</span><p>{step}</p></li>)}</ol>
@@ -818,7 +848,7 @@ function LabView({ module, code, cloud, result, passed, confirmed, showSolution,
     <label className="evidence-confirm"><input type="checkbox" checked={confirmed} disabled={preview || passed} onChange={(event) => onConfirm(event.target.checked)} /><span><b>{preview ? "Disponible al desbloquear el módulo" : "He ejecutado la práctica en Databricks"}</b><small>{preview ? "Explorar este laboratorio no modifica el progreso." : "He comparado la salida con la evidencia esperada y no he incluido credenciales en el código."}</small></span></label>
     {result && <div className={`lab-result ${result.passed ? "passed":"failed"}`} role="status"><div><strong>{result.passed ? "✓ Práctica completada" : "Revisa la estructura o la confirmación"}</strong><span>{result.checks.filter(Boolean).length}/{result.checks.length} comprobaciones</span></div>{module.lab.checks.map((check,index) => <p key={check.label} className={result.checks[index]?"ok":"missing"}>{result.checks[index]?"✓":"×"} {check.label}</p>)}{!confirmed && <p className="missing">× Falta confirmar la ejecución real</p>}</div>}
     {passed && !result && <div className="lab-result passed locked-result"><strong>✓ Laboratorio ya superado</strong><button className="secondary-button" onClick={onEdit}>Editar y revalidar</button></div>}
-    <div className="lab-operations"><details><summary>Cleanup idempotente</summary><ol>{module.lab.cleanup.map((item) => <li key={item}><code>{item}</code></li>)}</ol></details><details><summary>Solución de fallos</summary><dl>{module.lab.troubleshooting.map((item) => <div key={item.symptom}><dt>{item.symptom}</dt><dd>{item.fix}</dd></div>)}</dl></details></div>
+    <div className="lab-operations"><details><summary>Fallo intencionado y recuperación</summary><dl><div><dt>{module.lab.deliberateFailure.scenario}</dt><dd>{module.lab.deliberateFailure.recovery}</dd></div></dl></details><details><summary>Cleanup idempotente</summary><ol>{module.lab.cleanup.map((item) => <li key={item}><code>{item}</code></li>)}</ol></details><details><summary>Solución de fallos</summary><dl>{module.lab.troubleshooting.map((item) => <div key={item.symptom}><dt>{item.symptom}</dt><dd>{item.fix}</dd></div>)}</dl></details></div>
     <div className="lab-sources"><span>Fuentes verificadas</span>{module.sources.map((source) => <a key={source.id} href={source.href} target="_blank" rel="noreferrer">{source.label}<small>{source.publisher} · {source.version} · revisada {source.reviewedAt}</small></a>)}</div>
     <div className="view-next"><span>{preview ? "Vista previa: el progreso y el XP no cambian" : passed ? "Práctica completada" : "La comprobación no sustituye la ejecución en Databricks"}</span><button className="primary-button" onClick={onNext}>Hacer el test <span>→</span></button></div>
   </div>;
