@@ -134,7 +134,7 @@ test("all lessons use a progressive explanation sequence without losing citation
   assert.match(page, /module-learning-map/);
   assert.match(page, /lesson-bridge/);
   assert.match(page, /Explicación guiada, paso a paso/);
-  assert.match(page, /defaultOpen=\{lesson\.id === firstIncompleteLessonId\}/);
+  assert.match(page, /open=\{lesson\.id === firstIncompleteLessonId\}/);
   assert.match(page, /lesson\.explanation\[0\]/);
   assert.match(page, /lesson\.explanation\[1\]/);
   const orderedStages = ["stage-problem", "mental-model explanation-stage", "concepts explanation-stage", "mechanics explanation-stage", "worked-scenario explanation-stage"];

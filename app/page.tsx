@@ -772,13 +772,13 @@ function LessonsView({ module, completedLessons, preview, onToggle, onSource, on
       const previousLesson = index > 0 ? module.lessons[index - 1] : null;
       const nextLesson = module.lessons[index + 1] ?? null;
       const learningStage = ["Fundamentos", "Conecta", "Opera", "Decide", "Integra"][index];
-      return <details className={`lesson ${done ? "done" : ""}`} name={`lessons-${module.id}`} key={lesson.id} defaultOpen={lesson.id === firstIncompleteLessonId}>
+      return <details className={`lesson ${done ? "done" : ""}`} name={`lessons-${module.id}`} key={lesson.id} open={lesson.id === firstIncompleteLessonId}>
         <summary className="lesson-summary"><span className="lesson-index">{String(index + 1).padStart(2,"0")}</span><div><small>{learningStage} · ≈ {lessonMinutes} min</small><h3>{lesson.title}</h3><p>{lesson.summary}</p></div><i>{done ? "✓" : "+"}</i></summary>
         <div className="lesson-copy">
           <p className="eyebrow">{lesson.kicker} · {learningStage}</p><h3>{lesson.title}</h3>
           <div className="lesson-bridge"><div><span>Punto de partida</span><b>{previousLesson ? `Ya has visto: ${previousLesson.title}` : "Empezamos desde cero"}</b></div><p>{previousLesson ? `Ahora conectaremos esa idea con «${lesson.title}». No necesitas memorizar lo anterior: basta con recordar qué problema resolvía.` : `Primero situaremos «${lesson.title}» dentro del propósito general del módulo. Después añadiremos vocabulario, mecánica y una decisión real.`}</p>{nextLesson && <small>Esto preparará la siguiente pieza: {nextLesson.title}.</small>}</div>
           <p className="lead lesson-one-line"><span>En una frase</span>{lesson.summary}<ClaimRefs module={module} lessonId={lesson.id} refIds={lesson.refIds} onSource={onSource} /></p>
-          <details className="deep-dive" defaultOpen={lesson.id === firstIncompleteLessonId}>
+          <details className="deep-dive" open={lesson.id === firstIncompleteLessonId}>
             <summary><span>Explicación guiada, paso a paso</span><small>Problema → intuición → vocabulario → mecánica → caso · ≈ {lessonMinutes} min</small></summary>
             <div className="deep-dive-body progressive-body">
               <section className="explanation-stage stage-problem" data-step="1"><p className="eyebrow">Primero, el contexto</p><h4>Qué problema intentamos resolver</h4><p>{lesson.explanation[0]}<ClaimRefs module={module} lessonId={lesson.id} refIds={lesson.refIds} onSource={onSource} /></p><p className="stage-check"><b>Antes de seguir:</b> formula con tus palabras qué se vuelve difícil si esta capacidad no existe.</p></section>
