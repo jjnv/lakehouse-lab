@@ -3,6 +3,7 @@ import { advancedContentA } from "./curriculum/advanced-content-a";
 import { advancedContentB } from "./curriculum/advanced-content-b";
 import { associateExamBank } from "./curriculum/associate-exam-bank";
 import { professionalExamBank } from "./curriculum/professional-exam-bank";
+import { associateOfficialAugmentations, professionalOfficialAugmentations, officialSampleCatalog, type ExamQuestionOrigin } from "./curriculum/exam-augmentations";
 import type { CodeLanguage, LessonDeepDive, ModuleContentPack } from "./curriculum/content-types";
 import { OFFICIAL_BLUEPRINTS, PLATFORM_REFERENCES, REVIEWED_AT } from "./editorial-data";
 
@@ -51,6 +52,10 @@ export type QuizQuestion = {
   moduleId?: string;
   sourceLabel?: string;
   sourceUrl?: string;
+  origin?: ExamQuestionOrigin;
+  originLabel?: string;
+  officialSampleId?: string;
+  augmentationMethod?: string;
 };
 
 export type Lab = {
@@ -379,13 +384,17 @@ function shuffled<T>(items: T[], random: () => number): T[] {
 
 export function buildExamQuestions(level: "associate" | "professional", attempt = 1): QuizQuestion[] {
   const random = seededRandom((level === "associate" ? 1709 : 2909) + attempt * 7919);
-  const bank: QuizQuestion[] = level === "associate"
-    ? associateExamBank.map((question) => ({ ...question, options: [...question.options] }))
+  const authored: QuizQuestion[] = level === "associate"
+    ? associateExamBank.map((question) => ({ ...question, options: [...question.options], origin: question.origin ?? "original-course", originLabel: question.originLabel ?? "Original del curso" }))
     : professionalExamBank.map(({ scenario, ...question }) => ({
         ...question,
         question: `${scenario} ${question.question}`,
         options: [...question.options],
+        origin: question.origin ?? "original-course",
+        originLabel: question.originLabel ?? "Original del curso",
       }));
+  const augmented = level === "associate" ? associateOfficialAugmentations : professionalOfficialAugmentations;
+  const bank: QuizQuestion[] = [...authored, ...augmented];
   const itemCount = level === "associate" ? 45 : 59;
   return shuffled(bank, random).slice(0, itemCount).map((question) => {
     const indexed = question.options.map((option, index) => ({ option, index }));
@@ -399,6 +408,13 @@ export function buildExamQuestions(level: "associate" | "professional", attempt 
 }
 
 export const examPoolSizes = {
-  associate: associateExamBank.length,
-  professional: professionalExamBank.length,
+  associate: associateExamBank.length + associateOfficialAugmentations.length,
+  professional: professionalExamBank.length + professionalOfficialAugmentations.length,
 } as const;
+
+export const examOriginCounts = {
+  associate: { official: officialSampleCatalog.associate.length, augmented: associateOfficialAugmentations.length, original: associateExamBank.length },
+  professional: { official: officialSampleCatalog.professional.length, augmented: professionalOfficialAugmentations.length, original: professionalExamBank.length },
+} as const;
+
+export { officialSampleCatalog };

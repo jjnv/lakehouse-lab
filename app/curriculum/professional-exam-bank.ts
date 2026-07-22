@@ -1,3 +1,5 @@
+import type { ExamQuestionOrigin } from "./exam-augmentations";
+
 export const PROFESSIONAL_EXAM_BLUEPRINT = {
   revision: "2025-11-30",
   itemCount: 59,
@@ -32,6 +34,10 @@ export type ProfessionalExamQuestion = {
   moduleId: `m${string}`;
   sourceLabel?: string;
   sourceUrl?: string;
+  origin?: ExamQuestionOrigin;
+  originLabel?: string;
+  officialSampleId?: string;
+  augmentationMethod?: string;
 };
 
 export const professionalExamBank = [

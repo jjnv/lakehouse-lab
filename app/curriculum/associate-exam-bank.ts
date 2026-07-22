@@ -1,6 +1,7 @@
 import type { ContentQuizQuestion } from "./content-types";
+import type { ExamQuestionOrigin } from "./exam-augmentations";
 
-export type AssociateExamQuestion = ContentQuizQuestion & { moduleId: string; sourceLabel?: string; sourceUrl?: string };
+export type AssociateExamQuestion = ContentQuizQuestion & { moduleId: string; sourceLabel?: string; sourceUrl?: string; origin?: ExamQuestionOrigin; originLabel?: string; officialSampleId?: string; augmentationMethod?: string };
 
 export const associateExamBank: AssociateExamQuestion[] = [
   // Databricks Intelligence Platform · 6

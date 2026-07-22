@@ -4,10 +4,12 @@ import { useEffect, useMemo, useRef, useState, type KeyboardEvent, type MouseEve
 import {
   associateBlueprint,
   buildExamQuestions,
+  examOriginCounts,
   examPoolSizes,
   examMappings,
   modules,
   professionalBlueprint,
+  officialSampleCatalog,
   totalMinutes,
   trackMeta,
   type CurriculumModule,
@@ -193,11 +195,8 @@ export default function Home() {
       const exam = params.get("exam");
       const slug = params.get("module");
       const restoredCompleted = new Set(restored.completedModules);
-      const examAllowed = exam === "associate"
-        ? restoredCompleted.has("m11")
-        : exam === "professional" && ["m17", "m22", "m27", "m31"].every((id) => restoredCompleted.has(id));
-      if ((exam === "associate" || exam === "professional") && examAllowed) setExamMode(exam);
-      else if (exam === "associate" || exam === "professional") setLockedNotice(`Ese simulacro aún está bloqueado. ${exam === "associate" ? "Completa el módulo 11." : "Completa los proyectos 17, 22, 27 y el módulo 31."}`);
+      const validExam = exam === "associate" || exam === "professional";
+      if (validExam) setExamMode(exam);
       if (slug) {
         const deepLinked = modules.find((module) => module.slug === slug);
         if (deepLinked && moduleIsUnlocked(deepLinked, restoredCompleted)) {
@@ -212,7 +211,7 @@ export default function Home() {
           setLockedNotice(`Vista previa del módulo ${deepLinked.number}. Para registrar progreso necesitas completar antes: ${missingPrerequisiteText(deepLinked, restoredCompleted)}.`);
           requestAnimationFrame(() => document.getElementById("academy")?.scrollIntoView({ behavior: scrollBehavior(), block: "start" }));
         }
-      } else if (!examAllowed) {
+      } else if (!validExam) {
         const lastModule = modules.find((module) => module.id === restored.lastModuleId);
         if (lastModule && moduleIsUnlocked(lastModule, restoredCompleted)) {
           setActiveId(lastModule.id);
@@ -241,10 +240,7 @@ export default function Home() {
       const currentCompleted = new Set(current.completedModules);
       const params = new URLSearchParams(window.location.search);
       const exam = params.get("exam");
-      const allowed = exam === "associate"
-        ? currentCompleted.has("m11")
-        : exam === "professional" && ["m17", "m22", "m27", "m31"].every((id) => currentCompleted.has(id));
-      if ((exam === "associate" || exam === "professional") && allowed) {
+      if (exam === "associate" || exam === "professional") {
         setExamMode(exam);
         setExamPage(0);
         setExamAnswers({});
@@ -272,8 +268,6 @@ export default function Home() {
         setLabResult(null);
         setShowSolution(false);
         setLockedNotice(`Vista previa del módulo ${deepLinked.number}. Para registrar progreso necesitas completar antes: ${missingPrerequisiteText(deepLinked, currentCompleted)}.`);
-      } else if (exam === "associate" || exam === "professional") {
-        setLockedNotice(`Ese simulacro aún está bloqueado. ${exam === "associate" ? "Completa el módulo 11." : "Completa los proyectos de las cuatro ramas."}`);
       }
     };
     window.addEventListener("popstate", onPopState);
@@ -351,12 +345,6 @@ export default function Home() {
   }
 
   function openExam(mode: Exclude<ExamMode, null>) {
-    const allowed = mode === "associate" ? completed.has("m11") : ["m17","m22","m27","m31"].every((id) => completed.has(id));
-    if (!allowed) {
-      setLockedNotice(mode === "associate" ? "El simulacro Associate requiere completar el módulo 11." : "El simulacro Professional requiere completar los proyectos 17, 22, 27 y el módulo 31.");
-      setAnnouncement("Simulacro bloqueado.");
-      return;
-    }
     setExamMode(mode);
     setExamPage(0);
     setExamAnswers({});
@@ -603,11 +591,11 @@ export default function Home() {
         </section>
 
         <details className="daily-disclosure exam-disclosure">
-          <summary><span><b>Simulacros de certificación</b><small>Associate y Professional, cuando estés preparado</small></span><i>Ver simulacros</i></summary>
+          <summary><span><b>Simulacros de certificación</b><small>Associate y Professional · siempre disponibles</small></span><i>Ver simulacros</i></summary>
         <section className="exam-strip" aria-label="Simulacros de certificación">
           <div><p className="eyebrow">Evaluación acumulativa</p><h2>Dos hitos. Una carrera completa.</h2></div>
-          <button aria-disabled={!completed.has("m11")} onClick={() => openExam("associate")}><span>Associate</span><b>45 preguntas · 90 min</b><small>{progress.examScores.associate !== undefined ? `Último resultado: ${progress.examScores.associate}% · banco de ${examPoolSizes.associate}` : completed.has("m11") ? `Listo · banco de ${examPoolSizes.associate} preguntas` : "Se desbloquea al completar el módulo 11"}</small></button>
-          <button aria-disabled={!(["m17","m22","m27","m31"].every((id) => completed.has(id)))} onClick={() => openExam("professional")}><span>Professional</span><b>59 preguntas · 120 min</b><small>{progress.examScores.professional !== undefined ? `Último resultado: ${progress.examScores.professional}% · banco de ${examPoolSizes.professional}` : ["m17","m22","m27","m31"].every((id) => completed.has(id)) ? `Listo · banco de ${examPoolSizes.professional} preguntas` : "Se desbloquea al completar las cuatro ramas"}</small></button>
+          <button onClick={() => openExam("associate")}><span>Associate · disponible</span><b>45 preguntas · 90 min</b><small>{progress.examScores.associate !== undefined ? `Último resultado: ${progress.examScores.associate}% · banco de ${examPoolSizes.associate}` : `Banco de ${examPoolSizes.associate}: ${examOriginCounts.associate.original} originales + ${examOriginCounts.associate.augmented} ampliadas`}</small></button>
+          <button onClick={() => openExam("professional")}><span>Professional · disponible</span><b>59 preguntas · 120 min</b><small>{progress.examScores.professional !== undefined ? `Último resultado: ${progress.examScores.professional}% · banco de ${examPoolSizes.professional}` : `Banco de ${examPoolSizes.professional}: ${examOriginCounts.professional.original} originales + ${examOriginCounts.professional.augmented} ampliadas`}</small></button>
         </section>
         </details>
 
@@ -719,7 +707,8 @@ function EditorialSection() {
       <article><span>Blueprints base</span><h3>Associate + Professional</h3><p><a href={OFFICIAL_BLUEPRINTS.Associate.href} target="_blank" rel="noreferrer">Associate · mayo 2026 ↗</a><a href={OFFICIAL_BLUEPRINTS.Professional.href} target="_blank" rel="noreferrer">Professional · noviembre 2025 ↗</a></p></article>
       <article><span>Procedimiento de revisión</span><h3>Revisión trimestral y por evento</h3><ol><li>Comprobar guías, Runtime y release notes.</li><li>Verificar cada afirmación y laboratorio.</li><li>Actualizar matriz, costes y changelog.</li><li>Revalidar enlaces, progreso, accesibilidad y build.</li><li>Comprobación recomendada dos semanas antes de cada examen.</li></ol></article>
     </div>
-    <div className="changelog"><div><p className="eyebrow">Changelog</p><h3>v{SITE_VERSION} · {REVIEWED_AT}</h3><p>Más precisión documental y menos afirmaciones de confianza implícitas.</p></div><ul><li>Fuentes específicas para arquitectura, redes serverless, SQL warehouses, privilegios, workspace bindings y protocolo Delta.</li><li>Matriz de evidencia por niveles: mencionado, explicado, practicado, evaluado y reproducido.</li><li>Fichas de laboratorio con compute, permisos, dataset, fallo intencionado y estado de verificación independiente.</li><li>Tres rutas: examen, práctica y profesional, sin alterar el progreso.</li><li>Contexto operativo común, AWS, Azure y GCP visible en cada módulo.</li></ul></div>
+    <div className="changelog"><div><p className="eyebrow">Changelog</p><h3>v{SITE_VERSION} · {REVIEWED_AT}</h3><p>Simulacros siempre disponibles y bancos ampliados con procedencia explícita.</p></div><ul><li>Associate y Professional se pueden abrir desde el inicio, también mediante URL directa.</li><li>Associate amplía su banco a 80 preguntas: 50 originales del curso y 30 variantes sintéticas.</li><li>Professional amplía su banco a 100 preguntas: 64 originales del curso y 36 variantes sintéticas.</li><li>Las 14 muestras oficiales retiradas se indexan y enlazan en la página exacta de cada guía oficial.</li><li>Cada pregunta distingue su origen; no se incorporan dumps ni preguntas de exámenes activos.</li></ul></div>
+    <div className="changelog changelog-previous"><div><p className="eyebrow">Versión anterior</p><h3>v1.4.0 · {REVIEWED_AT}</h3></div><ul><li>Fuentes específicas por subtema y matriz de evidencia por niveles.</li><li>Laboratorios con reproducibilidad declarada y rutas de estudio diferenciadas.</li><li>Contexto operativo común, AWS, Azure y GCP visible en cada módulo.</li></ul></div>
     <div className="changelog changelog-previous"><div><p className="eyebrow">Versión anterior</p><h3>v1.3.0 · {REVIEWED_AT}</h3></div><ul><li>Corrección responsive y ampliación de los bancos de simulacro.</li><li>Blueprint Professional revalidado contra noviembre de 2025.</li></ul></div>
     <div className="changelog changelog-previous"><div><p className="eyebrow">Versión anterior</p><h3>v1.2.0 · {REVIEWED_AT}</h3></div><ul><li>Interfaz diaria centrada en continuar.</li><li>Mapa y catálogo unificados.</li><li>Recursos avanzados bajo demanda.</li><li>Filtros secundarios desplegables.</li></ul></div>
     <div className="changelog changelog-previous"><div><p className="eyebrow">Versión anterior</p><h3>v1.1.0 · {REVIEWED_AT}</h3></div><ul><li>Mapa de comprensión al inicio de cada módulo.</li><li>Puentes explícitos entre lecciones.</li><li>Explicaciones guiadas en cinco pasos.</li><li>Ejemplos después de construir la intuición.</li></ul></div>
@@ -877,6 +866,8 @@ function ExamSimulator({ mode, attempt, page, answers, submitted, previousScore,
   const completedAttempt = answered === questions.length;
   const isReady = completedAttempt && exactRatio >= .8;
   const blueprint = mode === "associate" ? associateBlueprint : professionalBlueprint;
+  const officialSamples = officialSampleCatalog[mode];
+  const originCounts = examOriginCounts[mode];
   const [secondsLeft, setSecondsLeft] = useState(mode === "associate" ? 90 * 60 : 120 * 60);
   useEffect(() => {
     if (submitted || secondsLeft <= 0) return;
@@ -897,10 +888,11 @@ function ExamSimulator({ mode, attempt, page, answers, submitted, previousScore,
     return stats;
   }, {})).map(([domain, stat]) => ({ ...stat, domain })).sort((a,b) => (a.correct/a.total)-(b.correct/b.total));
   return <main className="exam-shell">
-    <header className="exam-header"><button className="brand as-button" onClick={onClose}><span className="brand-mark"><i/><i/><i/></span>Lakehouse Lab</button><div><span>{mode === "associate" ? "Associate":"Professional"}</span><b>{questions.length} preguntas · simulacro original</b></div><button className="secondary-button" onClick={onClose}>Cerrar</button></header>
+    <header className="exam-header"><button className="brand as-button" onClick={onClose}><span className="brand-mark"><i/><i/><i/></span>Lakehouse Lab</button><div><span>{mode === "associate" ? "Associate":"Professional"}</span><b>{questions.length} preguntas · simulacro trazable</b></div><button className="secondary-button" onClick={onClose}>Cerrar</button></header>
     <div className="exam-progress" role="progressbar" aria-label="Preguntas respondidas" aria-valuemin={0} aria-valuemax={questions.length} aria-valuenow={answered}><i style={{width:`${(answered/questions.length)*100}%`}}/></div>
-    <section className="exam-hero"><p className="eyebrow">Simulacro {mode === "associate" ? "Associate":"Professional"}</p><h1>Piensa como ingeniero,<br/>no como memorizador<span>.</span></h1><p>Este intento selecciona {questions.length} preguntas de un banco de {examPoolSizes[mode]} escenarios originales, creados a partir de los objetivos y ejemplos retirados publicados en la guía oficial. No reproduce preguntas reales ni dumps. El 80% es una señal interna de preparación, no la nota oficial.</p><div><span>{answered}/{questions.length} respondidas</span><span aria-label={`Tiempo restante ${timer}`}>⏱ {timer}</span><span>Banco: {examPoolSizes[mode]}</span>{priorScore !== undefined && <span>Anterior: {priorScore}%</span>}<a href={blueprint} target="_blank" rel="noreferrer">Guía y ejemplos oficiales ↗</a></div></section>
-    <section className="exam-questions"><div className="exam-page-heading"><span>Página {safePage+1} de {pages}</span><b>Preguntas {safePage*pageSize+1}—{Math.min((safePage+1)*pageSize,questions.length)}</b></div>{visible.map((question,localIndex) => { const index=safePage*pageSize+localIndex; return <fieldset key={`${question.moduleId}-${index}`}><legend><span>{String(index+1).padStart(2,"0")}</span>{question.question}</legend><small className="domain-label">{question.domain}</small><div>{question.options.map((option,optionIndex) => <label key={option} className={submitted ? question.answer===optionIndex?"correct":answers[index]===optionIndex?"incorrect":"" : answers[index]===optionIndex?"selected":""}><input type="radio" name={`exam-${index}`} checked={answers[index]===optionIndex} disabled={submitted} onChange={() => onAnswer(index,optionIndex)}/><span>{String.fromCharCode(65+optionIndex)}</span>{option}</label>)}</div>{submitted && <p className="quiz-feedback"><b>{answers[index]===question.answer?"Correcta. ":"Respuesta recomendada. "}</b>{question.explanation}{question.sourceUrl && <a className="question-source" href={question.sourceUrl} target="_blank" rel="noreferrer">{question.sourceLabel ?? "Referencia oficial"} ↗</a>}</p>}</fieldset> })}</section>
+    <section className="exam-hero"><p className="eyebrow">Simulacro {mode === "associate" ? "Associate":"Professional"} · siempre disponible</p><h1>Piensa como ingeniero,<br/>no como memorizador<span>.</span></h1><p>Este intento selecciona {questions.length} preguntas de un banco de {examPoolSizes[mode]}. Contiene {originCounts.original} preguntas originales del curso y {originCounts.augmented} variantes sintéticas basadas en los objetivos de las muestras retiradas. Las {originCounts.official} muestras oficiales se consultan directamente en la guía y nunca se mezclan sin etiqueta. No usamos dumps ni preguntas activas del examen.</p><div><span>{answered}/{questions.length} respondidas</span><span aria-label={`Tiempo restante ${timer}`}>⏱ {timer}</span><span>Banco: {examPoolSizes[mode]}</span>{priorScore !== undefined && <span>Anterior: {priorScore}%</span>}<a href={blueprint} target="_blank" rel="noreferrer">Guía y muestras oficiales ↗</a></div></section>
+    <section className="exam-origin-guide" aria-label="Procedencia de las preguntas"><div><span className="origin-badge origin-original">Original del curso</span><p>Pregunta escrita específicamente para Lakehouse Lab y alineada al blueprint.</p></div><div><span className="origin-badge origin-augmented">Sintética · ampliada desde muestra oficial</span><p>Cambia contexto, datos y distractores; conserva el objetivo de una muestra retirada.</p></div><details><summary>{officialSamples.length} muestras oficiales retiradas en la guía</summary><div>{officialSamples.map((sample) => <a key={sample.id} href={`${blueprint}#page=${sample.page}`} target="_blank" rel="noreferrer"><span>Oficial retirada · Q{sample.number}</span><b>{sample.objective}</b></a>)}</div></details></section>
+    <section className="exam-questions"><div className="exam-page-heading"><span>Página {safePage+1} de {pages}</span><b>Preguntas {safePage*pageSize+1}—{Math.min((safePage+1)*pageSize,questions.length)}</b></div>{visible.map((question,localIndex) => { const index=safePage*pageSize+localIndex; return <fieldset key={`${question.moduleId}-${index}`}><legend><span>{String(index+1).padStart(2,"0")}</span>{question.question}</legend><div className="question-meta"><small className="domain-label">{question.domain}</small><small className={`origin-badge ${question.origin === "augmented-official-sample" ? "origin-augmented" : "origin-original"}`}>{question.originLabel ?? "Original del curso"}</small></div><div>{question.options.map((option,optionIndex) => <label key={option} className={submitted ? question.answer===optionIndex?"correct":answers[index]===optionIndex?"incorrect":"" : answers[index]===optionIndex?"selected":""}><input type="radio" name={`exam-${index}`} checked={answers[index]===optionIndex} disabled={submitted} onChange={() => onAnswer(index,optionIndex)}/><span>{String.fromCharCode(65+optionIndex)}</span>{option}</label>)}</div>{submitted && <p className="quiz-feedback"><b>{answers[index]===question.answer?"Correcta. ":"Respuesta recomendada. "}</b>{question.explanation}{question.augmentationMethod && <small className="augmentation-note">Método: {question.augmentationMethod}</small>}{question.sourceUrl && <a className="question-source" href={question.sourceUrl} target="_blank" rel="noreferrer">{question.sourceLabel ?? "Referencia oficial"} ↗</a>}</p>}</fieldset> })}</section>
     <div className="exam-nav"><button className="secondary-button" disabled={safePage===0} onClick={() => {onPage(safePage-1);window.scrollTo({top:0,behavior:scrollBehavior()})}}>← Anterior</button><div>{Array.from({length:pages},(_,index)=><button key={index} aria-label={`Ir a página ${index+1}`} className={`${safePage===index?"active":""} ${questions.slice(index*pageSize,(index+1)*pageSize).every((_,local) => answers[index*pageSize+local] !== undefined)?"answered":""}`} onClick={() => onPage(index)}>{index+1}</button>)}</div>{safePage<pages-1?<button className="primary-button" onClick={() => {onPage(safePage+1);window.scrollTo({top:0,behavior:scrollBehavior()})}}>Siguiente →</button>:<button className="primary-button" disabled={answered<questions.length || submitted} onClick={() => onSubmit(percent, true)}>Corregir simulacro →</button>}</div>
     {submitted && <section className="exam-summary" aria-live="polite"><div className={`exam-result ${isReady?"passed":"failed"}`}><strong>{percent}%</strong><div><h2>{!completedAttempt?"Intento no completado":isReady?"Preparación sólida":"Aún hay dominios que reforzar"}</h2><p>{!completedAttempt ? `El tiempo terminó con ${answered} de ${questions.length} preguntas respondidas. Este intento no completa el hito.` : `${score} de ${questions.length} respuestas correctas. Para alcanzar realmente el 80% necesitas al menos ${mode === "associate" ? 36 : 48} aciertos.`}</p><button className="secondary-button" onClick={onRetry}>Nuevo intento con otro orden</button></div></div><div className="domain-breakdown"><div><p className="eyebrow">Diagnóstico por dominio</p><h2>Empieza por tus áreas más débiles.</h2></div><div>{domainStats.map((stat) => { const ratio=Math.round((stat.correct/stat.total)*100); const moduleNumbers=[...stat.moduleIds].map((id)=>modules.find((module)=>module.id===id)?.number).filter(Boolean).join(", "); return <article key={stat.domain}><span>{ratio}%</span><div><b>{stat.domain}</b><small>{stat.correct}/{stat.total} correctas · repasa módulos {moduleNumbers}</small></div></article>; })}</div></div></section>}
   </main>;

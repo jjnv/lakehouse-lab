@@ -4,7 +4,7 @@ import test from "node:test";
 
 const root = new URL("../", import.meta.url);
 const read = (path) => readFile(new URL(path, root), "utf8");
-const [course, editorial, game, page, progress, layout, packageSource] = await Promise.all([
+const [course, editorial, game, page, progress, layout, packageSource, examAugmentations] = await Promise.all([
   read("app/course-data.ts"),
   read("app/editorial-data.ts"),
   read("app/gamification.ts"),
@@ -12,15 +12,16 @@ const [course, editorial, game, page, progress, layout, packageSource] = await P
   read("app/progress.ts"),
   read("app/layout.tsx"),
   read("package.json"),
+  read("app/curriculum/exam-augmentations.ts"),
 ]);
 
-test("publishes an auditable 1.4.0 editorial record and current official blueprints", () => {
-  assert.match(editorial, /SITE_VERSION = "1\.4\.0"/);
+test("publishes an auditable 1.5.0 editorial record and current official blueprints", () => {
+  assert.match(editorial, /SITE_VERSION = "1\.5\.0"/);
   assert.match(editorial, /may-4-2026\.pdf/);
   assert.match(editorial, /professional-exam-guide-november-30-2025_0\.pdf/);
   assert.match(page, /Revisión trimestral/);
   assert.match(page, /cobertura interna del curso, no pesos oficiales ni suficiencia/);
-  assert.equal(JSON.parse(packageSource).version, "1.4.0");
+  assert.equal(JSON.parse(packageSource).version, "1.5.0");
   assert.match(layout, /og-v1-1\.png/);
 });
 
@@ -79,6 +80,21 @@ test("preview mode cannot write progress, submit tests or reveal solutions", () 
   assert.match(page, /respuestas, soluciones, XP y controles de finalización permanecen desactivados/);
   assert.match(page, /const preview = !isUnlocked\(module\)/);
   assert.match(page, /if \(!preview\) updateProgress/);
+});
+
+test("keeps both simulators open and labels every question origin", () => {
+  assert.equal((examAugmentations.match(/\n  a\(/g) ?? []).length, 30);
+  assert.equal((examAugmentations.match(/\n  p\(/g) ?? []).length, 36);
+  assert.equal((examAugmentations.match(/\{ id: "associate-q\d+"/g) ?? []).length, 5);
+  assert.equal((examAugmentations.match(/\{ id: "professional-q\d+"/g) ?? []).length, 9);
+  assert.match(course, /associate: associateExamBank\.length \+ associateOfficialAugmentations\.length/);
+  assert.match(course, /professional: professionalExamBank\.length \+ professionalOfficialAugmentations\.length/);
+  assert.match(page, /Associate y Professional · siempre disponibles/);
+  assert.match(page, /Sintética · ampliada desde muestra oficial/);
+  assert.match(page, /Original del curso/);
+  assert.match(page, /No usamos dumps ni preguntas activas del examen/);
+  const openExam = page.slice(page.indexOf("function openExam"), page.indexOf("function closeExam"));
+  assert.doesNotMatch(openExam, /isUnlocked|completedModules|blocked/);
 });
 
 test("gamification uses persistent unique rewards, combos, streaks and nine levels", () => {
