@@ -390,8 +390,8 @@ export function buildExamQuestions(level: "associate" | "professional", attempt 
         ...question,
         question: `${scenario} ${question.question}`,
         options: [...question.options],
-        origin: question.origin ?? "original-course",
-        originLabel: question.originLabel ?? "Original del curso",
+        origin: "original-course",
+        originLabel: "Original del curso",
       }));
   const augmented = level === "associate" ? associateOfficialAugmentations : professionalOfficialAugmentations;
   const bank: QuizQuestion[] = [...authored, ...augmented];

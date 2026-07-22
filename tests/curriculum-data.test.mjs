@@ -15,6 +15,11 @@ const [courseSource, progressSource, pageSource, packageSource, ...contentSource
   read("app/curriculum/advanced-content-a.ts"),
   read("app/curriculum/advanced-content-b.ts"),
 ]);
+const [enterpriseStoreSource, learningServiceSource, enterpriseCurriculumSource] = await Promise.all([
+  read("app/enterprise/store.ts"),
+  read("app/enterprise/learning-service.ts"),
+  read("app/enterprise/curriculum.ts"),
+]);
 
 function parse(source, name) {
   return ts.createSourceFile(name, source, ts.ScriptTarget.Latest, true, ts.ScriptKind.TS);
@@ -370,22 +375,33 @@ test("simulation banks are independent, original and cover their certification d
   }
 });
 
-test("dependency, progress and assessment gates cannot be bypassed by stale state", () => {
+test("dependency and enterprise completion gates cannot be bypassed by stale state", () => {
   assert.match(courseSource, /if \(track === "core"\) return \[seeds\[index - 1\]\.id\]/);
   assert.match(courseSource, /previous\.track === track \? \[previous\.id\] : \["m12"\]/);
   assert.match(courseSource, /return \["m17", "m22", "m27", "m31"\]/);
   assert.match(progressSource, /STORAGE_KEY = "lakehouse-lab-progress-v2"/);
-  assert.match(progressSource, /CONTENT_VERSION = "lakehouse-lab-v1\.7\.0"/);
-  assert.doesNotMatch(progressSource, /value\.contentVersion !== CONTENT_VERSION/);
+  assert.match(progressSource, /CONTENT_VERSION = "lakehouse-lab-v2\.0\.0"/);
+  assert.match(progressSource, /export function sanitizeProgress\(value: unknown\)/);
   assert.match(progressSource, /gamification: sanitizeGamification\(value\.gamification\)/);
-  assert.match(progressSource, /progress\.examCompleted\.associate === true/);
-  assert.match(progressSource, /progress\.examCompleted\.professional === true/);
-  assert.match(progressSource, /progress\.labsPassed\.includes\(module\.id\) && progress\.labConfirmed\.includes\(module\.id\)/);
-  assert.match(pageSource, /labConfirmed: current\.labConfirmed\.filter\(\(id\) => id !== activeModule\.id\)/);
-  assert.match(pageSource, /setPreviewMode\(true\)/);
-  assert.match(pageSource, /const preview = !isUnlocked\(module\)/);
-  assert.match(pageSource, /if \(!preview\) updateProgress/);
-  assert.match(pageSource, /onSubmit\(percent, completedAttempt\)/);
+
+  assert.match(enterpriseStoreSource, /minimumModuleQuizPercent: 75/);
+  assert.match(enterpriseStoreSource, /minimumFinalAssessmentPercent: 80/);
+  assert.match(enterpriseStoreSource, /requireLabs: true/);
+  assert.match(enterpriseStoreSource, /requireCapstone: true/);
+  assert.match(learningServiceSource, /async function assertAssessmentAvailable/);
+  assert.match(learningServiceSource, /"MODULE_ACTIVITY_REQUIRED"/);
+  assert.match(learningServiceSource, /"PROGRAM_ACTIVITY_REQUIRED"/);
+  assert.match(learningServiceSource, /completedLessonIds\.length !== curriculumModule\.lessons\.length \|\| !moduleProgress\.labAttested/);
+  assert.match(learningServiceSource, /professionalAttempt\.kind !== "professional_exam"/);
+  assert.match(learningServiceSource, /professionalAttempt\.provenance !== "server_graded"/);
+  assert.match(learningServiceSource, /if \(!progress\.every\(\(item\) => item\.completed\)\) return null/);
+
+  const publicQuizStart = enterpriseCurriculumSource.indexOf("quiz: module.quiz.map");
+  const publicQuizEnd = enterpriseCurriculumSource.indexOf("\n    })),", publicQuizStart);
+  assert.ok(publicQuizStart >= 0 && publicQuizEnd > publicQuizStart, "falta la proyecciÃ³n pÃºblica del test");
+  const publicQuizProjection = enterpriseCurriculumSource.slice(publicQuizStart, publicQuizEnd);
+  assert.doesNotMatch(publicQuizProjection, /\banswer\s*:|\bexplanation\s*:/);
+  assert.match(pageSource, /redirect\("\/inicio"\)/);
   assert.doesNotMatch(courseSource, /function makeQuiz/);
 });
 

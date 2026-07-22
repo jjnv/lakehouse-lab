@@ -21,18 +21,22 @@ export async function generateMetadata(): Promise<Metadata> {
 
   return {
     metadataBase,
-    title: "Lakehouse Lab v1.7.0 — Aprende Databricks practicando y repasando",
-    description: "Ruta de Databricks Data Engineering con 32 módulos, recuerdo activo, repaso espaciado, laboratorios y trazabilidad oficial.",
+    title: {
+      default: "Lakehouse Lab Enterprise — Academia interna",
+      template: "%s · Lakehouse Lab",
+    },
+    description: "Portal interno de formación Databricks con una ruta Professional de 20 semanas, práctica guiada y progreso sincronizado.",
+    robots: { index: false, follow: false },
     openGraph: {
-      title: "Lakehouse Lab v1.7.0 — De Associate a Professional",
-      description: "Domina Databricks practicando, explicando y repasando a lo largo de 32 módulos trazables.",
+      title: "Lakehouse Lab Enterprise",
+      description: "Formación Databricks que se practica, se mide y se conserva.",
       type: "website",
-      images: [{ url: "/og.png", width: 1731, height: 909, alt: "Lakehouse Lab: domina Databricks practicando, explicando y repasando" }],
+      images: [{ url: "/og.png", width: 1731, height: 909, alt: "Lakehouse Lab Enterprise: ruta interna de aprendizaje Databricks" }],
     },
     twitter: {
       card: "summary_large_image",
-      title: "Lakehouse Lab v1.7.0 — Academia Databricks",
-      description: "32 módulos con recuerdo activo, repaso espaciado, práctica y blueprints auditables.",
+      title: "Lakehouse Lab Enterprise",
+      description: "Formación Databricks que se practica, se mide y se conserva.",
       images: ["/og.png"],
     },
     icons: { icon: "/favicon.svg", shortcut: "/favicon.svg" },

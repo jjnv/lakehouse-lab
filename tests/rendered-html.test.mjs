@@ -1,33 +1,61 @@
 import assert from "node:assert/strict";
+import { readFile, readdir } from "node:fs/promises";
 import test from "node:test";
 
-async function render(path = "/") {
-  const workerUrl = new URL("../dist/server/index.js", import.meta.url);
-  workerUrl.searchParams.set("test", `${process.pid}-${Date.now()}`);
-  const { default: worker } = await import(workerUrl.href);
-  return worker.fetch(
-    new Request(`http://localhost${path}`, { headers: { accept: "text/html" } }),
-    { ASSETS: { fetch: async () => new Response("Not found", { status: 404 }) } },
-    { waitUntil() {}, passThroughOnException() {} },
-  );
-}
+const root = new URL("../", import.meta.url);
+const assetsUrl = new URL("dist/client/assets/", root);
+const assetNames = await readdir(assetsUrl);
+const javascriptAssets = assetNames.filter((name) => name.endsWith(".js"));
+const stylesheetAssets = assetNames.filter((name) => name.endsWith(".css"));
 
-test("renders the finished academy metadata and core content", async () => {
-  const response = await render();
-  assert.equal(response.status, 200);
-  assert.match(response.headers.get("content-type") ?? "", /^text\/html\b/i);
-  const html = await response.text();
-  assert.doesNotMatch(html, /codex-preview/i);
-  assert.match(html, /Lakehouse Lab v1\.7\.0/i);
-  assert.match(html, /32 módulos/i);
-  assert.match(html, /Explicaci\u00f3n guiada, paso a paso/i);
-  assert.match(html, /Construiremos el tema por capas/i);
-  assert.match(html, /Modelo mental/i);
-  assert.match(html, /Continúa donde lo dejaste/i);
-  assert.match(html, /Recuerdo activo/i);
-  assert.match(html, />Aprender<\/a>/i);
-  assert.match(html, />Ruta<\/a>/i);
-  assert.match(html, />Recursos<\/a>/i);
-  assert.doesNotMatch(html, /Elige cuánto necesitas recorrer/i);
-  assert.doesNotMatch(html, /Método, blueprint y revisión/i);
+const clientJavaScript = (await Promise.all(
+  javascriptAssets.map((name) => readFile(new URL(name, assetsUrl), "utf8")),
+)).join("\n");
+const clientStyles = (await Promise.all(
+  stylesheetAssets.map((name) => readFile(new URL(name, assetsUrl), "utf8")),
+)).join("\n");
+const serverJavaScript = await readFile(new URL("dist/server/index.js", root), "utf8");
+
+test("the compiled v2 client contains the real-route enterprise shell", () => {
+  assert.ok(javascriptAssets.length > 0, "the production build must emit client JavaScript");
+  assert.ok(stylesheetAssets.length > 0, "the production build must emit client styles");
+  for (const route of ["/inicio", "/mi-aprendizaje", "/catalogo", "/expediente", "/ajustes"]) {
+    assert.ok(clientJavaScript.includes(route), `compiled navigation is missing ${route}`);
+  }
+  for (const contract of ["Academia interna", "Saltar al contenido", "main-content", "aria-current", "aria-modal"]) {
+    assert.ok(clientJavaScript.includes(contract), `compiled shell is missing ${contract}`);
+  }
+  assert.doesNotMatch(clientJavaScript, /codex-preview/iu);
+});
+
+test("the compiled client does not contain server-only curriculum banks or answer keys", () => {
+  for (const privateIdentifier of [
+    "answerKeyJson",
+    "assessment-private",
+    "associateExamBank",
+    "professionalExamBank",
+    "buildExamQuestions",
+    "course-data",
+  ]) {
+    assert.ok(!clientJavaScript.includes(privateIdentifier), `client bundle exposes ${privateIdentifier}`);
+  }
+
+  // These sentinels prove the private material still exists in the trusted
+  // server artifact, so the negative client assertions are meaningful.
+  assert.ok(serverJavaScript.includes("answerKeyJson"));
+  assert.ok(serverJavaScript.includes("PDFDocument"));
+  assert.ok(serverJavaScript.includes("legacyImports"));
+});
+
+test("the compiled UI retains keyboard, announcement and high-contrast affordances", () => {
+  for (const semanticContract of ["tablist", "tabpanel", "progressbar", "aria-live", "ArrowRight", "Escape"]) {
+    assert.ok(clientJavaScript.includes(semanticContract), `compiled interaction is missing ${semanticContract}`);
+  }
+  assert.match(clientStyles, /\.ent-shell\{/u);
+  assert.match(clientStyles, /\.ent-skip-link/u);
+  assert.match(clientStyles, /:focus-visible/u);
+  assert.match(clientStyles, /min-height:\s*44px/u);
+  assert.match(clientStyles, /@media\s*\(prefers-reduced-motion:\s*reduce\)/u);
+  assert.match(clientStyles, /@media\s*\(forced-colors:\s*active\)/u);
+  assert.match(clientStyles, /@media\s*\((?:max-width:\s*700px|width<=700px)\)/u);
 });

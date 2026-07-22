@@ -1,191 +1,222 @@
 import assert from "node:assert/strict";
-import { readFile } from "node:fs/promises";
+import { readFile, readdir } from "node:fs/promises";
 import test from "node:test";
 
 const root = new URL("../", import.meta.url);
 const read = (path) => readFile(new URL(path, root), "utf8");
-const [course, editorial, game, page, progress, layout, packageSource, examAugmentations, styles] = await Promise.all([
-  read("app/course-data.ts"),
-  read("app/editorial-data.ts"),
-  read("app/gamification.ts"),
-  read("app/page.tsx"),
-  read("app/progress.ts"),
-  read("app/layout.tsx"),
-  read("package.json"),
-  read("app/curriculum/exam-augmentations.ts"),
-  read("app/globals.css"),
-]);
 
-test("publishes an auditable 1.7.0 editorial record and current official blueprints", () => {
-  assert.match(editorial, /SITE_VERSION = "1\.7\.0"/);
-  assert.match(editorial, /may-4-2026\.pdf/);
-  assert.match(editorial, /professional-exam-guide-november-30-2025_0\.pdf/);
-  assert.match(page, /Revisión trimestral/);
-  assert.match(page, /cobertura interna del curso, no pesos oficiales ni suficiencia/);
-  assert.equal(JSON.parse(packageSource).version, "1.7.0");
-  assert.match(layout, /\/og\.png/);
-});
-
-test("keeps the daily interface focused while retaining advanced content on demand", () => {
-  assert.match(page, /Continúa donde lo dejaste/);
-  assert.match(page, /href="#academy"/);
-  assert.match(page, />Aprender<\/a>/);
-  assert.match(page, /href="#catalog"/);
-  assert.match(page, />Ruta<\/a>/);
-  assert.match(page, /href="#resources"/);
-  assert.match(page, />Recursos<\/a>/);
-  assert.doesNotMatch(page, /id="roadmap"/);
-  assert.match(page, /Repaso, retos e insignias/);
-  assert.match(page, /className="daily-disclosure blueprint-disclosure"/);
-  assert.match(page, /className="daily-disclosure editorial-disclosure"/);
-  assert.match(page, /<summary id="filter-summary">Más filtros<\/summary>/);
-});
-
-test("uses progressive disclosure without removing theoretical content", () => {
-  assert.match(page, /<details id="module-picker" className="module-picker" open=\{modulePickerOpen\}/);
-  assert.match(page, /className="lesson-context-list"/);
-  assert.match(page, /className="outcomes compact-theory"/);
-  assert.match(page, /className="module-learning-map compact-theory"/);
-  assert.match(page, /className="cloud-context compact-theory"/);
-  assert.match(page, /className="blueprint-coverage compact-theory"/);
-  assert.match(page, /open=\{isOpen\}/);
-  assert.match(page, /\{isOpen && <div className="lesson-copy">/);
-  assert.match(page, /className="lesson-sources"/);
-  for (const retained of ["lesson.explanation[0]", "lesson.deepDive.mentalModel", "lesson.deepDive.concepts", "lesson.deepDive.mechanics", "lesson.deepDive.workedScenario", "lesson.example.code", "lesson.keyPoints", "lesson.pitfalls", "lesson.examDecision", "lesson.checkpoint"]) assert.ok(page.includes(retained), `${retained} must remain available`);
-});
-
-test("maps every blueprint objective while separating designed from reproduced evidence", () => {
-  const objectiveCalls = [...editorial.matchAll(/objective\("([^"]+)",\s*"(Associate|Professional)"/g)];
-  assert.equal(objectiveCalls.filter((match) => match[2] === "Associate").length, 33);
-  assert.equal(objectiveCalls.filter((match) => match[2] === "Professional").length, 45);
-  const mappedCalls = [...editorial.matchAll(/objective\([^\n]+\["m\d{2}"/g)];
-  assert.equal(mappedCalls.length, objectiveCalls.length);
-  assert.match(editorial, /theory: true, practice: true, assessment: true, reproduced: false/);
-  assert.match(page, /Objetivo mencionado ≠ objetivo explicado ≠ habilidad demostrada/);
-  assert.match(page, /Reproducidos/);
-  assert.match(page, /Diseñado · no reproducido/);
-  assert.match(page, /Abrir \$\{target === "lessons" \? "lecciones"/);
-});
-
-test("gives every lesson source ids and every lab a versioned operating spec", () => {
-  assert.match(course, /lessonSpecificSourceIds/);
-  assert.match(course, /const refIds = lessonSpecificSourceIds/);
-  assert.match(course, /\n\s+refIds,/);
-  assert.match(course, /id: `LAB-\$\{seed\.id\.slice\(1\)\}`/);
-  for (const field of ["version", "reviewedAt", "freeEdition", "runtime", "prerequisites", "environment", "compute", "permissions", "dataset", "reproducibility", "deliberateFailure", "estimatedCost", "expectedOutcome", "cleanup", "troubleshooting", "refIds"]) {
-    assert.match(course, new RegExp(`${field}:`), `missing lab field ${field}`);
+async function filesUnder(path) {
+  const entries = await readdir(new URL(`${path}/`, root), { withFileTypes: true });
+  const files = [];
+  for (const entry of entries) {
+    const child = `${path}/${entry.name}`;
+    if (entry.isDirectory()) files.push(...await filesUnder(child));
+    else files.push(child);
   }
-  assert.match(page, /Ficha versionada del laboratorio/);
-  assert.match(page, /Límites de Free Edition/);
+  return files;
+}
+
+const sources = Object.fromEntries(await Promise.all([
+  "package.json",
+  ".openai/hosting.json",
+  "app/page.tsx",
+  "app/layout.tsx",
+  "app/editorial-data.ts",
+  "app/progress.ts",
+  "app/globals.css",
+  "app/components/enterprise/AppShell.tsx",
+  "app/components/enterprise/CourseWorkspace.tsx",
+  "app/components/enterprise/AssessmentPanel.tsx",
+  "app/components/enterprise/PortalPagesV2.tsx",
+  "app/components/enterprise/getShellContext.ts",
+  "app/components/enterprise/useDashboard.ts",
+  "app/enterprise/auth.ts",
+  "app/chatgpt-auth.ts",
+  "app/enterprise/curriculum.ts",
+  "app/enterprise/assessment.ts",
+  "app/enterprise/assessment-private.ts",
+  "app/enterprise/learning-service.ts",
+  "app/api/_shared.ts",
+  "app/api/credentials/[id]/pdf/route.ts",
+  "db/index.ts",
+  "db/schema.ts",
+].map(async (path) => [path, await read(path)])));
+
+const routeContracts = [
+  ["app/inicio/page.tsx", "/inicio"],
+  ["app/mi-aprendizaje/page.tsx", "/mi-aprendizaje"],
+  ["app/catalogo/page.tsx", "/catalogo"],
+  ["app/expediente/page.tsx", "/expediente"],
+  ["app/ajustes/page.tsx", "/ajustes"],
+  ["app/curso/[slug]/page.tsx", "/curso/"],
+  ["app/simulacro/[mode]/page.tsx", "/simulacro/"],
+  ["app/certificados/[id]/page.tsx", "/certificados/"],
+];
+const routeSources = Object.fromEntries(await Promise.all(
+  routeContracts.map(async ([path]) => [path, await read(path)]),
+));
+
+const enterpriseComponentPaths = (await filesUnder("app/components/enterprise"))
+  .filter((path) => /\.(?:ts|tsx)$/u.test(path));
+const enterpriseComponentSources = Object.fromEntries(await Promise.all(
+  enterpriseComponentPaths.map(async (path) => [path, await read(path)]),
+));
+const clientComponentSources = Object.entries(enterpriseComponentSources)
+  .filter(([, source]) => /^\s*["']use client["'];/u.test(source));
+
+test("declares the enterprise release as version 2.0.0 everywhere that identifies content", () => {
+  const packageJson = JSON.parse(sources["package.json"]);
+  assert.equal(packageJson.version, "2.0.0");
+  assert.match(sources["app/editorial-data.ts"], /SITE_VERSION = "2\.0\.0"/u);
+  assert.match(sources["app/progress.ts"], /CONTENT_VERSION = "lakehouse-lab-v2\.0\.0"/u);
+  assert.match(sources["app/page.tsx"], /redirect\("\/inicio"\)/u);
+  assert.match(sources["app/layout.tsx"], /Lakehouse Lab Enterprise/u);
+  assert.match(sources["app/layout.tsx"], /robots:\s*\{\s*index:\s*false,\s*follow:\s*false\s*\}/u);
+  assert.match(packageJson.scripts.test, /node --test tests\/\*\.test\.mjs/u);
 });
 
-test("uses direct technical sources, honest authorship and three non-destructive study routes", () => {
-  for (const fragment of ["serverless-network-security", "privileges-reference", "workspace-catalog-binding", "feature-compatibility", "compute/sql-warehouse"]) assert.match(course, new RegExp(fragment));
-  assert.match(page, /Revisor externo pendiente/);
-  assert.match(page, /no afirma certificaciones/);
-  assert.match(page, /Ruta examen/);
-  assert.match(page, /Ruta práctica/);
-  assert.match(page, /Ruta profesional/);
-  assert.match(page, /Cambiar de ruta solo filtra y prioriza contenido; nunca borra progreso ni XP/);
-  assert.match(page, /Un principio común, tres implementaciones/);
-});
-
-test("preview mode cannot write progress, submit tests or reveal solutions", () => {
-  assert.match(page, /if \(previewMode\) return;/);
-  assert.match(page, /disabled=\{preview\}/);
-  assert.match(page, /Explora sin alterar tu progreso/);
-  assert.match(page, /respuestas, soluciones, XP y controles de finalización permanecen desactivados/);
-  assert.match(page, /const preview = !isUnlocked\(module\)/);
-  assert.match(page, /if \(!preview\) updateProgress/);
-});
-
-test("keeps both simulators open and labels every question origin", () => {
-  assert.equal((examAugmentations.match(/\n  a\(/g) ?? []).length, 30);
-  assert.equal((examAugmentations.match(/\n  p\(/g) ?? []).length, 36);
-  assert.equal((examAugmentations.match(/\{ id: "associate-q\d+"/g) ?? []).length, 5);
-  assert.equal((examAugmentations.match(/\{ id: "professional-q\d+"/g) ?? []).length, 9);
-  assert.match(course, /associate: associateExamBank\.length \+ associateOfficialAugmentations\.length/);
-  assert.match(course, /professional: professionalExamBank\.length \+ professionalOfficialAugmentations\.length/);
-  assert.match(page, /Associate y Professional · siempre disponibles/);
-  assert.match(page, /Sintética · ampliada desde muestra oficial/);
-  assert.match(page, /Original del curso/);
-  assert.match(page, /No usamos dumps ni preguntas activas del examen/);
-  const openExam = page.slice(page.indexOf("function openExam"), page.indexOf("function closeExam"));
-  assert.doesNotMatch(openExam, /isUnlocked|completedModules|blocked/);
-});
-
-test("contains long exam questions and presents lab validation honestly", () => {
-  assert.match(styles, /\.exam-questions fieldset\{width:100%;overflow:hidden\}/);
-  assert.match(styles, /\.exam-questions legend\{[^}]*overflow-wrap:anywhere/);
-  assert.match(styles, /\.exam-questions label\{[^}]*overflow-wrap:anywhere/);
-  assert.match(page, /Este editor no ejecuta Databricks ni Spark/);
-  assert.match(page, /Registro basado en tu declaración/);
-  assert.match(page, /<details className="lab-spec"/);
-  assert.match(page, /Revisar preparación/);
-});
-
-test("gamification uses persistent unique rewards, combos, streaks and nine levels", () => {
-  assert.equal((game.match(/\{ name: "/g) ?? []).length, 9);
-  assert.match(game, /Lakehouse Architect.*10_000/);
-  assert.match(game, /earnedRewardIds/);
-  assert.match(game, /alreadyEarned\.has\(reward\.id\)/);
-  assert.match(game, /\[\[3, 10\], \[5, 20\], \[7, 40\]\]/);
-  assert.match(game, /dayDifference\(previousDate, today\) === 1/);
-  assert.match(progress, /sanitizeGamification/);
-});
-
-test("all lessons use a progressive explanation sequence without losing citations", () => {
-  assert.match(page, /module-learning-map/);
-  assert.match(page, /lesson-bridge/);
-  assert.match(page, /Explicación guiada, paso a paso/);
-  assert.match(page, /className="deep-dive" open=\{!done\}/);
-  assert.match(page, /lesson\.explanation\[0\]/);
-  assert.match(page, /lesson\.explanation\[1\]/);
-  const orderedStages = ["stage-problem", "mental-model explanation-stage", "concepts explanation-stage", "mechanics explanation-stage", "worked-scenario explanation-stage"];
-  let previous = -1;
-  for (const stage of orderedStages) {
-    const position = page.indexOf(stage);
-    assert.ok(position > previous, `${stage} must follow the prior learning stage`);
-    previous = position;
+test("uses real routes and protects every enterprise page with the signed-in learner context", () => {
+  for (const [path, returnPath] of routeContracts) {
+    const source = routeSources[path];
+    assert.match(source, /requireEnterprisePageContext\(/u, `${path} must require the enterprise page context`);
+    assert.match(source, /<AppShell\b/u, `${path} must render inside the application shell`);
+    assert.ok(source.includes(returnPath), `${path} must preserve its real return route`);
+    assert.doesNotMatch(source, /href=["']#/u, `${path} must not replace navigation with an in-page hash`);
   }
-  for (const step of ["1", "2", "3", "4", "5"]) assert.match(page, new RegExp(`data-step="${step}"`));
-  assert.match(page, /ClaimRefs module=\{module\} lessonId=\{lesson\.id\}/);
-  assert.match(page, /function ClaimRefs\(_props:[\s\S]*?return null;/);
+
+  const shellContext = sources["app/components/enterprise/getShellContext.ts"];
+  assert.ok(shellContext.indexOf("await requireLearner(returnTo)") < shellContext.indexOf("await getOrganizationBranding"));
+  assert.match(sources["app/enterprise/auth.ts"], /await requireChatGPTUser\(returnTo\)/u);
+  assert.match(sources["app/enterprise/auth.ts"], /return ensureLearner\(\{/u);
+  assert.match(sources["app/chatgpt-auth.ts"], /oai-authenticated-user-email/u);
+  assert.match(sources["app/chatgpt-auth.ts"], /process\.env\.NODE_ENV !== "production"/u);
+  assert.match(sources["app/chatgpt-auth.ts"], /if \(!value\.startsWith\("\/"\) \|\| value\.startsWith\("\/\/"\)\) return "\/"/u);
+  assert.match(sources["app/api/_shared.ts"], /withLearner/u);
+  assert.match(sources["app/api/_shared.ts"], /401, "AUTHENTICATION_REQUIRED"/u);
+  assert.match(sources["app/api/_shared.ts"], /403, "ACCESS_DENIED"/u);
+
+  const shell = sources["app/components/enterprise/AppShell.tsx"];
+  for (const route of ["/inicio", "/mi-aprendizaje", "/catalogo", "/expediente", "/ajustes"]) {
+    assert.ok(shell.includes(`href: "${route}"`) || shell.includes(`href="${route}"`), `missing shell route ${route}`);
+  }
 });
 
-test("requires active recall and schedules spaced reviews without storing the draft", () => {
-  assert.match(progress, /lessonReviews: Record<string, LessonReview>/);
-  assert.match(progress, /const intervals = \[1, 3, 7, 14, 30\]/);
-  assert.match(progress, /previous\?\.lastReviewedOn === today/);
-  assert.match(progress, /export function dueLessonReviews/);
-  assert.match(page, /minLength=\{20\}/);
-  assert.match(page, /Comparar respuesta/);
-  assert.match(page, /Necesito repasarla/);
-  assert.match(page, /La expliqué bien/);
-  assert.match(page, /disabled=\{Boolean\(rated\)\}/);
-  assert.match(page, /scheduleLessonReview\(current, activeModule\.id, lessonId, rating, localDate\(\)\)/);
-  assert.doesNotMatch(progress, /recallDraft|recallText/);
+test("keeps authored course data and answer keys outside every client component", () => {
+  assert.ok(clientComponentSources.length >= 6, "the enterprise UI should have client components to audit");
+  for (const [path, source] of clientComponentSources) {
+    assert.doesNotMatch(source, /(?:from\s*|import\s*\()["'][^"']*(?:course-data|assessment-private)[^"']*["']/u, `${path} imports server-only curriculum material`);
+    assert.doesNotMatch(source, /\banswerKeyJson\b/u, `${path} exposes a stored answer key`);
+  }
+
+  const publicAssessment = sources["app/enterprise/assessment.ts"];
+  assert.doesNotMatch(publicAssessment, /\b(?:answerKeyJson|correctOptionId|PrivateAssessmentDefinition)\b/u);
+
+  const curriculum = sources["app/enterprise/curriculum.ts"];
+  const projectionStart = curriculum.indexOf("quiz: module.quiz.map");
+  const projectionEnd = curriculum.indexOf("\n    })),", projectionStart);
+  assert.ok(projectionStart >= 0 && projectionEnd > projectionStart, "public module quiz projection is missing");
+  const publicQuizProjection = curriculum.slice(projectionStart, projectionEnd);
+  assert.match(publicQuizProjection, /prompt:\s*question\.question/u);
+  assert.match(publicQuizProjection, /options:\s*\[\.\.\.question\.options\]/u);
+  assert.match(publicQuizProjection, /domain:\s*question\.domain/u);
+  assert.doesNotMatch(publicQuizProjection, /\banswer\s*:|\bexplanation\s*:/u);
+  assert.match(routeSources["app/curso/[slug]/page.tsx"], /<CourseWorkspace module=\{publicModule\(module\)\}/u);
+
+  const service = sources["app/enterprise/learning-service.ts"];
+  assert.match(service, /from "\.\.\/course-data"/u);
+  assert.match(service, /from "\.\/assessment-private"/u);
+  assert.match(service, /answerKeyJson:\s*stableJson\(prepared\.answerKey\)/u);
 });
 
-test("preserves the best quiz score and can retry only failed decisions", () => {
-  assert.match(page, /Math\.max\(current\.quizScores\[activeModule\.id\] \?\? 0, score\)/);
-  assert.match(page, /function retryQuizMistakes/);
-  assert.match(page, /currentAnswers\[index\] === question\.answer/);
-  assert.match(page, /Reintentar solo \{mistakes\}/);
-  assert.match(page, /Repetir las 4/);
-  assert.match(page, /Tu respuesta:/);
-  assert.match(page, /Respuesta correcta:/);
+test("imports legacy progress once, sanitizes it and requires a new native Professional result", () => {
+  const client = sources["app/components/enterprise/useDashboard.ts"];
+  assert.match(client, /LEGACY_PROGRESS_KEY = "lakehouse-lab-progress-v2"/u);
+  assert.match(client, /allowedModules = new Set\(dashboard\.modules\.map/u);
+  assert.match(client, /integer\(score, 0, 4\)/u);
+  assert.match(client, /clientMutationId:\s*crypto\.randomUUID\(\)/u);
+  assert.match(client, /expectedRevision:\s*dashboard\.revision\.value/u);
+  const importRequest = client.indexOf('fetch("/api/progress/import"');
+  const acceptedResponse = client.indexOf("await readJson(response)", importRequest);
+  const removeLegacy = client.indexOf("localStorage.removeItem(LEGACY_PROGRESS_KEY)", importRequest);
+  assert.ok(importRequest >= 0 && acceptedResponse > importRequest && removeLegacy > acceptedResponse, "local data must only be removed after a successful import response");
+
+  const service = sources["app/enterprise/learning-service.ts"];
+  assert.match(service, /const progress = sanitizeProgress\(source\)/u);
+  assert.match(service, /const scopedMutationKey = `\$\{learner\.user\.id\}:\$\{body\.clientMutationId\}`/u);
+  assert.match(service, /"IMPORT_ALREADY_COMPLETED"/u);
+  assert.match(service, /"SERVER_PROGRESS_EXISTS"/u);
+  assert.match(service, /source:\s*"legacy_device"/u);
+  assert.match(service, /provenance:\s*"legacy_client"/u);
+  assert.match(service, /requiresProfessionalRevalidation:\s*true/u);
+  assert.match(service, /action:\s*"learner\.legacy_import\.completed"/u);
+  assert.match(service, /professionalAttempt\.provenance !== "server_graded"/u);
+  assert.doesNotMatch(service, /delete\(legacyImports\)/u, "the permanent import marker must survive progress deletion");
 });
 
-test("mounts one workspace surface at a time and keeps mobile navigation visible", () => {
-  assert.match(page, /workspaceView === "learn"/);
-  assert.match(page, /workspaceView === "route"/);
-  assert.match(page, /workspaceView === "resources"/);
-  assert.match(styles, /details:not\(\[open\]\)>:not\(summary\)\{display:none!important\}/);
-  assert.match(styles, /\.site-header nav\{display:grid!important/);
-  assert.match(page, /htmlFor="module-search"/);
-  assert.match(page, /htmlFor="filter-track"/);
-  assert.match(page, /htmlFor="filter-level"/);
-  assert.match(page, /htmlFor="filter-topic"/);
-  assert.match(page, /htmlFor="filter-status"/);
+test("retains static accessibility contracts in the shell, course and assessments", () => {
+  const layout = sources["app/layout.tsx"];
+  const shell = sources["app/components/enterprise/AppShell.tsx"];
+  const course = sources["app/components/enterprise/CourseWorkspace.tsx"];
+  const assessment = sources["app/components/enterprise/AssessmentPanel.tsx"];
+  const styles = sources["app/globals.css"];
+
+  assert.match(layout, /<html lang="es">/u);
+  assert.match(shell, /href="#main-content">Saltar al contenido/u);
+  assert.ok(shell.indexOf("<header") < shell.indexOf('<main id="main-content"'));
+  assert.match(shell, /aria-current=\{active === item\.area \? "page" : undefined\}/u);
+  assert.match(shell, /aria-modal=\{drawerOpen && mobileNavigation \? true : undefined\}/u);
+  assert.match(shell, /event\.key === "Escape"/u);
+  assert.match(shell, /event\.key !== "Tab"/u);
+  assert.match(shell, /menuButtonRef\.current\?\.focus\(\)/u);
+
+  assert.match(course, /role="tablist"/u);
+  assert.match(course, /role="tabpanel"/u);
+  assert.match(course, /\["ArrowLeft", "ArrowRight", "Home", "End"\]/u);
+  assert.match(course, /<pre tabIndex=\{0\}>/u);
+  assert.match(course, /role="status" aria-live="polite"/u);
+  assert.match(assessment, /<fieldset key=\{question\.id\}>/u);
+  assert.match(assessment, /role="progressbar"/u);
+  assert.match(assessment, /aria-live="assertive"/u);
+  assert.match(assessment, /aria-live="polite"/u);
+  assert.match(assessment, /<label htmlFor=\{`timing-/u);
+  assert.match(sources["app/components/enterprise/PortalPagesV2.tsx"], /className="ent-table-wrap" tabIndex=\{0\} aria-label=/u);
+
+  assert.match(styles, /\.ent-shell :where\([^}]+\):focus-visible\{outline:/u);
+  assert.match(styles, /\.ent-skip-link:focus\{transform:none\}/u);
+  assert.match(styles, /min-height:44px/u);
+  assert.match(styles, /@media\(prefers-reduced-motion:reduce\)/u);
+  assert.match(styles, /@media\(forced-colors:active\)/u);
+  for (const breakpoint of [1200, 900, 700, 400]) assert.match(styles, new RegExp(`@media\\(max-width:${breakpoint}px\\)`));
+});
+
+test("persists enterprise learning in D1 and generates protected PDF credentials", () => {
+  const packageJson = JSON.parse(sources["package.json"]);
+  const hosting = JSON.parse(sources[".openai/hosting.json"]);
+  assert.equal(hosting.d1, "DB");
+  assert.equal(packageJson.dependencies["pdf-lib"], "1.17.1");
+
+  const db = sources["db/index.ts"];
+  assert.match(db, /from "cloudflare:workers"/u);
+  assert.match(db, /drizzle\(runtimeEnv\.DB, \{ schema \}\)/u);
+  const schema = sources["db/schema.ts"];
+  for (const table of ["organizations", "users", "organizationMemberships", "learnerAssignments", "lessonProgress", "assessmentAttempts", "assessmentResponses", "learningEvents", "progressSnapshots", "credentials", "legacyImports", "auditEvents"]) {
+    assert.match(schema, new RegExp(`export const ${table} = sqliteTable\\(`), `missing D1 table ${table}`);
+  }
+
+  const service = sources["app/enterprise/learning-service.ts"];
+  assert.match(service, /import \{ PDFDocument, StandardFonts, rgb(?:,[^}]*)? \} from "pdf-lib"/u);
+  assert.match(service, /eq\(credentials\.userId, learner\.user\.id\)/u);
+  assert.match(service, /eq\(credentials\.organizationId, learner\.organization\.id\)/u);
+  assert.match(service, /const pdf = await PDFDocument\.create\(\)/u);
+  assert.match(service, /pdf\.addPage\(\[841\.89, 595\.28\]\)/u);
+  assert.match(service, /return pdf\.save\(\{ useObjectStreams: false, addDefaultPage: false \}\)/u);
+  assert.match(service, /professionalAttempt\.kind !== "professional_exam"/u);
+  assert.match(service, /professionalAttempt\.provenance !== "server_graded"/u);
+  assert.match(service, /progress\.every\(\(item\) => item\.completed\)/u);
+
+  const pdfRoute = sources["app/api/credentials/[id]/pdf/route.ts"];
+  assert.match(pdfRoute, /return withLearner\(async \(learner\) =>/u);
+  assert.match(pdfRoute, /"content-type": "application\/pdf"/u);
+  assert.match(pdfRoute, /"content-disposition": `attachment;/u);
+  assert.match(pdfRoute, /"cache-control": "private, no-store, max-age=0"/u);
 });
