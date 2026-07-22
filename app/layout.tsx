@@ -21,18 +21,18 @@ export async function generateMetadata(): Promise<Metadata> {
 
   return {
     metadataBase,
-    title: "Lakehouse Lab v1.1.0 — Academia Databricks Data Engineering",
-    description: "Academia auditable con 32 módulos y 160 lecciones que introducen contexto, intuición, vocabulario y mecánica de forma progresiva.",
+    title: "Lakehouse Lab v1.2.0 — Academia Databricks Data Engineering",
+    description: "Academia Databricks limpia para el uso diario: continúa, aprende y explora 32 módulos con explicaciones progresivas y trazabilidad oficial.",
     openGraph: {
-      title: "Lakehouse Lab v1.1.0 — De Associate a Professional",
-      description: "160 lecciones explicadas paso a paso, con trazabilidad oficial, práctica versionada y una ruta gamificada.",
+      title: "Lakehouse Lab v1.2.0 — De Associate a Professional",
+      description: "Una experiencia diaria simplificada con 160 lecciones, trazabilidad oficial, práctica versionada y progreso local.",
       type: "website",
-      images: [{ url: "/og-v1-1.png", width: 1744, height: 909, alt: "Lakehouse Lab v1.1.0: aprendizaje progresivo de Associate a Professional" }],
+      images: [{ url: "/og-v1-1.png", width: 1744, height: 909, alt: "Lakehouse Lab: aprendizaje progresivo de Associate a Professional" }],
     },
     twitter: {
       card: "summary_large_image",
-      title: "Lakehouse Lab v1.1.0 — Academia Databricks",
-      description: "32 módulos y 160 lecciones explicadas por capas, con blueprints auditables, práctica y XP.",
+      title: "Lakehouse Lab v1.2.0 — Academia Databricks",
+      description: "32 módulos explicados por capas en una interfaz diaria limpia, con blueprints auditables, práctica y XP.",
       images: ["/og-v1-1.png"],
     },
     icons: { icon: "/favicon.svg", shortcut: "/favicon.svg" },

@@ -14,14 +14,26 @@ const [course, editorial, game, page, progress, layout, packageSource] = await P
   read("package.json"),
 ]);
 
-test("publishes an auditable 1.1.0 editorial record and current official blueprints", () => {
-  assert.match(editorial, /SITE_VERSION = "1\.1\.0"/);
+test("publishes an auditable 1.2.0 editorial record and current official blueprints", () => {
+  assert.match(editorial, /SITE_VERSION = "1\.2\.0"/);
   assert.match(editorial, /may-4-2026\.pdf/);
   assert.match(editorial, /professional-september-2025-exam-guide\.pdf/);
   assert.match(page, /Revisión trimestral/);
   assert.match(page, /cobertura del curso, no pesos oficiales del examen/);
-  assert.equal(JSON.parse(packageSource).version, "1.1.0");
+  assert.equal(JSON.parse(packageSource).version, "1.2.0");
   assert.match(layout, /og-v1-1\.png/);
+});
+
+test("keeps the daily interface focused while retaining advanced content on demand", () => {
+  assert.match(page, /Continúa donde lo dejaste/);
+  assert.match(page, /href="#academy">Aprender/);
+  assert.match(page, /href="#catalog">Ruta/);
+  assert.match(page, /href="#resources">Recursos/);
+  assert.doesNotMatch(page, /id="roadmap"/);
+  assert.match(page, /Retos, combos e insignias/);
+  assert.match(page, /className="daily-disclosure blueprint-disclosure"/);
+  assert.match(page, /className="daily-disclosure editorial-disclosure"/);
+  assert.match(page, /<summary>Más filtros<\/summary>/);
 });
 
 test("maps every blueprint objective to theory, practice, assessment and modules", () => {

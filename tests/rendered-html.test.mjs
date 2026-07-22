@@ -27,5 +27,8 @@ test("renders the finished academy metadata and core content", async () => {
   assert.match(html, /Explicaci\u00f3n guiada, paso a paso/i);
   assert.match(html, /Construiremos el tema por capas/i);
   assert.match(html, /Modelo mental/i);
+  assert.match(html, /Continúa donde lo dejaste/i);
+  assert.match(html, /Todos los módulos, en un solo lugar/i);
+  assert.match(html, /Método, blueprint y revisión/i);
   assert.match(html, /Método autosuficiente/i);
 });

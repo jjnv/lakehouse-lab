@@ -558,70 +558,60 @@ export default function Home() {
       {celebration && <div className="xp-toast" role="status" aria-live="polite"><span>✦</span>{celebration}</div>}
       <header className="site-header">
         <a className="brand" href="#top" aria-label="Inicio de Lakehouse Lab"><span className="brand-mark"><i /><i /><i /></span>Lakehouse Lab</a>
-        <nav aria-label="Navegación principal"><a href="#roadmap">Mapa</a><a href="#catalog">Temario</a><a href="#blueprint-matrix">Blueprint</a><a href="#academy">Academia</a><a href="#editorial">Revisión</a></nav>
+        <nav aria-label="Navegación principal"><a href="#academy">Aprender</a><a href="#catalog">Ruta</a><a href="#resources">Recursos</a></nav>
         <div className="header-progress"><a href="#editorial">v{SITE_VERSION}</a><span>{percent}%</span><div role="progressbar" aria-label="Progreso total" aria-valuemin={0} aria-valuemax={100} aria-valuenow={percent}><i style={{ width: `${percent}%` }} /></div></div>
       </header>
 
       <div id="top" className="page-shell">
         {lockedNotice && <div className="access-notice" role="alert"><div><b>Contenido bloqueado</b><p>{lockedNotice}</p></div><button aria-label="Cerrar aviso" onClick={() => setLockedNotice(null)}>×</button></div>}
-        <section className="hero" aria-labelledby="hero-title">
+        <section className="hero daily-hero" aria-labelledby="hero-title">
           <div className="hero-copy">
-            <p className="eyebrow">Data Engineer Associate → Professional</p>
-            <h1 id="hero-title">De lakehouse<br />a producción<span>.</span></h1>
-            <p className="hero-text">Una academia autosuficiente de ingeniería Databricks: 160 capítulos que empiezan por el contexto y avanzan, capa a capa, hasta la mecánica, las decisiones y el código; 30 prácticas, dos capstones y evaluación por dominios.</p>
+            <p className="eyebrow">Tu siguiente paso</p>
+            <h1 id="hero-title">Continúa donde lo dejaste<span>.</span></h1>
+            <p className="hero-text"><b>Módulo {continueModule.number} · {continueModule.short}</b><br />{continueModule.description}</p>
             <div className="hero-actions">
-              <button className="primary-button" onClick={() => openModule(continueModule)}>Continuar: módulo {continueModule.number}<span>→</span></button>
-              <button className="secondary-button" onClick={() => document.getElementById("roadmap")?.scrollIntoView({ behavior: scrollBehavior() })}>Explorar el mapa</button>
+              <button className="primary-button" onClick={() => openModule(continueModule)}>Continuar aprendiendo<span>→</span></button>
+              <button className="secondary-button" onClick={() => document.getElementById("catalog")?.scrollIntoView({ behavior: scrollBehavior() })}>Cambiar de módulo</button>
             </div>
-            <div className="hero-proof"><span>100 h</span><span>Teoría profunda</span><span>Multinube</span><span>Blueprints vigentes</span><span>Práctica razonada</span></div>
+            <div className="hero-proof"><span>{percent}% completado</span><span>{completed.size}/32 módulos</span><span>{progress.gamification.streak} días de racha</span></div>
           </div>
           <div className="hero-dashboard">
             <div className="hero-progress-card">
               <div className="progress-orbit" role="progressbar" aria-label="Progreso ponderado de la academia" aria-valuemin={0} aria-valuemax={100} aria-valuenow={percent} style={{ "--progress": `${percent * 3.6}deg` } as React.CSSProperties}><strong>{percent}%</strong><small>completado</small></div>
               <div><p>Tu progreso</p><b>{completed.size} de 32 módulos</b><span>{formatHours(completedMinutes)} de {formatHours(totalMinutes)}</span></div>
             </div>
-            <GamificationDashboard progress={progress} level={level} completed={completed} />
-            <div className="mini-path" aria-label="Estructura de la academia">
-              <div className="mini-core"><span>01—12</span><b>Tronco común</b></div>
-              <div className="branch-lines"><i /><i /><i /><i /></div>
-              <div className="mini-branches"><span>Streaming</span><span>Pipelines</span><span>FinOps</span><span>Entrega</span></div>
-              <div className="mini-final">32 · Professional</div>
-            </div>
+            <details className="daily-disclosure game-disclosure"><summary>Retos, combos e insignias <span>Ver detalles</span></summary><GamificationDashboard progress={progress} level={level} completed={completed} /></details>
           </div>
         </section>
 
+        <details className="daily-disclosure exam-disclosure">
+          <summary><span><b>Simulacros de certificación</b><small>Associate y Professional, cuando estés preparado</small></span><i>Ver simulacros</i></summary>
         <section className="exam-strip" aria-label="Simulacros de certificación">
           <div><p className="eyebrow">Evaluación acumulativa</p><h2>Dos hitos. Una carrera completa.</h2></div>
           <button aria-disabled={!completed.has("m11")} onClick={() => openExam("associate")}><span>Associate</span><b>45 preguntas · 90 min</b><small>{progress.examScores.associate !== undefined ? `Último resultado: ${progress.examScores.associate}%` : completed.has("m11") ? "Listo para comenzar" : "Se desbloquea al completar el módulo 11"}</small></button>
           <button aria-disabled={!(["m17","m22","m27","m31"].every((id) => completed.has(id)))} onClick={() => openExam("professional")}><span>Professional</span><b>59 preguntas · 120 min</b><small>{progress.examScores.professional !== undefined ? `Último resultado: ${progress.examScores.professional}%` : ["m17","m22","m27","m31"].every((id) => completed.has(id)) ? "Listo para comenzar" : "Se desbloquea al completar las cuatro ramas"}</small></button>
         </section>
+        </details>
 
+        <section id="resources" className="resource-hub" aria-labelledby="resources-title">
+          <div className="resource-hub-heading"><p className="eyebrow">Consulta cuando lo necesites</p><h2 id="resources-title">Método, blueprint y revisión.</h2><p>La información de referencia sigue disponible sin competir con tu actividad diaria.</p></div>
+        <details className="daily-disclosure method-disclosure">
+          <summary><span><b>Cómo estudiar</b><small>El método progresivo en cuatro pasos</small></span><i>Abrir</i></summary>
         <section className="study-method" aria-labelledby="study-method-title">
           <div><p className="eyebrow">Método autosuficiente</p><h2 id="study-method-title">Contexto primero. Profundidad después.</h2><p>Cada explicación parte de lo que ya sabes, presenta una idea sencilla y solo entonces introduce vocabulario, mecánica y excepciones. No marques una lección hasta poder recorrer esa cadena con tus propias palabras.</p></div>
           <ol><li><span>01</span><div><b>Sitúa el problema</b><p>Entiende qué necesidad aparece y qué se vuelve difícil sin esta capacidad.</p></div></li><li><span>02</span><div><b>Nombra las piezas</b><p>Aprende pocos conceptos cada vez y relaciónalos con una imagen mental.</p></div></li><li><span>03</span><div><b>Recorre la mecánica</b><p>Sigue datos, estado, permisos, costes y fallos cuando las piezas ya son familiares.</p></div></li><li><span>04</span><div><b>Decide y ejecuta</b><p>Aplica las restricciones a un caso, comprueba el código y conserva evidencia.</p></div></li></ol>
         </section>
+        </details>
 
-        <BlueprintMatrix onOpen={openModule} />
-
-        <section id="roadmap" className="roadmap" aria-labelledby="roadmap-title">
-          <div className="section-heading"><div><p className="eyebrow">Mapa de dominio</p><h2 id="roadmap-title">Un núcleo. Cuatro especializaciones.</h2></div><p>Completa el tronco común para abrir las cuatro ramas. El proyecto Professional converge todo lo aprendido.</p></div>
-          <TrackRow track="core" completed={completed} isUnlocked={isUnlocked} onLink={handleModuleLink} />
-          <div className="roadmap-split"><span /><span /><span /><span /></div>
-          <div className="branch-grid">
-            {(["streaming","pipelines","performance","delivery"] as TrackId[]).map((track) => <TrackRow key={track} track={track} completed={completed} isUnlocked={isUnlocked} onLink={handleModuleLink} compact />)}
-          </div>
-          <div className="roadmap-merge"><span /><span /><span /><span /></div>
-          <TrackRow track="final" completed={completed} isUnlocked={isUnlocked} onLink={handleModuleLink} />
+          <BlueprintMatrix onOpen={openModule} />
+          <EditorialSection />
         </section>
 
         <section id="catalog" className="catalog" aria-labelledby="catalog-title">
-          <div className="section-heading"><div><p className="eyebrow">Catálogo completo</p><h2 id="catalog-title">Busca por habilidad, nivel o estado.</h2></div><button ref={resetButtonRef} className="text-button danger" onClick={() => setResetPending(true)}>Reiniciar academia</button></div>
+          <div className="section-heading"><div><p className="eyebrow">Ruta completa</p><h2 id="catalog-title">Todos los módulos, en un solo lugar.</h2><p>Abre cualquier módulo. Si aún no está desbloqueado, entrarás en vista previa sin modificar tu progreso.</p></div><button ref={resetButtonRef} className="text-button danger" onClick={() => setResetPending(true)}>Reiniciar progreso</button></div>
           <div className="filters">
             <label><span>Buscar</span><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Ej. Auto Loader, ABAC, skew…" /></label>
-            <label><span>Rama</span><select value={trackFilter} onChange={(event) => setTrackFilter(event.target.value as TrackId | "all")}><option value="all">Todas</option>{trackOrder.map((track) => <option key={track} value={track}>{trackMeta[track].name}</option>)}</select></label>
-            <label><span>Nivel</span><select value={levelFilter} onChange={(event) => setLevelFilter(event.target.value as LevelFilter)}><option value="all">Todos</option><option value="associate">Associate</option><option value="professional">Professional</option></select></label>
-            <label><span>Tema</span><select value={topicFilter} onChange={(event) => setTopicFilter(event.target.value as TopicFilter)}><option value="all">Todos</option>{Object.entries(topicGroups).map(([value, group]) => <option key={value} value={value}>{group.label}</option>)}</select></label>
-            <label><span>Estado</span><select value={statusFilter} onChange={(event) => setStatusFilter(event.target.value as StatusFilter)}><option value="all">Todos</option><option value="available">Sin empezar</option><option value="in-progress">En curso</option><option value="completed">Superados</option><option value="locked">Bloqueados</option></select></label>
+            <details className="filter-disclosure"><summary>Más filtros</summary><div><label><span>Rama</span><select value={trackFilter} onChange={(event) => setTrackFilter(event.target.value as TrackId | "all")}><option value="all">Todas</option>{trackOrder.map((track) => <option key={track} value={track}>{trackMeta[track].name}</option>)}</select></label><label><span>Nivel</span><select value={levelFilter} onChange={(event) => setLevelFilter(event.target.value as LevelFilter)}><option value="all">Todos</option><option value="associate">Associate</option><option value="professional">Professional</option></select></label><label><span>Tema</span><select value={topicFilter} onChange={(event) => setTopicFilter(event.target.value as TopicFilter)}><option value="all">Todos</option>{Object.entries(topicGroups).map(([value, group]) => <option key={value} value={value}>{group.label}</option>)}</select></label><label><span>Estado</span><select value={statusFilter} onChange={(event) => setStatusFilter(event.target.value as StatusFilter)}><option value="all">Todos</option><option value="available">Sin empezar</option><option value="in-progress">En curso</option><option value="completed">Superados</option><option value="locked">Bloqueados</option></select></label></div></details>
             <div className="result-count" aria-live="polite"><strong>{filteredModules.length}</strong><span>módulos</span></div>
           </div>
           <div className="module-grid">
@@ -654,10 +644,9 @@ export default function Home() {
             {view === "lessons" && <LessonsView module={activeModule} completedLessons={previewMode ? [] : progress.completedLessons[activeModule.id] ?? []} preview={previewMode} onToggle={toggleLesson} onSource={reviewSource} onNext={() => selectView("lab")} />}
             {view === "lab" && <LabView module={activeModule} code={previewMode ? activeModule.lab.starterCode : progress.labCode[activeModule.id] ?? activeModule.lab.starterCode} cloud={cloud} result={previewMode ? null : labResult} passed={!previewMode && progress.labsPassed.includes(activeModule.id)} confirmed={!previewMode && progress.labConfirmed.includes(activeModule.id)} showSolution={!previewMode && showSolution} preview={previewMode} onCloud={setCloud} onCode={setLabCode} onConfirm={setLabConfirmed} onRun={runLab} onEdit={editPassedLab} onSolution={() => setShowSolution((value) => !value)} onNext={() => selectView("quiz")} />}
             {view === "quiz" && <QuizView module={activeModule} answers={previewMode ? {} : progress.quizAnswers[activeModule.id] ?? {}} submitted={!previewMode && (submittedQuiz || progress.quizScores[activeModule.id] !== undefined)} score={previewMode ? undefined : progress.quizScores[activeModule.id]} preview={previewMode} requirementsMet={!previewMode && (progress.completedLessons[activeModule.id]?.length ?? 0) >= activeModule.lessons.length && progress.labsPassed.includes(activeModule.id) && (activeModule.id === "m12" ? progress.examCompleted.associate === true : activeModule.id === "m32" ? progress.examCompleted.professional === true : true)} examRequired={activeModule.id === "m12" ? "associate" : activeModule.id === "m32" ? "professional" : null} examDone={activeModule.id === "m12" ? progress.examCompleted.associate === true : activeModule.id === "m32" ? progress.examCompleted.professional === true : true} onExam={openExam} onAnswer={chooseQuizAnswer} onSubmit={submitQuiz} onRetry={resetQuizAttempt} onBack={() => selectView("lessons")} />}
-            {completed.has(activeModule.id) && <div className="completion-banner" role="status"><div><span>✓</span><div><b>Módulo {activeModule.number} superado</b><p>{activeModule.id === "m12" ? "Las cuatro especializaciones ya están abiertas." : activeModule.id === "m32" ? "Has completado toda la academia." : "Tu progreso se ha guardado en este dispositivo."}</p></div></div>{activeModule.id !== "m32" && (activeModule.id === "m12" ? <button className="primary-button" onClick={() => document.getElementById("roadmap")?.scrollIntoView({ behavior: scrollBehavior() })}>Elegir especialización <span>→</span></button> : <button className="primary-button" onClick={() => openModule(continueModule)}>Continuar con {continueModule.number} <span>→</span></button>)}</div>}
+            {completed.has(activeModule.id) && <div className="completion-banner" role="status"><div><span>✓</span><div><b>Módulo {activeModule.number} superado</b><p>{activeModule.id === "m12" ? "Las cuatro especializaciones ya están abiertas." : activeModule.id === "m32" ? "Has completado toda la academia." : "Tu progreso se ha guardado en este dispositivo."}</p></div></div>{activeModule.id !== "m32" && (activeModule.id === "m12" ? <button className="primary-button" onClick={() => document.getElementById("catalog")?.scrollIntoView({ behavior: scrollBehavior() })}>Elegir especialización <span>→</span></button> : <button className="primary-button" onClick={() => openModule(continueModule)}>Continuar con {continueModule.number} <span>→</span></button>)}</div>}
           </div>
         </section>
-        <EditorialSection />
       </div>
 
       {resetPending && <div className="dialog-backdrop" onKeyDown={handleResetDialogKey}><div ref={resetDialogRef} className="confirm-dialog" role="dialog" aria-modal="true" aria-labelledby="reset-title" aria-describedby="reset-description"><p className="eyebrow">Acción irreversible</p><h2 id="reset-title">¿Reiniciar toda la academia?</h2><p id="reset-description">Se borrarán lecciones, laboratorios, tests, simulacros, XP, rachas e insignias guardados en este dispositivo.</p><div><button className="secondary-button" autoFocus onClick={closeResetDialog}>Conservar progreso</button><button className="danger-button" onClick={resetAcademy}>Sí, borrar progreso</button></div></div></div>}
@@ -684,19 +673,21 @@ function BlueprintMatrix({ onOpen }: { onOpen: (module: CurriculumModule, view?:
   const coverage = coverageFor(level);
   const domains = [...new Set(items.map((item) => item.domain))];
   return <section id="blueprint-matrix" className="blueprint-matrix" aria-labelledby="matrix-title">
-    <div className="section-heading"><div><p className="eyebrow">Matriz auditable</p><h2 id="matrix-title">Blueprint completo, objetivo por objetivo.</h2></div><p>Los porcentajes expresan cobertura del curso, no pesos oficiales del examen. Las guías oficiales actuales no publican ponderaciones por dominio.</p></div>
+    <details className="daily-disclosure blueprint-disclosure"><summary><span><b id="matrix-title">Blueprint y cobertura</b><small>Objetivos oficiales y trazabilidad por lección, laboratorio y test</small></span><i>Abrir matriz</i></summary>
+    <div className="section-heading"><div><p className="eyebrow">Matriz auditable</p><h2>Blueprint completo, objetivo por objetivo.</h2></div><p>Los porcentajes expresan cobertura del curso, no pesos oficiales del examen. Las guías oficiales actuales no publican ponderaciones por dominio.</p></div>
     <div className="matrix-shell">
       <div className="matrix-tabs" role="tablist" aria-label="Certificación">{(["Associate","Professional"] as const).map((item) => <button key={item} role="tab" aria-selected={level === item} className={level === item ? "active" : ""} onClick={() => setLevel(item)}>{item}</button>)}</div>
       <div className="coverage-stats"><article><strong>{coverage.total}%</strong><span>objetivos mapeados</span></article><article><strong>{coverage.theory}%</strong><span>cobertura teórica</span></article><article><strong>{coverage.practice}%</strong><span>cobertura práctica</span></article><article><strong>{coverage.assessment}%</strong><span>cobertura evaluada</span></article></div>
       <div className="domain-coverage">{domains.map((domain) => { const domainItems = items.filter((item) => item.domain === domain); const covered = domainItems.filter((item) => item.moduleIds.length).length; const percentage = Math.round(covered / domainItems.length * 100); return <article key={domain}><div><b>{domain}</b><span>{covered}/{domainItems.length} objetivos</span></div><div role="progressbar" aria-label={`Cobertura de ${domain}`} aria-valuemin={0} aria-valuemax={100} aria-valuenow={percentage}><i style={{width:`${percentage}%`}} /></div><strong>{percentage}%</strong></article>; })}</div>
       <div className="matrix-table-wrap"><table><thead><tr><th>Dominio y objetivo oficial</th><th>Lecciones</th><th>Laboratorios</th><th>Preguntas</th><th>Cobertura</th></tr></thead><tbody>{items.map((item) => <tr key={item.id}><td><small>{item.domain}</small><b>{item.objective}</b></td>{(["lessons", "lab", "quiz"] as const).map((target) => <td key={target}><div className="matrix-modules">{item.moduleIds.map((id) => { const module = modules.find((entry) => entry.id === id); return module ? <button key={id} onClick={() => onOpen(module, target)} aria-label={`Abrir ${target === "lessons" ? "lecciones" : target === "lab" ? "laboratorio" : "preguntas"} del módulo ${module.number}`}>M{module.number}</button> : null; })}</div></td>)}<td><span className={item.theory && item.practice && item.assessment ? "covered" : "gap"}>{item.theory && item.practice && item.assessment ? "3/3" : "Parcial"}</span></td></tr>)}</tbody></table></div>
       <div className="matrix-foot"><a href={OFFICIAL_BLUEPRINTS[level].href} target="_blank" rel="noreferrer">Abrir {OFFICIAL_BLUEPRINTS[level].label} ↗</a><span>Revalidado {REVIEWED_AT}</span></div>
-    </div>
+    </div></details>
   </section>;
 }
 
 function EditorialSection() {
   return <section id="editorial" className="editorial" aria-labelledby="editorial-title">
+    <details className="daily-disclosure editorial-disclosure"><summary><span><b>Autoría, versión y changelog</b><small>Ficha editorial y procedimiento de revisión</small></span><i>Abrir ficha</i></summary><div className="editorial-disclosure-body">
     <div className="editorial-heading"><div><p className="eyebrow">Ficha editorial</p><h2 id="editorial-title">Contenido trazable y revisable.</h2><p>Lakehouse Lab publica qué versión estás estudiando, qué fuentes la respaldan y cómo se mantiene.</p></div><div className="version-seal"><span>Lakehouse Lab</span><strong>v{SITE_VERSION}</strong><small>Versión auditable vigente</small></div></div>
     <div className="editorial-grid">
       <article><span>Autoría</span><h3>Lakehouse Lab</h3><p>Contenido original de formación, basado en documentación oficial y sin preguntas reales de examen.</p></article>
@@ -704,8 +695,10 @@ function EditorialSection() {
       <article><span>Blueprints base</span><h3>Associate + Professional</h3><p><a href={OFFICIAL_BLUEPRINTS.Associate.href} target="_blank" rel="noreferrer">Associate · mayo 2026 ↗</a><a href={OFFICIAL_BLUEPRINTS.Professional.href} target="_blank" rel="noreferrer">Professional · septiembre 2025 ↗</a></p></article>
       <article><span>Procedimiento de revisión</span><h3>Revisión trimestral y por evento</h3><ol><li>Comprobar guías, Runtime y release notes.</li><li>Verificar cada afirmación y laboratorio.</li><li>Actualizar matriz, costes y changelog.</li><li>Revalidar enlaces, progreso, accesibilidad y build.</li><li>Comprobación recomendada dos semanas antes de cada examen.</li></ol></article>
     </div>
-    <div className="changelog"><div><p className="eyebrow">Changelog</p><h3>v{SITE_VERSION} · {REVIEWED_AT}</h3><p>Las 160 lecciones incorporan contexto previo, una idea sencilla, vocabulario gradual, mecánica y aplicación en ese orden.</p></div><ul><li>Mapa de comprensión al inicio de cada módulo.</li><li>Puentes explícitos entre una lección y la siguiente.</li><li>Explicaciones guiadas en cinco pasos con pausas de comprobación.</li><li>Ejemplos situados después de construir la intuición y la mecánica.</li></ul></div>
+    <div className="changelog"><div><p className="eyebrow">Changelog</p><h3>v{SITE_VERSION} · {REVIEWED_AT}</h3><p>La experiencia diaria prioriza continuar, aprender y consultar la ruta, dejando la información avanzada bajo demanda.</p></div><ul><li>Academia activa situada justo después del resumen diario.</li><li>Mapa y catálogo unificados en una sola ruta explorable.</li><li>Gamificación avanzada, simulacros, blueprint y método en paneles desplegables.</li><li>Filtros secundarios ocultos hasta que se necesitan.</li></ul></div>
+    <div className="changelog changelog-previous"><div><p className="eyebrow">Versión anterior</p><h3>v1.1.0 · {REVIEWED_AT}</h3></div><ul><li>Mapa de comprensión al inicio de cada módulo.</li><li>Puentes explícitos entre lecciones.</li><li>Explicaciones guiadas en cinco pasos.</li><li>Ejemplos después de construir la intuición.</li></ul></div>
     <div className="changelog changelog-previous"><div><p className="eyebrow">Versión inicial</p><h3>v1.0.0 · {PUBLISHED_AT}</h3></div><ul><li>Autoría, versionado y procedimiento editorial públicos.</li><li>Citas técnicas por lección y matriz completa de blueprints.</li><li>Vista previa segura de módulos bloqueados.</li><li>Laboratorios versionados y gamificación con XP, rachas, combos e insignias.</li></ul></div>
+    </div></details>
   </section>;
 }
 
