@@ -16,13 +16,13 @@ const [course, editorial, game, page, progress, layout, packageSource, examAugme
   read("app/globals.css"),
 ]);
 
-test("publishes an auditable 1.5.1 editorial record and current official blueprints", () => {
-  assert.match(editorial, /SITE_VERSION = "1\.5\.1"/);
+test("publishes an auditable 1.6.0 editorial record and current official blueprints", () => {
+  assert.match(editorial, /SITE_VERSION = "1\.6\.0"/);
   assert.match(editorial, /may-4-2026\.pdf/);
   assert.match(editorial, /professional-exam-guide-november-30-2025_0\.pdf/);
   assert.match(page, /Revisión trimestral/);
   assert.match(page, /cobertura interna del curso, no pesos oficiales ni suficiencia/);
-  assert.equal(JSON.parse(packageSource).version, "1.5.1");
+  assert.equal(JSON.parse(packageSource).version, "1.6.0");
   assert.match(layout, /og-v1-1\.png/);
 });
 
@@ -36,6 +36,18 @@ test("keeps the daily interface focused while retaining advanced content on dema
   assert.match(page, /className="daily-disclosure blueprint-disclosure"/);
   assert.match(page, /className="daily-disclosure editorial-disclosure"/);
   assert.match(page, /<summary>Más filtros<\/summary>/);
+});
+
+test("uses progressive disclosure without removing theoretical content", () => {
+  assert.match(page, /<details className="module-picker">/);
+  assert.match(page, /className="lesson-context-list"/);
+  assert.match(page, /className="outcomes compact-theory"/);
+  assert.match(page, /className="module-learning-map compact-theory"/);
+  assert.match(page, /className="cloud-context compact-theory"/);
+  assert.match(page, /className="blueprint-coverage compact-theory"/);
+  assert.match(page, /name=\{`lessons-\$\{module\.id\}`\}/);
+  assert.match(page, /className="lesson-sources"/);
+  for (const retained of ["lesson.explanation[0]", "lesson.deepDive.mentalModel", "lesson.deepDive.concepts", "lesson.deepDive.mechanics", "lesson.deepDive.workedScenario", "lesson.example.code", "lesson.keyPoints", "lesson.pitfalls", "lesson.examDecision", "lesson.checkpoint"]) assert.ok(page.includes(retained), `${retained} must remain available`);
 });
 
 test("maps every blueprint objective while separating designed from reproduced evidence", () => {
