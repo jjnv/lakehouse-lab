@@ -18,6 +18,11 @@ if [[ ! -x "${vinext}" ]]; then
   exit 69
 fi
 
+echo "Validating editorial traceability, blueprint mappings and versioned labs..."
+node --test \
+  "${SITES_PROJECT_ROOT}/tests/curriculum-data.test.mjs" \
+  "${SITES_PROJECT_ROOT}/tests/v1-features.test.mjs"
+
 echo "Running bounded vinext build..."
 timeout \
   --signal=TERM \

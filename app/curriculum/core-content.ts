@@ -1560,7 +1560,7 @@ const coreBase: Record<string, BaseModuleContentPack> = {
       { question: "¿Qué objeto almacena resultados refrescables?", options: ["Materialized view", "View normal", "Widget", "External location"], answer: 0, explanation: "Una MV materializa el resultado y gestiona refresh.", domain: "Data Transformation and Modeling" },
       { question: "¿Qué hacer con errores reparables sin bloquear válidos?", options: ["Ignorarlos", "Borrar Bronze", "Conceder permisos", "Cuarentena trazable"], answer: 3, explanation: "La cuarentena conserva evidencia y deja avanzar registros válidos.", domain: "Data Transformation and Modeling" },
     ],
-    sources: [source("Medallion architecture", "https://docs.databricks.com/aws/en/lakehouse-architecture/medallion"), source("Materialized views", "https://docs.databricks.com/aws/en/ldp/materialized-views")],
+    sources: [source("Medallion architecture", "https://docs.databricks.com/aws/en/lakehouse/medallion"), source("Materialized views", "https://docs.databricks.com/aws/en/ldp/materialized-views")],
   },
 
   m08: {

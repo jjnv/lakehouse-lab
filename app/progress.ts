@@ -1,4 +1,5 @@
 import { modules, type CurriculumModule } from "./course-data";
+import { emptyGamification, sanitizeGamification, type GamificationState } from "./gamification";
 
 export type ModuleView = "lessons" | "lab" | "quiz";
 export type ExamMode = "associate" | "professional";
@@ -17,10 +18,11 @@ export type ProgressState = {
   examCompleted: Partial<Record<ExamMode, boolean>>;
   lastModuleId: string;
   lastView: ModuleView;
+  gamification: GamificationState;
 };
 
 export const STORAGE_KEY = "lakehouse-lab-progress-v2";
-export const CONTENT_VERSION = "academy-32-2026-07-r2";
+export const CONTENT_VERSION = "lakehouse-lab-v1.0.0";
 
 export const emptyProgress: ProgressState = {
   contentVersion: CONTENT_VERSION,
@@ -35,6 +37,7 @@ export const emptyProgress: ProgressState = {
   examCompleted: {},
   lastModuleId: "m01",
   lastView: "lessons",
+  gamification: emptyGamification,
 };
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -65,7 +68,7 @@ export function deriveProgress(progress: ProgressState): ProgressState {
 }
 
 export function sanitizeProgress(value: unknown): ProgressState {
-  if (!isRecord(value) || value.contentVersion !== CONTENT_VERSION) return emptyProgress;
+  if (!isRecord(value)) return emptyProgress;
   const completedLessons: Record<string, string[]> = {};
   if (isRecord(value.completedLessons)) {
     for (const curriculumModule of modules) {
@@ -140,6 +143,7 @@ export function sanitizeProgress(value: unknown): ProgressState {
     examCompleted,
     lastModuleId,
     lastView,
+    gamification: sanitizeGamification(value.gamification),
   });
 }
 

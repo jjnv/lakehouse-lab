@@ -25,6 +25,26 @@ import {
   type ModuleView,
   type ProgressState,
 } from "./progress";
+import {
+  badgeCatalog,
+  dailyChallenge,
+  deriveBadges,
+  grantRewards,
+  levelFor,
+  localDate,
+  weeklyMission,
+  type Reward,
+} from "./gamification";
+import {
+  blueprintObjectives,
+  coverageFor,
+  OFFICIAL_BLUEPRINTS,
+  PLATFORM_REFERENCES,
+  PUBLISHED_AT,
+  REVIEWED_AT,
+  SITE_VERSION,
+  type CertificationLevel,
+} from "./editorial-data";
 
 type ExamMode = StoredExamMode | null;
 
@@ -105,6 +125,8 @@ export default function Home() {
   const [showSolution, setShowSolution] = useState(false);
   const [submittedQuiz, setSubmittedQuiz] = useState(false);
   const [lockedNotice, setLockedNotice] = useState<string | null>(null);
+  const [previewMode, setPreviewMode] = useState(false);
+  const [celebration, setCelebration] = useState<string | null>(null);
   const [resetPending, setResetPending] = useState(false);
   const [announcement, setAnnouncement] = useState("");
   const [examMode, setExamMode] = useState<ExamMode>(null);
@@ -121,6 +143,7 @@ export default function Home() {
   const activeModule = modules.find((module) => module.id === activeId) ?? modules[0];
   const completedMinutes = modules.reduce((sum, module) => sum + earnedMinutes(module, progress), 0);
   const percent = Math.round((completedMinutes / totalMinutes) * 100);
+  const level = levelFor(progress.gamification.xp);
 
   const isUnlocked = (module: CurriculumModule) => moduleIsUnlocked(module, completed);
 
@@ -165,10 +188,15 @@ export default function Home() {
         const deepLinked = modules.find((module) => module.slug === slug);
         if (deepLinked && moduleIsUnlocked(deepLinked, restoredCompleted)) {
           setActiveId(deepLinked.id);
+          setPreviewMode(false);
           setView(deepLinked.id === restored.lastModuleId ? restored.lastView : "lessons");
           requestAnimationFrame(() => document.getElementById("academy")?.scrollIntoView({ behavior: scrollBehavior(), block: "start" }));
         } else if (deepLinked) {
-          setLockedNotice(`El módulo ${deepLinked.number} está bloqueado. Completa antes: ${missingPrerequisiteText(deepLinked, restoredCompleted)}.`);
+          setActiveId(deepLinked.id);
+          setPreviewMode(true);
+          setView("lessons");
+          setLockedNotice(`Vista previa del módulo ${deepLinked.number}. Para registrar progreso necesitas completar antes: ${missingPrerequisiteText(deepLinked, restoredCompleted)}.`);
+          requestAnimationFrame(() => document.getElementById("academy")?.scrollIntoView({ behavior: scrollBehavior(), block: "start" }));
         }
       } else if (!examAllowed) {
         const lastModule = modules.find((module) => module.id === restored.lastModuleId);
@@ -205,19 +233,27 @@ export default function Home() {
         setExamSubmitted(false);
         setExamAttempt((value) => value + 1);
         setLockedNotice(null);
+        setPreviewMode(false);
         return;
       }
       setExamMode(null);
       const deepLinked = modules.find((module) => module.slug === params.get("module"));
       if (deepLinked && moduleIsUnlocked(deepLinked, currentCompleted)) {
         setActiveId(deepLinked.id);
+        setPreviewMode(false);
         setView(deepLinked.id === current.lastModuleId ? current.lastView : "lessons");
         setSubmittedQuiz(false);
         setLabResult(null);
         setShowSolution(false);
         setLockedNotice(null);
       } else if (deepLinked) {
-        setLockedNotice(`El módulo ${deepLinked.number} está bloqueado. Completa antes: ${missingPrerequisiteText(deepLinked, currentCompleted)}.`);
+        setActiveId(deepLinked.id);
+        setPreviewMode(true);
+        setView("lessons");
+        setSubmittedQuiz(false);
+        setLabResult(null);
+        setShowSolution(false);
+        setLockedNotice(`Vista previa del módulo ${deepLinked.number}. Para registrar progreso necesitas completar antes: ${missingPrerequisiteText(deepLinked, currentCompleted)}.`);
       } else if (exam === "associate" || exam === "professional") {
         setLockedNotice(`Ese simulacro aún está bloqueado. ${exam === "associate" ? "Completa el módulo 11." : "Completa los proyectos de las cuatro ramas."}`);
       }
@@ -231,29 +267,43 @@ export default function Home() {
     activeLink?.scrollIntoView({ block: "nearest", inline: "center", behavior: scrollBehavior() });
   }, [activeId]);
 
-  function updateProgress(updater: (current: ProgressState) => ProgressState) {
-    setProgress((current) => deriveProgress(updater(current)));
+  function updateProgress(
+    updater: (current: ProgressState) => ProgressState,
+    activityRewards: Reward[] | ((before: ProgressState, after: ProgressState) => Reward[]) = [],
+  ) {
+    setProgress((current) => {
+      const derived = deriveProgress(updater(current));
+      const rewards = [...(typeof activityRewards === "function" ? activityRewards(current, derived) : activityRewards)];
+      const newlyCompleted = derived.completedModules.filter((id) => !current.completedModules.includes(id));
+      for (const id of newlyCompleted) {
+        rewards.push({ id: `module:${id}`, xp: 100 });
+        if (id === "m12" || id === "m32") rewards.push({ id: `capstone:${id}`, xp: 250 });
+      }
+      const granted = grantRewards(derived.gamification, rewards);
+      if (granted.awardedXp > 0) {
+        setCelebration(`+${granted.awardedXp} XP`);
+        window.setTimeout(() => setCelebration(null), 2200);
+      }
+      return { ...derived, gamification: deriveBadges(granted.state, derived.completedModules) };
+    });
   }
 
-  function openModule(module: CurriculumModule) {
-    if (!isUnlocked(module)) {
-      setLockedNotice(`El módulo ${module.number} está bloqueado. Completa antes: ${missingPrerequisiteText(module, completed)}.`);
-      setAnnouncement(`Módulo ${module.number} bloqueado.`);
-      return;
-    }
+  function openModule(module: CurriculumModule, requestedView: ModuleView = "lessons") {
+    const preview = !isUnlocked(module);
     setActiveId(module.id);
-    setView("lessons");
+    setPreviewMode(preview);
+    setView(requestedView);
     setSubmittedQuiz(false);
     setLabResult(null);
     setShowSolution(false);
     setExamMode(null);
-    setLockedNotice(null);
-    updateProgress((current) => ({ ...current, lastModuleId: module.id, lastView: "lessons" }));
+    setLockedNotice(preview ? `Vista previa del módulo ${module.number}. Para registrar progreso necesitas completar antes: ${missingPrerequisiteText(module, completed)}.` : null);
+    if (!preview) updateProgress((current) => ({ ...current, lastModuleId: module.id, lastView: requestedView }));
     const url = new URL(window.location.href);
     url.search = "";
     url.searchParams.set("module", module.slug);
     history.pushState({}, "", url);
-    setAnnouncement(`Módulo ${module.number}: ${module.title}.`);
+    setAnnouncement(`${preview ? "Vista previa" : "Módulo"} ${module.number}: ${module.title}.`);
     requestAnimationFrame(() => {
       document.getElementById("academy")?.scrollIntoView({ behavior: scrollBehavior(), block: "start" });
       moduleHeadingRef.current?.focus({ preventScroll: true });
@@ -261,11 +311,6 @@ export default function Home() {
   }
 
   function handleModuleLink(event: MouseEvent<HTMLAnchorElement>, module: CurriculumModule) {
-    if (!isUnlocked(module)) {
-      event.preventDefault();
-      openModule(module);
-      return;
-    }
     if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey || event.button !== 0) return;
     event.preventDefault();
     openModule(module);
@@ -273,7 +318,7 @@ export default function Home() {
 
   function selectView(nextView: ModuleView) {
     setView(nextView);
-    updateProgress((current) => ({ ...current, lastModuleId: activeModule.id, lastView: nextView }));
+    if (!previewMode) updateProgress((current) => ({ ...current, lastModuleId: activeModule.id, lastView: nextView }));
   }
 
   function handleTabKey(event: KeyboardEvent<HTMLButtonElement>, currentView: ModuleView) {
@@ -300,6 +345,7 @@ export default function Home() {
     setExamSubmitted(false);
     setExamAttempt((value) => value + 1);
     setLockedNotice(null);
+    setPreviewMode(false);
     const url = new URL(window.location.href);
     url.search = "";
     url.searchParams.set("exam", mode);
@@ -321,16 +367,24 @@ export default function Home() {
   }
 
   function toggleLesson(lessonId: string) {
+    if (previewMode) return;
     updateProgress((current) => {
       const lessons = new Set(current.completedLessons[activeModule.id] ?? []);
       if (lessons.has(lessonId)) lessons.delete(lessonId);
       else lessons.add(lessonId);
       return { ...current, completedLessons: { ...current.completedLessons, [activeModule.id]: [...lessons] }, lastModuleId: activeModule.id, lastView: "lessons" };
-    });
+    }, (before) => before.completedLessons[activeModule.id]?.includes(lessonId) ? [] : [{ id: `lesson:${activeModule.id}:${lessonId}`, xp: 10 }]);
     setAnnouncement("Progreso de la lección actualizado.");
   }
 
+  function reviewSource(lessonId: string, sourceId: string) {
+    if (previewMode) return;
+    updateProgress((current) => current, [{ id: `source:${activeModule.id}:${lessonId}:${sourceId}`, xp: 5 }]);
+    setAnnouncement("Fuente oficial registrada en tu ruta de estudio.");
+  }
+
   function setLabCode(value: string) {
+    if (previewMode) return;
     updateProgress((current) => ({
       ...current,
       labCode: { ...current.labCode, [activeModule.id]: value },
@@ -343,6 +397,7 @@ export default function Home() {
   }
 
   function setLabConfirmed(confirmed: boolean) {
+    if (previewMode) return;
     updateProgress((current) => ({
       ...current,
       labConfirmed: confirmed ? [...new Set([...current.labConfirmed, activeModule.id])] : current.labConfirmed.filter((id) => id !== activeModule.id),
@@ -354,6 +409,7 @@ export default function Home() {
   }
 
   function runLab() {
+    if (previewMode) return;
     const code = progress.labCode[activeModule.id] ?? activeModule.lab.starterCode;
     const checks = activeModule.lab.checks.map((check) => new RegExp(check.pattern, "i").test(code));
     const confirmed = progress.labConfirmed.includes(activeModule.id);
@@ -364,11 +420,12 @@ export default function Home() {
       labsPassed: passed ? [...new Set([...current.labsPassed, activeModule.id])] : current.labsPassed.filter((id) => id !== activeModule.id),
       lastModuleId: activeModule.id,
       lastView: "lab",
-    }));
+    }), passed ? [{ id: `lab:${activeModule.id}`, xp: 50 }] : []);
     setAnnouncement(passed ? "Laboratorio validado." : confirmed ? "La estructura del laboratorio aún tiene comprobaciones pendientes." : "Confirma la ejecución en Databricks antes de validar.");
   }
 
   function editPassedLab() {
+    if (previewMode) return;
     updateProgress((current) => ({
       ...current,
       labsPassed: current.labsPassed.filter((id) => id !== activeModule.id),
@@ -382,6 +439,7 @@ export default function Home() {
   }
 
   function chooseQuizAnswer(question: number, option: number) {
+    if (previewMode) return;
     updateProgress((current) => ({
       ...current,
       quizAnswers: { ...current.quizAnswers, [activeModule.id]: { ...(current.quizAnswers[activeModule.id] ?? {}), [question]: option } },
@@ -393,9 +451,12 @@ export default function Home() {
   }
 
   function submitQuiz() {
+    if (previewMode) return;
     const answers = progress.quizAnswers[activeModule.id] ?? {};
     const score = activeModule.quiz.reduce((sum, question, index) => sum + (answers[index] === question.answer ? 1 : 0), 0);
-    updateProgress((current) => ({ ...current, quizScores: { ...current.quizScores, [activeModule.id]: score } }));
+    const rewards: Reward[] = activeModule.quiz.flatMap((question, index) => answers[index] === question.answer ? [{ id: `quiz-correct:${activeModule.id}:${index}`, xp: 15 }] : []);
+    if (score === activeModule.quiz.length) rewards.push({ id: `quiz-perfect:${activeModule.id}`, xp: 40 });
+    updateProgress((current) => ({ ...current, quizScores: { ...current.quizScores, [activeModule.id]: score } }), rewards);
     setSubmittedQuiz(true);
     setAnnouncement(`Resultado del test: ${score} de ${activeModule.quiz.length}.`);
   }
@@ -418,6 +479,7 @@ export default function Home() {
     setActiveId("m01");
     setView("lessons");
     setSubmittedQuiz(false);
+    setPreviewMode(false);
     setLabResult(null);
     setShowSolution(false);
     setLockedNotice(null);
@@ -493,10 +555,11 @@ export default function Home() {
     <main>
       <a className="skip-link" href="#academy">Saltar al contenido del módulo</a>
       <div className="sr-only" aria-live="polite" aria-atomic="true">{announcement}</div>
+      {celebration && <div className="xp-toast" role="status" aria-live="polite"><span>✦</span>{celebration}</div>}
       <header className="site-header">
         <a className="brand" href="#top" aria-label="Inicio de Lakehouse Lab"><span className="brand-mark"><i /><i /><i /></span>Lakehouse Lab</a>
-        <nav aria-label="Navegación principal"><a href="#roadmap">Mapa</a><a href="#catalog">Temario</a><a href="#academy">Academia</a></nav>
-        <div className="header-progress"><span>{percent}%</span><div role="progressbar" aria-label="Progreso total" aria-valuemin={0} aria-valuemax={100} aria-valuenow={percent}><i style={{ width: `${percent}%` }} /></div></div>
+        <nav aria-label="Navegación principal"><a href="#roadmap">Mapa</a><a href="#catalog">Temario</a><a href="#blueprint-matrix">Blueprint</a><a href="#academy">Academia</a><a href="#editorial">Revisión</a></nav>
+        <div className="header-progress"><a href="#editorial">v{SITE_VERSION}</a><span>{percent}%</span><div role="progressbar" aria-label="Progreso total" aria-valuemin={0} aria-valuemax={100} aria-valuenow={percent}><i style={{ width: `${percent}%` }} /></div></div>
       </header>
 
       <div id="top" className="page-shell">
@@ -517,6 +580,7 @@ export default function Home() {
               <div className="progress-orbit" role="progressbar" aria-label="Progreso ponderado de la academia" aria-valuemin={0} aria-valuemax={100} aria-valuenow={percent} style={{ "--progress": `${percent * 3.6}deg` } as React.CSSProperties}><strong>{percent}%</strong><small>completado</small></div>
               <div><p>Tu progreso</p><b>{completed.size} de 32 módulos</b><span>{formatHours(completedMinutes)} de {formatHours(totalMinutes)}</span></div>
             </div>
+            <GamificationDashboard progress={progress} level={level} completed={completed} />
             <div className="mini-path" aria-label="Estructura de la academia">
               <div className="mini-core"><span>01—12</span><b>Tronco común</b></div>
               <div className="branch-lines"><i /><i /><i /><i /></div>
@@ -536,6 +600,8 @@ export default function Home() {
           <div><p className="eyebrow">Método autosuficiente</p><h2 id="study-method-title">Aprende, explica, decide y ejecuta.</h2><p>Cada módulo contiene todo el ciclo. Para que el curso sustituya a otros temarios, no marques una lección hasta poder explicar el mecanismo con tus propias palabras y reproducir el caso sin mirar.</p></div>
           <ol><li><span>01</span><div><b>Construye el modelo mental</b><p>Comprende qué problema resuelve el componente y cómo encaja en la plataforma.</p></div></li><li><span>02</span><div><b>Domina la mecánica</b><p>Sigue el flujo de datos, estado, permisos, costes y fallos paso a paso.</p></div></li><li><span>03</span><div><b>Razona con restricciones</b><p>Resuelve el caso comparando alternativas; no memorices palabras clave.</p></div></li><li><span>04</span><div><b>Ejecuta y recupera</b><p>Completa el laboratorio en Databricks, fuerza un fallo y conserva evidencia.</p></div></li></ol>
         </section>
+
+        <BlueprintMatrix onOpen={openModule} />
 
         <section id="roadmap" className="roadmap" aria-labelledby="roadmap-title">
           <div className="section-heading"><div><p className="eyebrow">Mapa de dominio</p><h2 id="roadmap-title">Un núcleo. Cuatro especializaciones.</h2></div><p>Completa el tronco común para abrir las cuatro ramas. El proyecto Professional converge todo lo aprendido.</p></div>
@@ -568,7 +634,7 @@ export default function Home() {
           <aside className="academy-sidebar">
             <p className="eyebrow">Academia</p>
             <nav className="sidebar-list" aria-label="Módulos de la academia">
-              {modules.map((module) => <a key={module.id} href={`?module=${module.slug}`} aria-disabled={!isUnlocked(module)} aria-current={activeModule.id === module.id ? "step" : undefined} onClick={(event) => handleModuleLink(event, module)} className={activeModule.id === module.id ? "active" : completed.has(module.id) ? "done" : ""}><span>{completed.has(module.id) ? "✓" : module.number}</span><div><b>{module.short}</b><small>{!isUnlocked(module) ? `Requiere ${module.prerequisites.map((id) => modules.find((item) => item.id === id)?.number).join(", ")}` : trackMeta[module.track].name}</small></div></a>)}
+              {modules.map((module) => <a key={module.id} href={`?module=${module.slug}`} data-preview={!isUnlocked(module) || undefined} aria-current={activeModule.id === module.id ? "step" : undefined} onClick={(event) => handleModuleLink(event, module)} className={activeModule.id === module.id ? "active" : completed.has(module.id) ? "done" : !isUnlocked(module) ? "preview-link" : ""}><span>{completed.has(module.id) ? "✓" : module.number}</span><div><b>{module.short}</b><small>{!isUnlocked(module) ? `Vista previa · requiere ${module.prerequisites.map((id) => modules.find((item) => item.id === id)?.number).join(", ")}` : trackMeta[module.track].name}</small></div></a>)}
             </nav>
           </aside>
 
@@ -577,6 +643,7 @@ export default function Home() {
               <div><p className="eyebrow">Módulo {activeModule.number} · {activeModule.level} · {formatHours(activeModule.minutes)}</p><h2 id="module-title" ref={moduleHeadingRef} tabIndex={-1}>{activeModule.title}</h2><p>{activeModule.description}</p></div>
               <div className={`mastery ${completed.has(activeModule.id) ? "passed" : ""}`} role="progressbar" aria-label={`Progreso del módulo ${activeModule.number}`} aria-valuemin={0} aria-valuemax={100} aria-valuenow={moduleProgressPercent(activeModule, progress)}><strong>{completed.has(activeModule.id) ? "✓" : `${moduleProgressPercent(activeModule, progress)}%`}</strong><span>{completed.has(activeModule.id) ? "Superado" : "Módulo"}</span></div>
             </div>
+            {previewMode && <div className="preview-banner" role="status"><span>Vista previa</span><div><b>Explora sin alterar tu progreso</b><p>Las lecciones, el laboratorio, las fuentes y el test son consultables. Las respuestas, soluciones, XP y controles de finalización permanecen desactivados.</p></div></div>}
             <div className="module-metadata"><span>{trackMeta[activeModule.track].name}</span>{activeModule.examDomains.map((domain) => <span key={domain}>{domain}</span>)}</div>
             <div className="academy-tabs" role="tablist" aria-label="Contenido del módulo">
               <button id="tab-lessons" role="tab" aria-controls="panel-lessons" aria-selected={view === "lessons"} tabIndex={view === "lessons" ? 0 : -1} className={view === "lessons" ? "active" : ""} onKeyDown={(event) => handleTabKey(event, "lessons")} onClick={() => selectView("lessons")}>01 · Lecciones <i>{progress.completedLessons[activeModule.id]?.length ?? 0}/5</i></button>
@@ -584,19 +651,61 @@ export default function Home() {
               <button id="tab-quiz" role="tab" aria-controls="panel-quiz" aria-selected={view === "quiz"} tabIndex={view === "quiz" ? 0 : -1} className={view === "quiz" ? "active" : ""} onKeyDown={(event) => handleTabKey(event, "quiz")} onClick={() => selectView("quiz")}>03 · Test <i>{progress.quizScores[activeModule.id] ?? "—"}/4</i></button>
             </div>
 
-            {view === "lessons" && <LessonsView module={activeModule} completedLessons={progress.completedLessons[activeModule.id] ?? []} onToggle={toggleLesson} onNext={() => selectView("lab")} />}
-            {view === "lab" && <LabView module={activeModule} code={progress.labCode[activeModule.id] ?? activeModule.lab.starterCode} cloud={cloud} result={labResult} passed={progress.labsPassed.includes(activeModule.id)} confirmed={progress.labConfirmed.includes(activeModule.id)} showSolution={showSolution} onCloud={setCloud} onCode={setLabCode} onConfirm={setLabConfirmed} onRun={runLab} onEdit={editPassedLab} onSolution={() => setShowSolution((value) => !value)} onNext={() => selectView("quiz")} />}
-            {view === "quiz" && <QuizView module={activeModule} answers={progress.quizAnswers[activeModule.id] ?? {}} submitted={submittedQuiz || progress.quizScores[activeModule.id] !== undefined} score={progress.quizScores[activeModule.id]} requirementsMet={(progress.completedLessons[activeModule.id]?.length ?? 0) >= activeModule.lessons.length && progress.labsPassed.includes(activeModule.id) && (activeModule.id === "m12" ? progress.examCompleted.associate === true : activeModule.id === "m32" ? progress.examCompleted.professional === true : true)} examRequired={activeModule.id === "m12" ? "associate" : activeModule.id === "m32" ? "professional" : null} examDone={activeModule.id === "m12" ? progress.examCompleted.associate === true : activeModule.id === "m32" ? progress.examCompleted.professional === true : true} onExam={openExam} onAnswer={chooseQuizAnswer} onSubmit={submitQuiz} onRetry={resetQuizAttempt} onBack={() => selectView("lessons")} />}
+            {view === "lessons" && <LessonsView module={activeModule} completedLessons={previewMode ? [] : progress.completedLessons[activeModule.id] ?? []} preview={previewMode} onToggle={toggleLesson} onSource={reviewSource} onNext={() => selectView("lab")} />}
+            {view === "lab" && <LabView module={activeModule} code={previewMode ? activeModule.lab.starterCode : progress.labCode[activeModule.id] ?? activeModule.lab.starterCode} cloud={cloud} result={previewMode ? null : labResult} passed={!previewMode && progress.labsPassed.includes(activeModule.id)} confirmed={!previewMode && progress.labConfirmed.includes(activeModule.id)} showSolution={!previewMode && showSolution} preview={previewMode} onCloud={setCloud} onCode={setLabCode} onConfirm={setLabConfirmed} onRun={runLab} onEdit={editPassedLab} onSolution={() => setShowSolution((value) => !value)} onNext={() => selectView("quiz")} />}
+            {view === "quiz" && <QuizView module={activeModule} answers={previewMode ? {} : progress.quizAnswers[activeModule.id] ?? {}} submitted={!previewMode && (submittedQuiz || progress.quizScores[activeModule.id] !== undefined)} score={previewMode ? undefined : progress.quizScores[activeModule.id]} preview={previewMode} requirementsMet={!previewMode && (progress.completedLessons[activeModule.id]?.length ?? 0) >= activeModule.lessons.length && progress.labsPassed.includes(activeModule.id) && (activeModule.id === "m12" ? progress.examCompleted.associate === true : activeModule.id === "m32" ? progress.examCompleted.professional === true : true)} examRequired={activeModule.id === "m12" ? "associate" : activeModule.id === "m32" ? "professional" : null} examDone={activeModule.id === "m12" ? progress.examCompleted.associate === true : activeModule.id === "m32" ? progress.examCompleted.professional === true : true} onExam={openExam} onAnswer={chooseQuizAnswer} onSubmit={submitQuiz} onRetry={resetQuizAttempt} onBack={() => selectView("lessons")} />}
             {completed.has(activeModule.id) && <div className="completion-banner" role="status"><div><span>✓</span><div><b>Módulo {activeModule.number} superado</b><p>{activeModule.id === "m12" ? "Las cuatro especializaciones ya están abiertas." : activeModule.id === "m32" ? "Has completado toda la academia." : "Tu progreso se ha guardado en este dispositivo."}</p></div></div>{activeModule.id !== "m32" && (activeModule.id === "m12" ? <button className="primary-button" onClick={() => document.getElementById("roadmap")?.scrollIntoView({ behavior: scrollBehavior() })}>Elegir especialización <span>→</span></button> : <button className="primary-button" onClick={() => openModule(continueModule)}>Continuar con {continueModule.number} <span>→</span></button>)}</div>}
           </div>
         </section>
+        <EditorialSection />
       </div>
 
-      {resetPending && <div className="dialog-backdrop" onKeyDown={handleResetDialogKey}><div ref={resetDialogRef} className="confirm-dialog" role="dialog" aria-modal="true" aria-labelledby="reset-title" aria-describedby="reset-description"><p className="eyebrow">Acción irreversible</p><h2 id="reset-title">¿Reiniciar toda la academia?</h2><p id="reset-description">Se borrarán lecciones, laboratorios, tests y simulacros guardados en este dispositivo.</p><div><button className="secondary-button" autoFocus onClick={closeResetDialog}>Conservar progreso</button><button className="danger-button" onClick={resetAcademy}>Sí, borrar progreso</button></div></div></div>}
+      {resetPending && <div className="dialog-backdrop" onKeyDown={handleResetDialogKey}><div ref={resetDialogRef} className="confirm-dialog" role="dialog" aria-modal="true" aria-labelledby="reset-title" aria-describedby="reset-description"><p className="eyebrow">Acción irreversible</p><h2 id="reset-title">¿Reiniciar toda la academia?</h2><p id="reset-description">Se borrarán lecciones, laboratorios, tests, simulacros, XP, rachas e insignias guardados en este dispositivo.</p><div><button className="secondary-button" autoFocus onClick={closeResetDialog}>Conservar progreso</button><button className="danger-button" onClick={resetAcademy}>Sí, borrar progreso</button></div></div></div>}
 
-      <footer><a className="brand" href="#top"><span className="brand-mark"><i /><i /><i /></span>Lakehouse Lab</a><p>Contenido original basado en documentación oficial · no contiene preguntas reales de examen.</p><a href="#top">Volver arriba ↑</a></footer>
+      <footer><a className="brand" href="#top"><span className="brand-mark"><i /><i /><i /></span>Lakehouse Lab</a><p>Autoría Lakehouse Lab · v{SITE_VERSION} · revisión {REVIEWED_AT} · no contiene preguntas reales de examen.</p><div><a href="#editorial">Autoría y changelog</a><a href="#top">Volver arriba ↑</a></div></footer>
     </main>
   );
+}
+
+function GamificationDashboard({ progress, level, completed }: { progress: ProgressState; level: ReturnType<typeof levelFor>; completed: Set<string> }) {
+  const todayActions = progress.gamification.dailyActionCounts[localDate()] ?? 0;
+  return <section className="game-panel" aria-labelledby="game-title">
+    <div className="game-level"><div><p className="eyebrow">Nivel actual</p><h2 id="game-title">{level.current.name}</h2><span>{progress.gamification.xp.toLocaleString("es-ES")} XP{level.next ? ` · ${level.next.xp - progress.gamification.xp} para ${level.next.name}` : " · nivel máximo"}</span></div><strong>{progress.gamification.streak}<small>días</small></strong></div>
+    <div className="level-progress" role="progressbar" aria-label="Progreso al siguiente nivel" aria-valuemin={0} aria-valuemax={100} aria-valuenow={level.percent}><i style={{ width: `${level.percent}%` }} /></div>
+    <div className="missions"><article><span>Reto diario</span><b>{dailyChallenge(modules, completed, progress.completedLessons)}</b></article><article><span>Misión semanal</span><b>{weeklyMission(modules, completed)}</b></article></div>
+    <div className="combo-row"><span>Combo de hoy</span>{[3,5,7].map((threshold) => <i key={threshold} className={todayActions >= threshold ? "earned" : ""}>{threshold}</i>)}</div>
+    <div className="badge-row" aria-label="Insignias obtenidas">{progress.gamification.badges.length ? progress.gamification.badges.map((id) => { const badge = badgeCatalog[id as keyof typeof badgeCatalog]; return badge ? <span key={id} title={badge.label}><i>{badge.icon}</i>{badge.label}</span> : null; }) : <small>Tu primera insignia aparecerá al completar un laboratorio.</small>}</div>
+  </section>;
+}
+
+function BlueprintMatrix({ onOpen }: { onOpen: (module: CurriculumModule, view?: ModuleView) => void }) {
+  const [level, setLevel] = useState<CertificationLevel>("Associate");
+  const items = blueprintObjectives.filter((item) => item.level === level);
+  const coverage = coverageFor(level);
+  const domains = [...new Set(items.map((item) => item.domain))];
+  return <section id="blueprint-matrix" className="blueprint-matrix" aria-labelledby="matrix-title">
+    <div className="section-heading"><div><p className="eyebrow">Matriz auditable</p><h2 id="matrix-title">Blueprint completo, objetivo por objetivo.</h2></div><p>Los porcentajes expresan cobertura del curso, no pesos oficiales del examen. Las guías oficiales actuales no publican ponderaciones por dominio.</p></div>
+    <div className="matrix-shell">
+      <div className="matrix-tabs" role="tablist" aria-label="Certificación">{(["Associate","Professional"] as const).map((item) => <button key={item} role="tab" aria-selected={level === item} className={level === item ? "active" : ""} onClick={() => setLevel(item)}>{item}</button>)}</div>
+      <div className="coverage-stats"><article><strong>{coverage.total}%</strong><span>objetivos mapeados</span></article><article><strong>{coverage.theory}%</strong><span>cobertura teórica</span></article><article><strong>{coverage.practice}%</strong><span>cobertura práctica</span></article><article><strong>{coverage.assessment}%</strong><span>cobertura evaluada</span></article></div>
+      <div className="domain-coverage">{domains.map((domain) => { const domainItems = items.filter((item) => item.domain === domain); const covered = domainItems.filter((item) => item.moduleIds.length).length; const percentage = Math.round(covered / domainItems.length * 100); return <article key={domain}><div><b>{domain}</b><span>{covered}/{domainItems.length} objetivos</span></div><div role="progressbar" aria-label={`Cobertura de ${domain}`} aria-valuemin={0} aria-valuemax={100} aria-valuenow={percentage}><i style={{width:`${percentage}%`}} /></div><strong>{percentage}%</strong></article>; })}</div>
+      <div className="matrix-table-wrap"><table><thead><tr><th>Dominio y objetivo oficial</th><th>Lecciones</th><th>Laboratorios</th><th>Preguntas</th><th>Cobertura</th></tr></thead><tbody>{items.map((item) => <tr key={item.id}><td><small>{item.domain}</small><b>{item.objective}</b></td>{(["lessons", "lab", "quiz"] as const).map((target) => <td key={target}><div className="matrix-modules">{item.moduleIds.map((id) => { const module = modules.find((entry) => entry.id === id); return module ? <button key={id} onClick={() => onOpen(module, target)} aria-label={`Abrir ${target === "lessons" ? "lecciones" : target === "lab" ? "laboratorio" : "preguntas"} del módulo ${module.number}`}>M{module.number}</button> : null; })}</div></td>)}<td><span className={item.theory && item.practice && item.assessment ? "covered" : "gap"}>{item.theory && item.practice && item.assessment ? "3/3" : "Parcial"}</span></td></tr>)}</tbody></table></div>
+      <div className="matrix-foot"><a href={OFFICIAL_BLUEPRINTS[level].href} target="_blank" rel="noreferrer">Abrir {OFFICIAL_BLUEPRINTS[level].label} ↗</a><span>Revalidado {REVIEWED_AT}</span></div>
+    </div>
+  </section>;
+}
+
+function EditorialSection() {
+  return <section id="editorial" className="editorial" aria-labelledby="editorial-title">
+    <div className="editorial-heading"><div><p className="eyebrow">Ficha editorial</p><h2 id="editorial-title">Contenido trazable y revisable.</h2><p>Lakehouse Lab publica qué versión estás estudiando, qué fuentes la respaldan y cómo se mantiene.</p></div><div className="version-seal"><span>Lakehouse Lab</span><strong>v{SITE_VERSION}</strong><small>Primera versión pública auditable</small></div></div>
+    <div className="editorial-grid">
+      <article><span>Autoría</span><h3>Lakehouse Lab</h3><p>Contenido original de formación, basado en documentación oficial y sin preguntas reales de examen.</p></article>
+      <article><span>Control de versión</span><h3>Publicado {PUBLISHED_AT}</h3><p>Última revisión: {REVIEWED_AT}. Major cambia blueprint o estructura; minor amplía contenido o labs; patch corrige fuentes o erratas.</p></article>
+      <article><span>Blueprints base</span><h3>Associate + Professional</h3><p><a href={OFFICIAL_BLUEPRINTS.Associate.href} target="_blank" rel="noreferrer">Associate · mayo 2026 ↗</a><a href={OFFICIAL_BLUEPRINTS.Professional.href} target="_blank" rel="noreferrer">Professional · septiembre 2025 ↗</a></p></article>
+      <article><span>Procedimiento de revisión</span><h3>Revisión trimestral y por evento</h3><ol><li>Comprobar guías, Runtime y release notes.</li><li>Verificar cada afirmación y laboratorio.</li><li>Actualizar matriz, costes y changelog.</li><li>Revalidar enlaces, progreso, accesibilidad y build.</li><li>Comprobación recomendada dos semanas antes de cada examen.</li></ol></article>
+    </div>
+    <div className="changelog"><div><p className="eyebrow">Changelog</p><h3>v{SITE_VERSION} · {PUBLISHED_AT}</h3></div><ul><li>Autoría, versionado y procedimiento editorial públicos.</li><li>Citas técnicas por lección y matriz completa de blueprints.</li><li>Vista previa segura de módulos bloqueados.</li><li>Laboratorios versionados y gamificación con XP, rachas, combos e insignias.</li></ul></div>
+  </section>;
 }
 
 function TrackRow({ track, completed, isUnlocked, onLink, compact = false }: { track: TrackId; completed: Set<string>; isUnlocked: (module: CurriculumModule) => boolean; onLink: (event: MouseEvent<HTMLAnchorElement>, module: CurriculumModule) => void; compact?: boolean }) {
@@ -604,23 +713,28 @@ function TrackRow({ track, completed, isUnlocked, onLink, compact = false }: { t
   const meta = trackMeta[track];
   return <article className={`track-row track-${meta.color} ${compact ? "compact" : ""}`}>
     <div className="track-heading"><span>{meta.eyebrow}</span><h3>{meta.name}</h3><p>{meta.description}</p></div>
-    <div className="track-modules">{items.map((module) => <a key={module.id} href={`?module=${module.slug}`} onClick={(event) => onLink(event, module)} aria-disabled={!isUnlocked(module)} title={!isUnlocked(module) ? `Requiere ${module.prerequisites.join(", ")}` : undefined} className={completed.has(module.id) ? "done" : isUnlocked(module) ? "ready" : "locked"}><span>{completed.has(module.id) ? "✓" : module.number}</span><b>{module.short}</b><small>{isUnlocked(module) ? formatHours(module.minutes) : `Requiere ${module.prerequisites.map((id) => modules.find((item) => item.id === id)?.number).join(", ")}`}</small></a>)}</div>
+    <div className="track-modules">{items.map((module) => <a key={module.id} href={`?module=${module.slug}`} onClick={(event) => onLink(event, module)} data-preview={!isUnlocked(module) || undefined} title={!isUnlocked(module) ? `Abrir vista previa. Requiere ${module.prerequisites.join(", ")}` : undefined} className={completed.has(module.id) ? "done" : isUnlocked(module) ? "ready" : "locked"}><span>{completed.has(module.id) ? "✓" : module.number}</span><b>{module.short}</b><small>{isUnlocked(module) ? formatHours(module.minutes) : `Vista previa · requiere ${module.prerequisites.map((id) => modules.find((item) => item.id === id)?.number).join(", ")}`}</small></a>)}</div>
   </article>;
 }
 
 function ModuleCard({ module, unlocked, done, progress, onLink }: { module: CurriculumModule; unlocked: boolean; done: boolean; progress: number; onLink: (event: MouseEvent<HTMLAnchorElement>, module: CurriculumModule) => void }) {
   const prerequisiteNames = module.prerequisites.map((id) => modules.find((item) => item.id === id)?.number).filter(Boolean).join(", ");
-  return <a href={`?module=${module.slug}`} aria-disabled={!unlocked} className={`module-card track-${trackMeta[module.track].color}`} onClick={(event) => onLink(event, module)}>
+  return <a href={`?module=${module.slug}`} data-preview={!unlocked || undefined} className={`module-card track-${trackMeta[module.track].color}`} onClick={(event) => onLink(event, module)}>
     <span className="module-number">{done ? "✓" : module.number}</span>
     <span className="module-track">{trackMeta[module.track].name}</span>
     <b>{module.title}</b>
     <p>{module.description}</p>
     <div><span>{formatHours(module.minutes)}</span><span>5 capítulos</span><span>{module.kind === "capstone" ? "Proyecto final" : "1 práctica"}</span>{progress > 0 && !done && <span>{progress}% completado</span>}</div>
-    <small className={done ? "done" : unlocked ? "ready" : "locked"}>{done ? "Módulo superado" : unlocked ? "Abrir módulo →" : `Requiere ${prerequisiteNames}`}</small>
+    <small className={done ? "done" : unlocked ? "ready" : "locked"}>{done ? "Módulo superado" : unlocked ? "Abrir módulo →" : `Vista previa → · requiere ${prerequisiteNames}`}</small>
   </a>;
 }
 
-function LessonsView({ module, completedLessons, onToggle, onNext }: { module: CurriculumModule; completedLessons: string[]; onToggle: (id: string) => void; onNext: () => void }) {
+function ClaimRefs({ module, lessonId, refIds, onSource }: { module: CurriculumModule; lessonId: string; refIds: string[]; onSource: (lessonId: string, sourceId: string) => void }) {
+  const sources = refIds.map((id) => module.sources.find((source) => source.id === id)).filter((source): source is CurriculumModule["sources"][number] => Boolean(source));
+  return <sup className="claim-refs" aria-label="Fuentes de esta afirmación">{sources.map((source) => <a key={source.id} href={source.href} target="_blank" rel="noreferrer" title={`${source.label} · revisada ${source.reviewedAt}`} onClick={() => onSource(lessonId, source.id)}>[{module.sources.findIndex((item) => item.id === source.id) + 1}]</a>)}</sup>;
+}
+
+function LessonsView({ module, completedLessons, preview, onToggle, onSource, onNext }: { module: CurriculumModule; completedLessons: string[]; preview: boolean; onToggle: (id: string) => void; onSource: (lessonId: string, sourceId: string) => void; onNext: () => void }) {
   const mappedCoverage = examMappings.filter((mapping) => mapping.moduleIds.includes(module.id));
   const blueprintCoverage = mappedCoverage.length ? mappedCoverage : [{ level: module.level, domain: module.examDomains.join(" · "), objectives: module.outcomes }];
   return <div id="panel-lessons" className="lessons-view" role="tabpanel" aria-labelledby="tab-lessons" tabIndex={0}>
@@ -632,27 +746,28 @@ function LessonsView({ module, completedLessons, onToggle, onNext }: { module: C
       return <article className={`lesson ${done ? "done" : ""}`} key={lesson.id}>
         <div className="lesson-index">{String(index + 1).padStart(2,"0")}</div>
         <div className="lesson-copy">
-          <p className="eyebrow">{lesson.kicker}</p><h3>{lesson.title}</h3><p className="lead">{lesson.summary}</p>
-          <div className="lesson-explanation">{lesson.explanation.map((paragraph) => <p key={paragraph}>{paragraph}</p>)}</div>
+          <p className="eyebrow">{lesson.kicker}</p><h3>{lesson.title}</h3><p className="lead">{lesson.summary}<ClaimRefs module={module} lessonId={lesson.id} refIds={lesson.refIds} onSource={onSource} /></p>
+          <div className="lesson-explanation">{lesson.explanation.map((paragraph) => <p key={paragraph}>{paragraph}<ClaimRefs module={module} lessonId={lesson.id} refIds={lesson.refIds} onSource={onSource} /></p>)}</div>
           <details className="deep-dive">
             <summary><span>Desarrollo conceptual completo</span><small>Modelo mental · mecánica · conceptos · caso razonado · ≈ {lessonMinutes} min</small></summary>
             <div className="deep-dive-body">
-              <section className="mental-model"><p className="eyebrow">Modelo mental</p><h4>La idea que organiza todo</h4><p>{lesson.deepDive.mentalModel}</p></section>
-              <section className="mechanics"><p className="eyebrow">Mecánica interna</p><h4>Qué ocurre realmente y por qué</h4>{lesson.deepDive.mechanics.map((paragraph) => <p key={paragraph}>{paragraph}</p>)}</section>
-              <section className="concepts"><div><p className="eyebrow">Vocabulario operativo</p><h4>Conceptos que debes poder explicar</h4></div><div className="concept-grid">{lesson.deepDive.concepts.map((concept) => <article key={concept.term}><h5>{concept.term}</h5><p>{concept.definition}</p><small><b>Por qué importa:</b> {concept.whyItMatters}</small></article>)}</div></section>
-              <section className="worked-scenario"><div><p className="eyebrow">Caso razonado</p><h4>De la restricción a la decisión</h4><p>{lesson.deepDive.workedScenario.situation}</p></div><ol>{lesson.deepDive.workedScenario.reasoning.map((step, stepIndex) => <li key={step}><span>{stepIndex + 1}</span><p>{step}</p></li>)}</ol><div className="scenario-outcome"><b>Resultado defendible</b><p>{lesson.deepDive.workedScenario.outcome}</p></div></section>
+              <section className="mental-model"><p className="eyebrow">Modelo mental</p><h4>La idea que organiza todo</h4><p>{lesson.deepDive.mentalModel}<ClaimRefs module={module} lessonId={lesson.id} refIds={lesson.refIds} onSource={onSource} /></p></section>
+              <section className="mechanics"><p className="eyebrow">Mecánica interna</p><h4>Qué ocurre realmente y por qué</h4>{lesson.deepDive.mechanics.map((paragraph) => <p key={paragraph}>{paragraph}<ClaimRefs module={module} lessonId={lesson.id} refIds={lesson.refIds} onSource={onSource} /></p>)}</section>
+              <section className="concepts"><div><p className="eyebrow">Vocabulario operativo</p><h4>Conceptos que debes poder explicar</h4></div><div className="concept-grid">{lesson.deepDive.concepts.map((concept) => <article key={concept.term}><h5>{concept.term}</h5><p>{concept.definition}<ClaimRefs module={module} lessonId={lesson.id} refIds={lesson.refIds} onSource={onSource} /></p><small><b>Por qué importa:</b> {concept.whyItMatters}<ClaimRefs module={module} lessonId={lesson.id} refIds={lesson.refIds} onSource={onSource} /></small></article>)}</div></section>
+              <section className="worked-scenario"><div><p className="eyebrow">Caso razonado</p><h4>De la restricción a la decisión</h4><p>{lesson.deepDive.workedScenario.situation}<ClaimRefs module={module} lessonId={lesson.id} refIds={lesson.refIds} onSource={onSource} /></p></div><ol>{lesson.deepDive.workedScenario.reasoning.map((step, stepIndex) => <li key={step}><span>{stepIndex + 1}</span><p>{step}<ClaimRefs module={module} lessonId={lesson.id} refIds={lesson.refIds} onSource={onSource} /></p></li>)}</ol><div className="scenario-outcome"><b>Resultado defendible</b><p>{lesson.deepDive.workedScenario.outcome}<ClaimRefs module={module} lessonId={lesson.id} refIds={lesson.refIds} onSource={onSource} /></p></div></section>
             </div>
           </details>
-          <div className="key-points"><h4>Qué debes retener</h4><div>{lesson.keyPoints.map((point) => <span key={point}>✓ {point}</span>)}</div></div>
-          <div className="code-example"><div className="code-example-header"><div><span>{lesson.example.language}</span><b>{lesson.example.title}</b></div><CopyCodeButton code={lesson.example.code} /></div><pre><code>{lesson.example.code}</code></pre><p>{lesson.example.note}</p></div>
-          <div className="lesson-guidance"><div className="pitfalls"><h4>Errores frecuentes</h4>{lesson.pitfalls.map((pitfall) => <p key={pitfall}>× {pitfall}</p>)}</div><div className="exam-decision"><h4>Decisión de examen</h4><p>{lesson.examDecision}</p></div></div>
-          <details className="checkpoint"><summary>Comprueba tu razonamiento</summary><p><b>{lesson.checkpoint.question}</b></p><p>{lesson.checkpoint.answer}</p></details>
+          <div className="key-points"><h4>Qué debes retener</h4><div>{lesson.keyPoints.map((point) => <span key={point}>✓ {point}<ClaimRefs module={module} lessonId={lesson.id} refIds={lesson.refIds} onSource={onSource} /></span>)}</div></div>
+          <div className="code-example"><div className="code-example-header"><div><span>{lesson.example.language}</span><b>{lesson.example.title}</b></div><CopyCodeButton code={lesson.example.code} /></div><pre><code>{lesson.example.code}</code></pre><p>{lesson.example.note}<ClaimRefs module={module} lessonId={lesson.id} refIds={lesson.refIds} onSource={onSource} /></p></div>
+          <div className="lesson-guidance"><div className="pitfalls"><h4>Errores frecuentes</h4>{lesson.pitfalls.map((pitfall) => <p key={pitfall}>× {pitfall}<ClaimRefs module={module} lessonId={lesson.id} refIds={lesson.refIds} onSource={onSource} /></p>)}</div><div className="exam-decision"><h4>Decisión de examen</h4><p>{lesson.examDecision}<ClaimRefs module={module} lessonId={lesson.id} refIds={lesson.refIds} onSource={onSource} /></p></div></div>
+          <details className="checkpoint"><summary>Comprueba tu razonamiento</summary><p><b>{lesson.checkpoint.question}</b></p><p>{lesson.checkpoint.answer}<ClaimRefs module={module} lessonId={lesson.id} refIds={lesson.refIds} onSource={onSource} /></p></details>
+          <div className="lesson-sources"><span>Fuentes de la lección</span>{lesson.refIds.map((id) => module.sources.find((source) => source.id === id)).filter((source): source is CurriculumModule["sources"][number] => Boolean(source)).map((source) => <a key={source.id} href={source.href} target="_blank" rel="noreferrer" onClick={() => onSource(lesson.id, source.id)}>{source.label}<small>{source.publisher} · {source.cloud} · {source.version} · revisada {source.reviewedAt}</small></a>)}</div>
         </div>
-        <button className="lesson-check" onClick={() => onToggle(lesson.id)} aria-pressed={done} title="Márcala solo cuando puedas explicar el modelo, la mecánica y la decisión sin mirar.">{done ? "✓ Puedo explicarla" : "Puedo explicarla"}</button>
+        <button className="lesson-check" disabled={preview} onClick={() => onToggle(lesson.id)} aria-pressed={done} title={preview ? "Disponible al desbloquear el módulo" : "Márcala solo cuando puedas explicar el modelo, la mecánica y la decisión sin mirar."}>{preview ? "Solo lectura" : done ? "✓ Puedo explicarla" : "Puedo explicarla"}</button>
       </article>;
     })}
-    <div className="sources-card"><div><span>Referencias oficiales</span><b>Revisadas para esta versión</b></div><ul>{module.sources.map((source) => <li key={source.href}><a href={source.href} target="_blank" rel="noreferrer">{source.label} <span>↗</span></a><small>Revisada {source.reviewedAt}</small></li>)}</ul></div>
-    <div className="view-next"><span>{completedLessons.length}/5 lecciones completadas</span><button className="primary-button" onClick={onNext}>Ir al laboratorio <span>→</span></button></div>
+    <div className="sources-card"><div><span>Registro de fuentes</span><b>Referencias oficiales del módulo</b></div><ul>{module.sources.map((source) => <li key={source.href}><a href={source.href} target="_blank" rel="noreferrer">{source.label} <span>↗</span></a><small>{source.publisher} · {source.cloud} · revisada {source.reviewedAt}</small></li>)}</ul></div>
+    <div className="view-next"><span>{preview ? "Vista previa: el progreso no cambia" : `${completedLessons.length}/5 lecciones completadas`}</span><button className="primary-button" onClick={onNext}>Ir al laboratorio <span>→</span></button></div>
   </div>;
 }
 
@@ -670,7 +785,7 @@ function CopyCodeButton({ code }: { code: string }) {
   return <button type="button" onClick={copy} aria-live="polite">{status === "copied" ? "✓ Copiado" : status === "failed" ? "No se pudo copiar" : "Copiar código"}</button>;
 }
 
-function LabView({ module, code, cloud, result, passed, confirmed, showSolution, onCloud, onCode, onConfirm, onRun, onEdit, onSolution, onNext }: { module: CurriculumModule; code: string; cloud: "AWS"|"Azure"|"GCP"; result: { checks:boolean[]; passed:boolean } | null; passed:boolean; confirmed:boolean; showSolution:boolean; onCloud:(cloud:"AWS"|"Azure"|"GCP")=>void; onCode:(code:string)=>void; onConfirm:(confirmed:boolean)=>void; onRun:()=>void; onEdit:()=>void; onSolution:()=>void; onNext:()=>void }) {
+function LabView({ module, code, cloud, result, passed, confirmed, showSolution, preview, onCloud, onCode, onConfirm, onRun, onEdit, onSolution, onNext }: { module: CurriculumModule; code: string; cloud: "AWS"|"Azure"|"GCP"; result: { checks:boolean[]; passed:boolean } | null; passed:boolean; confirmed:boolean; showSolution:boolean; preview:boolean; onCloud:(cloud:"AWS"|"Azure"|"GCP")=>void; onCode:(code:string)=>void; onConfirm:(confirmed:boolean)=>void; onRun:()=>void; onEdit:()=>void; onSolution:()=>void; onNext:()=>void }) {
   const cloudNote = module.lab.cloudNotes.find((item) => item.cloud === cloud)!;
   const clouds = ["AWS", "Azure", "GCP"] as const;
   const practiceMinutes = Math.round(module.minutes * (module.kind === "capstone" ? .4 : module.kind === "branch-project" ? .5 : .35));
@@ -684,23 +799,31 @@ function LabView({ module, code, cloud, result, passed, confirmed, showSolution,
   }
   return <div id="panel-lab" className="lab-view" role="tabpanel" aria-labelledby="tab-lab" tabIndex={0}>
     <div className="lab-brief"><span>⌘</span><div><p className="eyebrow">{module.kind === "capstone" ? "Proyecto integrador" : "Práctica guiada"} · {formatHours(practiceMinutes)}</p><h3>{module.lab.title}</h3><p>{module.lab.goal}</p><small>{module.lab.scenario}</small></div></div>
+    <section className="lab-spec" aria-label="Ficha versionada del laboratorio">
+      <div className="lab-spec-head"><div><span>{module.lab.id}</span><strong>v{module.lab.version}</strong></div><small>Revisado {module.lab.reviewedAt}</small></div>
+      <div className="lab-spec-grid"><article><span>Entorno recomendado</span><b>{module.lab.freeEdition.supported ? "Free Edition compatible" : "Cuenta de pago · simulación disponible"}</b><p>{module.lab.freeEdition.note}</p></article><article><span>Runtime</span><b>{module.lab.runtime.free}</b><p>Compute clásico: {module.lab.runtime.classic}</p></article><article><span>Coste estimado</span><b>{module.lab.freeEdition.supported ? module.lab.estimatedCost.free : module.lab.estimatedCost.paid[cloud]}</b><p>Alternativa {cloud}: {module.lab.estimatedCost.paid[cloud]}. {module.lab.estimatedCost.assumptions}</p></article><article><span>Resultado esperado</span><b>Validación reproducible</b><p>{module.lab.expectedOutcome}</p></article></div>
+      <div className="lab-prereqs"><span>Prerequisitos</span><ul>{module.lab.prerequisites.map((item) => <li key={item}>{item}</li>)}</ul></div>
+      <div className="lab-spec-links"><a href={PLATFORM_REFERENCES.freeEdition.href} target="_blank" rel="noreferrer">Límites de Free Edition ↗</a><a href={PLATFORM_REFERENCES.runtime.href} target="_blank" rel="noreferrer">Runtime soportados ↗</a><a href={PLATFORM_REFERENCES.pricing.href} target="_blank" rel="noreferrer">Precios oficiales ↗</a></div>
+    </section>
     <ol className="lab-steps">{module.lab.steps.map((step,index) => <li key={step}><span>{index+1}</span><p>{step}</p></li>)}</ol>
     <div className="evidence-card"><h4>Evidencia que debes conservar</h4><ul>{module.lab.expectedEvidence.map((evidence) => <li key={evidence}>{evidence}</li>)}</ul></div>
     <div className="cloud-panel"><div className="cloud-tabs" role="tablist" aria-label="Variante de nube">{clouds.map((item) => <button id={`cloud-${item}`} role="tab" aria-controls="cloud-note" aria-selected={cloud===item} tabIndex={cloud===item?0:-1} className={cloud===item?"active":""} onKeyDown={(event) => handleCloudKey(event, item)} onClick={() => onCloud(item)} key={item}>{item}</button>)}</div><p id="cloud-note" role="tabpanel" aria-labelledby={`cloud-${cloud}`}>{cloudNote.note}</p></div>
-    <div className="editor"><div className="editor-bar"><div><i/><i/><i/><b>{module.lab.solution.trimStart().match(/^(SELECT|CREATE|ALTER|MERGE|WITH|INSERT|GRANT)/) ? "solution.sql" : "solution.py"}</b></div><div className="editor-tools"><CopyCodeButton code={showSolution ? module.lab.solution : code} /><button disabled={!showSolution && !result && !passed} title={!result && !passed ? "Haz primero un intento de comprobación" : undefined} onClick={onSolution}>{showSolution ? "Ocultar referencia" : "Ver referencia"}</button></div></div><textarea value={showSolution ? module.lab.solution : code} onChange={(event) => onCode(event.target.value)} readOnly={showSolution || passed} spellCheck={false} aria-label="Editor del laboratorio" aria-describedby="sandbox-note"/><div className="editor-actions"><span id="sandbox-note">{passed ? "Práctica aprobada; usa «Editar y revalidar» para cambiarla." : "Autocomprobación de estructura; ejecuta el código en tu workspace real."}</span><button disabled={passed} onClick={onRun}>▶ Comprobar estructura</button></div></div>
-    <label className="evidence-confirm"><input type="checkbox" checked={confirmed} disabled={passed} onChange={(event) => onConfirm(event.target.checked)} /><span><b>He ejecutado la práctica en Databricks</b><small>He comparado la salida con la evidencia esperada y no he incluido credenciales en el código.</small></span></label>
+    <div className="editor"><div className="editor-bar"><div><i/><i/><i/><b>{module.lab.solution.trimStart().match(/^(SELECT|CREATE|ALTER|MERGE|WITH|INSERT|GRANT)/) ? "solution.sql" : "solution.py"}</b></div><div className="editor-tools"><CopyCodeButton code={showSolution ? module.lab.solution : code} /><button disabled={preview || (!showSolution && !result && !passed)} title={preview ? "La solución permanece oculta en vista previa" : !result && !passed ? "Haz primero un intento de comprobación" : undefined} onClick={onSolution}>{showSolution ? "Ocultar referencia" : "Ver referencia"}</button></div></div><textarea value={showSolution ? module.lab.solution : code} onChange={(event) => onCode(event.target.value)} readOnly={preview || showSolution || passed} spellCheck={false} aria-label="Editor del laboratorio" aria-describedby="sandbox-note"/><div className="editor-actions"><span id="sandbox-note">{preview ? "Vista previa de solo lectura; no se registra código, progreso ni XP." : passed ? "Práctica aprobada; usa «Editar y revalidar» para cambiarla." : "Autocomprobación de estructura; ejecuta el código en tu workspace real."}</span><button disabled={preview || passed} onClick={onRun}>▶ Comprobar estructura</button></div></div>
+    <label className="evidence-confirm"><input type="checkbox" checked={confirmed} disabled={preview || passed} onChange={(event) => onConfirm(event.target.checked)} /><span><b>{preview ? "Disponible al desbloquear el módulo" : "He ejecutado la práctica en Databricks"}</b><small>{preview ? "Explorar este laboratorio no modifica el progreso." : "He comparado la salida con la evidencia esperada y no he incluido credenciales en el código."}</small></span></label>
     {result && <div className={`lab-result ${result.passed ? "passed":"failed"}`} role="status"><div><strong>{result.passed ? "✓ Práctica completada" : "Revisa la estructura o la confirmación"}</strong><span>{result.checks.filter(Boolean).length}/{result.checks.length} comprobaciones</span></div>{module.lab.checks.map((check,index) => <p key={check.label} className={result.checks[index]?"ok":"missing"}>{result.checks[index]?"✓":"×"} {check.label}</p>)}{!confirmed && <p className="missing">× Falta confirmar la ejecución real</p>}</div>}
     {passed && !result && <div className="lab-result passed locked-result"><strong>✓ Laboratorio ya superado</strong><button className="secondary-button" onClick={onEdit}>Editar y revalidar</button></div>}
-    <div className="view-next"><span>{passed ? "Práctica completada" : "La comprobación no sustituye la ejecución en Databricks"}</span><button className="primary-button" onClick={onNext}>Hacer el test <span>→</span></button></div>
+    <div className="lab-operations"><details><summary>Cleanup idempotente</summary><ol>{module.lab.cleanup.map((item) => <li key={item}><code>{item}</code></li>)}</ol></details><details><summary>Solución de fallos</summary><dl>{module.lab.troubleshooting.map((item) => <div key={item.symptom}><dt>{item.symptom}</dt><dd>{item.fix}</dd></div>)}</dl></details></div>
+    <div className="lab-sources"><span>Fuentes verificadas</span>{module.sources.map((source) => <a key={source.id} href={source.href} target="_blank" rel="noreferrer">{source.label}<small>{source.publisher} · {source.version} · revisada {source.reviewedAt}</small></a>)}</div>
+    <div className="view-next"><span>{preview ? "Vista previa: el progreso y el XP no cambian" : passed ? "Práctica completada" : "La comprobación no sustituye la ejecución en Databricks"}</span><button className="primary-button" onClick={onNext}>Hacer el test <span>→</span></button></div>
   </div>;
 }
 
-function QuizView({ module, answers, submitted, score, requirementsMet, examRequired, examDone, onExam, onAnswer, onSubmit, onRetry, onBack }: { module: CurriculumModule; answers:Record<number,number>; submitted:boolean; score?:number; requirementsMet:boolean; examRequired:StoredExamMode|null; examDone:boolean; onExam:(mode:StoredExamMode)=>void; onAnswer:(question:number,option:number)=>void; onSubmit:()=>void; onRetry:()=>void; onBack:()=>void }) {
+function QuizView({ module, answers, submitted, score, preview, requirementsMet, examRequired, examDone, onExam, onAnswer, onSubmit, onRetry, onBack }: { module: CurriculumModule; answers:Record<number,number>; submitted:boolean; score?:number; preview:boolean; requirementsMet:boolean; examRequired:StoredExamMode|null; examDone:boolean; onExam:(mode:StoredExamMode)=>void; onAnswer:(question:number,option:number)=>void; onSubmit:()=>void; onRetry:()=>void; onBack:()=>void }) {
   return <div id="panel-quiz" className="quiz-view" role="tabpanel" aria-labelledby="tab-quiz" tabIndex={0}>
-    <div className="quiz-intro"><div><p className="eyebrow">Evaluación razonada</p><h3>Necesitas 3 de 4 respuestas correctas.</h3><p>Las preguntas plantean decisiones técnicas. Para superar el módulo también debes completar las lecciones y ejecutar la práctica.</p></div><strong>{Object.keys(answers).length}/4</strong></div>
-    <div className="quiz-list">{module.quiz.map((question,index) => <fieldset key={question.question}><legend><span>{String(index+1).padStart(2,"0")}</span>{question.question}</legend><small className="domain-label">{question.domain}</small><div>{question.options.map((option,optionIndex) => { const selected=answers[index]===optionIndex; const correct=question.answer===optionIndex; return <label key={option} className={submitted ? correct?"correct":selected?"incorrect":"" : selected?"selected":""}><input type="radio" name={`${module.id}-${index}`} checked={selected} disabled={submitted} onChange={() => onAnswer(index,optionIndex)} /><span>{String.fromCharCode(65+optionIndex)}</span>{option}</label>; })}</div>{submitted && <p className="quiz-feedback"><b>{answers[index] === question.answer ? "Correcta. " : "Respuesta recomendada. "}</b>{question.explanation}</p>}</fieldset>)}</div>
-    {examRequired && !examDone && <div className="capstone-exam"><div><p className="eyebrow">Requisito del capstone</p><h3>Completa el simulacro {examRequired === "associate" ? "Associate" : "Professional"}.</h3><p>El intento es obligatorio para cerrar el proyecto. El 80% sigue siendo sólo un indicador interno de preparación.</p></div><button className="primary-button" onClick={() => onExam(examRequired)}>Abrir simulacro <span>→</span></button></div>}
-    <div className="quiz-submit"><button className="secondary-button" onClick={onBack}>← Volver a lecciones</button><div aria-live="polite">{submitted && <p className={(score??0)>=3&&requirementsMet?"pass":"warn"}>{(score??0)>=3 ? requirementsMet ? "Módulo superado. El siguiente ya está disponible." : examRequired && !examDone ? "Test aprobado; falta completar el simulacro del capstone." : "Test aprobado; completa las lecciones y la práctica." : `Resultado: ${score ?? 0}/4. Repasa las explicaciones.`}</p>}{submitted ? <button className="secondary-button" onClick={onRetry}>Nuevo intento</button> : <button className="primary-button" disabled={Object.keys(answers).length<4} onClick={onSubmit}>Corregir test <span>→</span></button>}</div></div>
+    <div className="quiz-intro"><div><p className="eyebrow">Evaluación razonada</p><h3>{preview ? "Preguntas visibles, respuestas protegidas." : "Necesitas 3 de 4 respuestas correctas."}</h3><p>{preview ? "El test está en modo lectura. Desbloquea el módulo para responder, corregir y ganar XP." : "Las preguntas plantean decisiones técnicas. Para superar el módulo también debes completar las lecciones y ejecutar la práctica."}</p></div><strong>{Object.keys(answers).length}/4</strong></div>
+    <div className={`quiz-list ${preview ? "preview-quiz" : ""}`}>{module.quiz.map((question,index) => <fieldset key={question.question}><legend><span>{String(index+1).padStart(2,"0")}</span>{question.question}</legend><small className="domain-label">{question.domain}</small><div>{question.options.map((option,optionIndex) => { const selected=answers[index]===optionIndex; const correct=question.answer===optionIndex; return <label key={option} className={submitted ? correct?"correct":selected?"incorrect":"" : selected?"selected":""}><input type="radio" name={`${module.id}-${index}`} checked={selected} disabled={preview || submitted} onChange={() => onAnswer(index,optionIndex)} /><span>{String.fromCharCode(65+optionIndex)}</span>{option}</label>; })}</div>{submitted && !preview && <p className="quiz-feedback"><b>{answers[index] === question.answer ? "Correcta. " : "Respuesta recomendada. "}</b>{question.explanation}</p>}</fieldset>)}</div>
+    {examRequired && !examDone && !preview && <div className="capstone-exam"><div><p className="eyebrow">Requisito del capstone</p><h3>Completa el simulacro {examRequired === "associate" ? "Associate" : "Professional"}.</h3><p>El intento es obligatorio para cerrar el proyecto. El 80% sigue siendo sólo un indicador interno de preparación.</p></div><button className="primary-button" onClick={() => onExam(examRequired)}>Abrir simulacro <span>→</span></button></div>}
+    <div className="quiz-submit"><button className="secondary-button" onClick={onBack}>← Volver a lecciones</button><div aria-live="polite">{submitted && !preview && <p className={(score??0)>=3&&requirementsMet?"pass":"warn"}>{(score??0)>=3 ? requirementsMet ? "Módulo superado. El siguiente ya está disponible." : examRequired && !examDone ? "Test aprobado; falta completar el simulacro del capstone." : "Test aprobado; completa las lecciones y la práctica." : `Resultado: ${score ?? 0}/4. Repasa las explicaciones.`}</p>}{preview ? <button className="primary-button" disabled>Disponible al desbloquear</button> : submitted ? <button className="secondary-button" onClick={onRetry}>Nuevo intento</button> : <button className="primary-button" disabled={Object.keys(answers).length<4} onClick={onSubmit}>Corregir test <span>→</span></button>}</div></div>
   </div>;
 }
 

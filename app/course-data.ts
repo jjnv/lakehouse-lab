@@ -4,15 +4,20 @@ import { advancedContentB } from "./curriculum/advanced-content-b";
 import { associateExamBank } from "./curriculum/associate-exam-bank";
 import { professionalExamBank } from "./curriculum/professional-exam-bank";
 import type { CodeLanguage, LessonDeepDive, ModuleContentPack } from "./curriculum/content-types";
+import { OFFICIAL_BLUEPRINTS, PLATFORM_REFERENCES, REVIEWED_AT } from "./editorial-data";
 
 export type TrackId = "core" | "streaming" | "pipelines" | "performance" | "delivery" | "final";
 export type ExamLevel = "Associate" | "Associate + Professional" | "Professional";
 export type ModuleKind = "standard" | "branch-project" | "capstone";
 
 export type SourceReference = {
+  id: string;
   label: string;
   href: string;
+  publisher: "Databricks" | "Apache Spark" | "Delta Lake";
   reviewedAt: string;
+  cloud: string;
+  version: string;
 };
 
 export type Lesson = {
@@ -34,6 +39,7 @@ export type Lesson = {
   pitfalls: [string, string];
   examDecision: string;
   checkpoint: { question: string; answer: string };
+  refIds: string[];
 };
 
 export type QuizQuestion = {
@@ -46,6 +52,17 @@ export type QuizQuestion = {
 };
 
 export type Lab = {
+  id: string;
+  version: string;
+  reviewedAt: string;
+  freeEdition: { supported: boolean; simulation: boolean; note: string };
+  runtime: { free: string; classic: string };
+  prerequisites: string[];
+  estimatedCost: { free: string; paid: Record<"AWS" | "Azure" | "GCP", string>; assumptions: string };
+  expectedOutcome: string;
+  cleanup: string[];
+  troubleshooting: { symptom: string; fix: string }[];
+  refIds: string[];
   title: string;
   goal: string;
   scenario: string;
@@ -169,6 +186,7 @@ function packFor(seed: ModuleSeed): ModuleContentPack {
 }
 
 function makeLessons(seed: ModuleSeed, pack: ModuleContentPack): Lesson[] {
+  const refIds = pack.sources.map((_, sourceIndex) => `${seed.id}-source-${sourceIndex + 1}`);
   return seed.topics.map((topic, index) => {
     const content = pack.lessons[index];
     return {
@@ -177,14 +195,58 @@ function makeLessons(seed: ModuleSeed, pack: ModuleContentPack): Lesson[] {
     title: topic,
     detail: content.explanation.join("\n\n"),
     decisions: content.keyPoints,
+    refIds,
     ...content,
     };
   });
 }
 
-function makeLab(pack: ModuleContentPack): Lab {
+function makeLab(seed: ModuleSeed, pack: ModuleContentPack): Lab {
+  const paidOnly = new Set(["m02", "m15", "m25", "m30", "m31"]).has(seed.id);
+  const paidRange = seed.id === "m12" || seed.id === "m32"
+    ? "2–8 USD"
+    : ["m17", "m22", "m27"].includes(seed.id)
+      ? "1–5 USD"
+      : "0,10–1,50 USD";
+  const moduleRefIds = pack.sources.map((_, sourceIndex) => `${seed.id}-source-${sourceIndex + 1}`);
   return {
     ...pack.lab,
+    id: `LAB-${seed.id.slice(1)}`,
+    version: "1.0.0",
+    reviewedAt: REVIEWED_AT,
+    freeEdition: {
+      supported: !paidOnly,
+      simulation: paidOnly,
+      note: paidOnly
+        ? "La práctica completa requiere capacidades de cuenta de pago. Incluye una simulación reducida para conservar el objetivo didáctico."
+        : "Compatible con Free Edition dentro de sus cuotas diarias y límites de serverless.",
+    },
+    runtime: {
+      free: "Serverless administrado por Databricks",
+      classic: "Databricks Runtime 17.3 LTS · Apache Spark 4.0",
+    },
+    prerequisites: [
+      paidOnly ? "Free Edition para la simulación o workspace de pago para la práctica completa" : "Workspace de Databricks Free Edition",
+      "Permiso para crear objetos en un catálogo de aprendizaje",
+      "Dataset de práctica sin información sensible",
+    ],
+    estimatedCost: {
+      free: "0 USD · sujeto a fair use y cuotas diarias",
+      paid: { AWS: paidRange, Azure: paidRange, GCP: paidRange },
+      assumptions: `Precios consultados el ${REVIEWED_AT}. Una ejecución, tamaño mínimo compatible y duración indicada; sin impuestos, descuentos ni transferencia de datos.`,
+    },
+    expectedOutcome: pack.lab.expectedEvidence.join(" · "),
+    cleanup: [
+      `DROP SCHEMA IF EXISTS main.lakehouse_lab_${seed.id} CASCADE;`,
+      "Detén Jobs, pipelines o streams creados para la práctica.",
+      "Elimina checkpoints, volúmenes y recursos cloud temporales identificados con el prefijo del laboratorio.",
+    ],
+    troubleshooting: [
+      { symptom: "El objeto no se encuentra", fix: "Comprueba catálogo, esquema, USE CATALOG/SCHEMA y el nombre de tres niveles." },
+      { symptom: "Permiso denegado", fix: "Verifica USE CATALOG, USE SCHEMA y el privilegio mínimo sobre el objeto." },
+      { symptom: "La salida no coincide", fix: "Reinicia desde el cleanup, valida el input y vuelve a ejecutar los pasos en orden." },
+    ],
+    refIds: [...moduleRefIds, PLATFORM_REFERENCES.freeEdition.id, PLATFORM_REFERENCES.runtime.id, PLATFORM_REFERENCES.pricing.id],
     cloudNotes: (["AWS", "Azure", "GCP"] as const).map((cloud) => ({ cloud, note: pack.lab.cloudNotes[cloud] })),
   };
 }
@@ -195,16 +257,22 @@ export const modules: CurriculumModule[] = seeds.map((seed, index) => ({
   slug: slugify(seed.title),
   kind: moduleKind(seed),
   lessons: makeLessons(seed, packFor(seed)),
-  lab: makeLab(packFor(seed)),
+  lab: makeLab(seed, packFor(seed)),
   quiz: packFor(seed).quiz.map((question) => ({ ...question, moduleId: seed.id })),
   prerequisites: prerequisitesFor(index, seed.track),
-  sources: packFor(seed).sources,
+  sources: packFor(seed).sources.map((source, sourceIndex) => ({
+    ...source,
+    id: `${seed.id}-source-${sourceIndex + 1}`,
+    publisher: "Databricks" as const,
+    cloud: "Multinube",
+    version: "Documentación vigente en julio de 2026",
+  })),
 }));
 
 export const totalMinutes = modules.reduce((total, module) => total + module.minutes, 0);
 
-export const associateBlueprint = "https://www.databricks.com/sites/default/files/2026-03/databricks-certified-data-engineer-associate-exam-guide-may-4-2026.pdf";
-export const professionalBlueprint = "https://www.databricks.com/sites/default/files/2025-11/databricks-certified-data-engineer-professional-exam-guide-november-30-2025_0.pdf";
+export const associateBlueprint = OFFICIAL_BLUEPRINTS.Associate.href;
+export const professionalBlueprint = OFFICIAL_BLUEPRINTS.Professional.href;
 
 export const examMappings: ExamMapping[] = [
   { level:"Associate", domain:"Databricks Intelligence Platform", objectives:["Arquitectura, Delta Lake y Unity Catalog", "Compute, limitaciones y coste"], moduleIds:["m01","m02","m06"] },

@@ -21,19 +21,19 @@ export async function generateMetadata(): Promise<Metadata> {
 
   return {
     metadataBase,
-    title: "Lakehouse Lab — Academia Databricks Data Engineering",
-    description: "Academia autosuficiente con 32 módulos, 160 capítulos conceptuales y 100 horas para Data Engineer Associate y Professional.",
+    title: "Lakehouse Lab v1.0.0 — Academia Databricks Data Engineering",
+    description: "Academia auditable con 32 módulos, 160 lecciones, laboratorios versionados, blueprints completos y gamificación para Data Engineer Associate y Professional.",
     openGraph: {
-      title: "Lakehouse Lab — 32 módulos · 100 horas",
-      description: "Teoría profunda, casos razonados, laboratorios y simulacros de Data Engineer Associate a Professional.",
+      title: "Lakehouse Lab v1.0.0 — De Associate a Professional",
+      description: "32 módulos, 160 lecciones, trazabilidad oficial, laboratorios versionados y una ruta gamificada.",
       type: "website",
-      images: [{ url: "/og.png", width: 1744, height: 909, alt: "Lakehouse Lab: 32 módulos y 100 horas" }],
+      images: [{ url: "/og-v1.png", width: 1744, height: 909, alt: "Lakehouse Lab v1.0.0: de Associate a Professional" }],
     },
     twitter: {
       card: "summary_large_image",
-      title: "Lakehouse Lab — Academia Databricks",
-      description: "32 módulos y 100 horas de teoría y práctica: Associate → Professional.",
-      images: ["/og.png"],
+      title: "Lakehouse Lab v1.0.0 — Academia Databricks",
+      description: "32 módulos y 160 lecciones con blueprints auditables, práctica versionada y XP.",
+      images: ["/og-v1.png"],
     },
     icons: { icon: "/favicon.svg", shortcut: "/favicon.svg" },
   };
