@@ -18,15 +18,18 @@ import {
 import {
   STORAGE_KEY,
   deriveProgress,
+  dueLessonReviews,
   earnedMinutes,
   emptyProgress,
   hasStarted,
   isUnlocked as moduleIsUnlocked,
   moduleProgressPercent,
+  scheduleLessonReview,
   sanitizeProgress,
   type ExamMode as StoredExamMode,
   type ModuleView,
   type ProgressState,
+  type ReviewRating,
 } from "./progress";
 import {
   badgeCatalog,
@@ -66,6 +69,7 @@ type TopicFilter = keyof typeof topicGroups | "all";
 type StatusFilter = "all" | "available" | "in-progress" | "completed" | "locked";
 type LevelFilter = "all" | "associate" | "professional";
 type StudyRoute = "exam" | "practice" | "professional";
+type WorkspaceView = "learn" | "route" | "resources";
 
 const STUDY_ROUTE_KEY = "lakehouse-lab-study-route";
 const studyRoutes: Record<StudyRoute, { label: string; description: string; moduleIds: string[]; focus: string }> = {
@@ -121,6 +125,12 @@ function scrollBehavior(): ScrollBehavior {
   return window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth";
 }
 
+function workspaceViewFromHash(hash: string): WorkspaceView {
+  if (hash === "#catalog") return "route";
+  if (hash === "#resources" || hash === "#editorial" || hash === "#blueprint-matrix") return "resources";
+  return "learn";
+}
+
 export default function Home() {
   const [progress, setProgress] = useState<ProgressState>(emptyProgress);
   const [loaded, setLoaded] = useState(false);
@@ -132,10 +142,14 @@ export default function Home() {
   const [topicFilter, setTopicFilter] = useState<TopicFilter>("all");
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
   const [studyRoute, setStudyRoute] = useState<StudyRoute>("professional");
+  const [workspaceView, setWorkspaceView] = useState<WorkspaceView>("learn");
+  const [pendingLessonId, setPendingLessonId] = useState<string | null>(null);
+  const [modulePickerOpen, setModulePickerOpen] = useState(false);
   const [cloud, setCloud] = useState<"AWS" | "Azure" | "GCP">("AWS");
   const [labResult, setLabResult] = useState<{ checks: boolean[]; passed: boolean } | null>(null);
   const [showSolution, setShowSolution] = useState(false);
-  const [submittedQuiz, setSubmittedQuiz] = useState(false);
+  const [submittedQuiz, setSubmittedQuiz] = useState<boolean | null>(null);
+  const [retryOnlyMistakes, setRetryOnlyMistakes] = useState(false);
   const [lockedNotice, setLockedNotice] = useState<string | null>(null);
   const [previewMode, setPreviewMode] = useState(false);
   const [celebration, setCelebration] = useState<string | null>(null);
@@ -147,6 +161,9 @@ export default function Home() {
   const [examSubmitted, setExamSubmitted] = useState(false);
   const [examAttempt, setExamAttempt] = useState(1);
   const moduleHeadingRef = useRef<HTMLHeadingElement>(null);
+  const catalogHeadingRef = useRef<HTMLHeadingElement>(null);
+  const resourcesHeadingRef = useRef<HTMLHeadingElement>(null);
+  const modulePickerSummaryRef = useRef<HTMLElement>(null);
   const progressRef = useRef<ProgressState>(emptyProgress);
   const resetButtonRef = useRef<HTMLButtonElement>(null);
   const resetDialogRef = useRef<HTMLDivElement>(null);
@@ -156,6 +173,7 @@ export default function Home() {
   const completedMinutes = modules.reduce((sum, module) => sum + earnedMinutes(module, progress), 0);
   const percent = Math.round((completedMinutes / totalMinutes) * 100);
   const level = levelFor(progress.gamification.xp);
+  const reviewQueue = useMemo(() => dueLessonReviews(progress, localDate()), [progress]);
   const routeModuleIds = studyRoutes[studyRoute].moduleIds;
   const routeModuleSet = useMemo(() => new Set(routeModuleIds), [routeModuleIds]);
 
@@ -197,6 +215,7 @@ export default function Home() {
       const restoredCompleted = new Set(restored.completedModules);
       const validExam = exam === "associate" || exam === "professional";
       if (validExam) setExamMode(exam);
+      else setWorkspaceView(workspaceViewFromHash(window.location.hash));
       if (slug) {
         const deepLinked = modules.find((module) => module.slug === slug);
         if (deepLinked && moduleIsUnlocked(deepLinked, restoredCompleted)) {
@@ -251,12 +270,14 @@ export default function Home() {
         return;
       }
       setExamMode(null);
+      setWorkspaceView(workspaceViewFromHash(window.location.hash));
       const deepLinked = modules.find((module) => module.slug === params.get("module"));
       if (deepLinked && moduleIsUnlocked(deepLinked, currentCompleted)) {
         setActiveId(deepLinked.id);
         setPreviewMode(false);
         setView(deepLinked.id === current.lastModuleId ? current.lastView : "lessons");
-        setSubmittedQuiz(false);
+        setSubmittedQuiz(null);
+        setRetryOnlyMistakes(false);
         setLabResult(null);
         setShowSolution(false);
         setLockedNotice(null);
@@ -264,20 +285,32 @@ export default function Home() {
         setActiveId(deepLinked.id);
         setPreviewMode(true);
         setView("lessons");
-        setSubmittedQuiz(false);
+        setSubmittedQuiz(null);
+        setRetryOnlyMistakes(false);
         setLabResult(null);
         setShowSolution(false);
         setLockedNotice(`Vista previa del módulo ${deepLinked.number}. Para registrar progreso necesitas completar antes: ${missingPrerequisiteText(deepLinked, currentCompleted)}.`);
       }
     };
     window.addEventListener("popstate", onPopState);
-    return () => window.removeEventListener("popstate", onPopState);
+    window.addEventListener("hashchange", onPopState);
+    return () => {
+      window.removeEventListener("popstate", onPopState);
+      window.removeEventListener("hashchange", onPopState);
+    };
   }, []);
 
   useEffect(() => {
-    const activeLink = document.querySelector<HTMLElement>('.sidebar-list [aria-current="step"]');
-    activeLink?.scrollIntoView({ block: "nearest", inline: "center", behavior: scrollBehavior() });
-  }, [activeId]);
+    if (workspaceView !== "learn" || view !== "lessons" || !pendingLessonId) return;
+    const frame = requestAnimationFrame(() => requestAnimationFrame(() => {
+      const lesson = document.getElementById(`lesson-${activeId}-${pendingLessonId}`) as HTMLDetailsElement | null;
+      if (!lesson) return;
+      lesson.scrollIntoView({ behavior: scrollBehavior(), block: "start" });
+      lesson.querySelector<HTMLElement>("summary")?.focus({ preventScroll: true });
+      setPendingLessonId(null);
+    }));
+    return () => cancelAnimationFrame(frame);
+  }, [activeId, pendingLessonId, view, workspaceView]);
 
   function updateProgress(
     updater: (current: ProgressState) => ProgressState,
@@ -300,12 +333,47 @@ export default function Home() {
     });
   }
 
-  function openModule(module: CurriculumModule, requestedView: ModuleView = "lessons") {
+  function navigateWorkspace(nextView: WorkspaceView, push = true) {
+    setWorkspaceView(nextView);
+    if (nextView !== "learn") setModulePickerOpen(false);
+    const url = new URL(window.location.href);
+    url.hash = nextView === "route" ? "catalog" : nextView === "resources" ? "resources" : "academy";
+    if (push) history.pushState({}, "", url);
+    setAnnouncement(nextView === "route" ? "Ruta de estudio abierta." : nextView === "resources" ? "Recursos de estudio abiertos." : "Área de aprendizaje abierta.");
+    requestAnimationFrame(() => requestAnimationFrame(() => {
+      window.scrollTo({ top: 0, behavior: scrollBehavior() });
+      const target = nextView === "route" ? catalogHeadingRef.current : nextView === "resources" ? resourcesHeadingRef.current : moduleHeadingRef.current;
+      target?.focus({ preventScroll: true });
+    }));
+  }
+
+  function openModulePicker() {
+    if (modulePickerOpen) {
+      setModulePickerOpen(false);
+      setAnnouncement("Selector de módulos cerrado.");
+      return;
+    }
+    setWorkspaceView("learn");
+    setModulePickerOpen(true);
+    const url = new URL(window.location.href);
+    url.hash = "academy";
+    history.pushState({}, "", url);
+    requestAnimationFrame(() => requestAnimationFrame(() => {
+      document.getElementById("academy")?.scrollIntoView({ behavior: scrollBehavior(), block: "start" });
+      modulePickerSummaryRef.current?.focus({ preventScroll: true });
+    }));
+  }
+
+  function openModule(module: CurriculumModule, requestedView: ModuleView = "lessons", requestedLessonId: string | null = null) {
     const preview = !isUnlocked(module);
+    setWorkspaceView("learn");
+    setModulePickerOpen(false);
     setActiveId(module.id);
     setPreviewMode(preview);
     setView(requestedView);
-    setSubmittedQuiz(false);
+    setPendingLessonId(requestedLessonId);
+    setSubmittedQuiz(null);
+    setRetryOnlyMistakes(false);
     setLabResult(null);
     setShowSolution(false);
     setExamMode(null);
@@ -314,12 +382,14 @@ export default function Home() {
     const url = new URL(window.location.href);
     url.search = "";
     url.searchParams.set("module", module.slug);
+    url.hash = "academy";
     history.pushState({}, "", url);
     setAnnouncement(`${preview ? "Vista previa" : "Módulo"} ${module.number}: ${module.title}.`);
-    requestAnimationFrame(() => {
+    if (requestedLessonId) return;
+    requestAnimationFrame(() => requestAnimationFrame(() => {
       document.getElementById("academy")?.scrollIntoView({ behavior: scrollBehavior(), block: "start" });
       moduleHeadingRef.current?.focus({ preventScroll: true });
-    });
+    }));
   }
 
   function handleModuleLink(event: MouseEvent<HTMLAnchorElement>, module: CurriculumModule) {
@@ -355,16 +425,19 @@ export default function Home() {
     const url = new URL(window.location.href);
     url.search = "";
     url.searchParams.set("exam", mode);
+    url.hash = "";
     history.pushState({}, "", url);
     window.scrollTo({ top: 0, behavior: scrollBehavior() });
   }
 
   function closeExam() {
     setExamMode(null);
+    setWorkspaceView("learn");
     const url = new URL(window.location.href);
     url.search = "";
     const lastVisitedModule = modules.find((item) => item.id === progress.lastModuleId);
     if (lastVisitedModule) url.searchParams.set("module", lastVisitedModule.slug);
+    url.hash = "academy";
     history.replaceState({}, "", url);
     requestAnimationFrame(() => {
       document.getElementById("academy")?.scrollIntoView({ behavior: scrollBehavior(), block: "start" });
@@ -372,15 +445,19 @@ export default function Home() {
     });
   }
 
-  function toggleLesson(lessonId: string) {
+  function recordLessonRecall(lessonId: string, rating: ReviewRating) {
     if (previewMode) return;
     updateProgress((current) => {
+      const scheduled = scheduleLessonReview(current, activeModule.id, lessonId, rating, localDate());
+      if (rating !== "good") return { ...scheduled, lastModuleId: activeModule.id, lastView: "lessons" };
       const lessons = new Set(current.completedLessons[activeModule.id] ?? []);
-      if (lessons.has(lessonId)) lessons.delete(lessonId);
-      else lessons.add(lessonId);
-      return { ...current, completedLessons: { ...current.completedLessons, [activeModule.id]: [...lessons] }, lastModuleId: activeModule.id, lastView: "lessons" };
-    }, (before) => before.completedLessons[activeModule.id]?.includes(lessonId) ? [] : [{ id: `lesson:${activeModule.id}:${lessonId}`, xp: 10 }]);
-    setAnnouncement("Progreso de la lección actualizado.");
+      lessons.add(lessonId);
+      return { ...scheduled, completedLessons: { ...scheduled.completedLessons, [activeModule.id]: [...lessons] }, lastModuleId: activeModule.id, lastView: "lessons" };
+    }, (before) => rating === "good" ? [
+      ...(before.completedLessons[activeModule.id]?.includes(lessonId) ? [{ id: `review:${activeModule.id}:${lessonId}:${localDate()}`, xp: 8 }] : [{ id: `lesson:${activeModule.id}:${lessonId}`, xp: 10 }]),
+      { id: `daily:${localDate()}`, xp: 5 },
+    ] : []);
+    setAnnouncement(rating === "good" ? "Recuperación registrada. Volverá a aparecer en tu cola de repaso." : "Lección marcada para repasar mañana.");
   }
 
   function reviewSource(lessonId: string, sourceId: string) {
@@ -449,7 +526,6 @@ export default function Home() {
     updateProgress((current) => ({
       ...current,
       quizAnswers: { ...current.quizAnswers, [activeModule.id]: { ...(current.quizAnswers[activeModule.id] ?? {}), [question]: option } },
-      quizScores: Object.fromEntries(Object.entries(current.quizScores).filter(([id]) => id !== activeModule.id)),
       lastModuleId: activeModule.id,
       lastView: "quiz",
     }));
@@ -462,8 +538,9 @@ export default function Home() {
     const score = activeModule.quiz.reduce((sum, question, index) => sum + (answers[index] === question.answer ? 1 : 0), 0);
     const rewards: Reward[] = activeModule.quiz.flatMap((question, index) => answers[index] === question.answer ? [{ id: `quiz-correct:${activeModule.id}:${index}`, xp: 15 }] : []);
     if (score === activeModule.quiz.length) rewards.push({ id: `quiz-perfect:${activeModule.id}`, xp: 40 });
-    updateProgress((current) => ({ ...current, quizScores: { ...current.quizScores, [activeModule.id]: score } }), rewards);
+    updateProgress((current) => ({ ...current, quizScores: { ...current.quizScores, [activeModule.id]: Math.max(current.quizScores[activeModule.id] ?? 0, score) } }), rewards);
     setSubmittedQuiz(true);
+    setRetryOnlyMistakes(false);
     setAnnouncement(`Resultado del test: ${score} de ${activeModule.quiz.length}.`);
   }
 
@@ -471,20 +548,38 @@ export default function Home() {
     updateProgress((current) => ({
       ...current,
       quizAnswers: Object.fromEntries(Object.entries(current.quizAnswers).filter(([id]) => id !== activeModule.id)),
-      quizScores: Object.fromEntries(Object.entries(current.quizScores).filter(([id]) => id !== activeModule.id)),
       lastModuleId: activeModule.id,
       lastView: "quiz",
     }));
     setSubmittedQuiz(false);
+    setRetryOnlyMistakes(false);
     setAnnouncement("Nuevo intento preparado.");
+  }
+
+  function retryQuizMistakes() {
+    const currentAnswers = progress.quizAnswers[activeModule.id] ?? {};
+    const correctAnswers: Record<number, number> = Object.fromEntries(activeModule.quiz.flatMap((question, index) => currentAnswers[index] === question.answer ? [[index, currentAnswers[index]]] : []));
+    const remaining = activeModule.quiz.length - Object.keys(correctAnswers).length;
+    updateProgress((current) => ({
+      ...current,
+      quizAnswers: { ...current.quizAnswers, [activeModule.id]: correctAnswers },
+      lastModuleId: activeModule.id,
+      lastView: "quiz",
+    }));
+    setSubmittedQuiz(false);
+    setRetryOnlyMistakes(true);
+    setAnnouncement(`Reintento preparado con ${remaining} ${remaining === 1 ? "pregunta fallada" : "preguntas falladas"}.`);
   }
 
   function resetAcademy() {
     localStorage.removeItem(STORAGE_KEY);
     setProgress(emptyProgress);
+    setWorkspaceView("learn");
+    setModulePickerOpen(false);
     setActiveId("m01");
     setView("lessons");
-    setSubmittedQuiz(false);
+    setSubmittedQuiz(null);
+    setRetryOnlyMistakes(false);
     setPreviewMode(false);
     setLabResult(null);
     setShowSolution(false);
@@ -502,9 +597,10 @@ export default function Home() {
     const url = new URL(window.location.href);
     url.search = "";
     url.searchParams.set("module", modules[0].slug);
+    url.hash = "academy";
     history.replaceState({}, "", url);
     setAnnouncement("Academia reiniciada. El progreso local se ha borrado.");
-    requestAnimationFrame(() => resetButtonRef.current?.focus());
+    requestAnimationFrame(() => requestAnimationFrame(() => moduleHeadingRef.current?.focus()));
   }
 
   function closeResetDialog() {
@@ -540,6 +636,23 @@ export default function Home() {
       ?? modules.find((module) => routeModuleSet.has(module.id) && isUnlocked(module) && !completed.has(module.id))
       ?? modules[31];
 
+  const continueLesson = continueModule.lessons.find((lesson) => !(progress.completedLessons[continueModule.id] ?? []).includes(lesson.id));
+  const continueAction: { view: ModuleView; lessonId: string | null; label: string } = continueLesson
+    ? { view: "lessons", lessonId: continueLesson.id, label: `Lección ${continueModule.lessons.indexOf(continueLesson) + 1} · ${continueLesson.title}` }
+    : !progress.labsPassed.includes(continueModule.id) || !progress.labConfirmed.includes(continueModule.id)
+      ? { view: "lab", lessonId: null, label: continueModule.kind === "capstone" ? "Proyecto pendiente" : "Laboratorio pendiente" }
+      : { view: "quiz", lessonId: null, label: (progress.quizScores[continueModule.id] ?? 0) >= 3 ? "Hito final pendiente" : "Test pendiente" };
+  const challengeTarget = reviewQueue[0] ?? (continueLesson ? { module: continueModule, lesson: continueLesson, review: null } : null);
+
+  function continueLearning() {
+    openModule(continueModule, continueAction.view, continueAction.lessonId);
+  }
+
+  function startDailyChallenge() {
+    if (!challengeTarget) return;
+    openModule(challengeTarget.module, "lessons", challengeTarget.lesson.id);
+  }
+
   if (examMode) {
     return <ExamSimulator
       key={`${examMode}-${examAttempt}`}
@@ -559,48 +672,45 @@ export default function Home() {
 
   return (
     <main>
-      <a className="skip-link" href="#academy">Saltar al contenido del módulo</a>
+      <a className="skip-link" href="#academy" onClick={(event) => { event.preventDefault(); navigateWorkspace("learn"); }}>Saltar al contenido del módulo</a>
       <div className="sr-only" aria-live="polite" aria-atomic="true">{announcement}</div>
       {celebration && <div className="xp-toast" role="status" aria-live="polite"><span>✦</span>{celebration}</div>}
       <header className="site-header">
-        <a className="brand" href="#top" aria-label="Inicio de Lakehouse Lab"><span className="brand-mark"><i /><i /><i /></span>Lakehouse Lab</a>
-        <nav aria-label="Navegación principal"><a href="#academy">Aprender</a><a href="#catalog">Ruta</a><a href="#resources">Recursos</a></nav>
-        <div className="header-progress"><a href="#editorial">v{SITE_VERSION}</a><span>{percent}%</span><div role="progressbar" aria-label="Progreso total" aria-valuemin={0} aria-valuemax={100} aria-valuenow={percent}><i style={{ width: `${percent}%` }} /></div></div>
+        <a className="brand" href="#academy" aria-label="Inicio de Lakehouse Lab" onClick={(event) => { event.preventDefault(); navigateWorkspace("learn"); }}><span className="brand-mark"><i /><i /><i /></span>Lakehouse Lab</a>
+        <nav aria-label="Áreas de la academia">
+          <a href="#academy" aria-current={workspaceView === "learn" ? "page" : undefined} onClick={(event) => { event.preventDefault(); navigateWorkspace("learn"); }}>Aprender</a>
+          <a href="#catalog" aria-current={workspaceView === "route" ? "page" : undefined} onClick={(event) => { event.preventDefault(); navigateWorkspace("route"); }}>Ruta</a>
+          <a href="#resources" aria-current={workspaceView === "resources" ? "page" : undefined} onClick={(event) => { event.preventDefault(); navigateWorkspace("resources"); }}>Recursos</a>
+        </nav>
+        <div className="header-progress"><a href="#editorial" onClick={(event) => { event.preventDefault(); navigateWorkspace("resources"); }}>v{SITE_VERSION}</a><span>{percent}% · {completed.size}/32</span><div role="progressbar" aria-label="Progreso total" aria-valuemin={0} aria-valuemax={100} aria-valuenow={percent}><i style={{ width: `${percent}%` }} /></div></div>
       </header>
 
       <div id="top" className="page-shell">
         {lockedNotice && <div className="access-notice" role="alert"><div><b>Contenido bloqueado</b><p>{lockedNotice}</p></div><button aria-label="Cerrar aviso" onClick={() => setLockedNotice(null)}>×</button></div>}
+        {workspaceView === "learn" && <>
         <section className="hero daily-hero" aria-labelledby="hero-title">
           <div className="hero-copy">
             <p className="eyebrow">Tu siguiente paso</p>
             <h1 id="hero-title">Continúa donde lo dejaste<span>.</span></h1>
-            <p className="hero-text"><b>Módulo {continueModule.number} · {continueModule.short}</b><br />{continueModule.description}</p>
+            <p className="hero-text"><b>Módulo {continueModule.number} · {continueModule.short}</b><br />{continueAction.label}</p>
             <div className="hero-actions">
-              <button className="primary-button" onClick={() => openModule(continueModule)}>Continuar aprendiendo<span>→</span></button>
-              <button className="secondary-button" onClick={() => document.getElementById("catalog")?.scrollIntoView({ behavior: scrollBehavior() })}>Cambiar de módulo</button>
+              <button className="primary-button" onClick={continueLearning}>Continuar aprendiendo<span>→</span></button>
+              <button className="secondary-button" aria-controls="module-picker" aria-expanded={modulePickerOpen} onClick={openModulePicker}>Cambiar de módulo</button>
             </div>
-            <div className="hero-proof"><span>{percent}% completado</span><span>{completed.size}/32 módulos</span><span>{progress.gamification.streak} días de racha</span></div>
+            <div className="hero-proof"><span>{percent}% completado</span><span>{completed.size}/32 módulos</span><span>{progress.gamification.streak} días de racha</span>{reviewQueue.length > 0 && <span>{reviewQueue.length} {reviewQueue.length === 1 ? "repaso pendiente" : "repasos pendientes"}</span>}</div>
           </div>
           <div className="hero-dashboard">
             <div className="hero-progress-card">
               <div className="progress-orbit" role="progressbar" aria-label="Progreso ponderado de la academia" aria-valuemin={0} aria-valuemax={100} aria-valuenow={percent} style={{ "--progress": `${percent * 3.6}deg` } as React.CSSProperties}><strong>{percent}%</strong><small>completado</small></div>
               <div><p>Tu progreso</p><b>{completed.size} de 32 módulos</b><span>{formatHours(completedMinutes)} de {formatHours(totalMinutes)}</span></div>
             </div>
-            <details className="daily-disclosure game-disclosure"><summary>Retos, combos e insignias <span>Ver detalles</span></summary><GamificationDashboard progress={progress} level={level} completed={completed} /></details>
+            <details className="daily-disclosure game-disclosure"><summary>Repaso, retos e insignias <span>Ver detalles</span></summary><GamificationDashboard progress={progress} level={level} completed={completed} reviewCount={reviewQueue.length} challengeLabel={challengeTarget ? (challengeTarget.review ? `Repasa «${challengeTarget.lesson.title}»` : dailyChallenge(modules, completed, progress.completedLessons)) : "Tu cola de repaso está al día."} onChallenge={startDailyChallenge} /></details>
           </div>
         </section>
+        </>}
 
-        <details className="daily-disclosure exam-disclosure">
-          <summary><span><b>Simulacros de certificación</b><small>Associate y Professional · siempre disponibles</small></span><i>Ver simulacros</i></summary>
-        <section className="exam-strip" aria-label="Simulacros de certificación">
-          <div><p className="eyebrow">Evaluación acumulativa</p><h2>Dos hitos. Una carrera completa.</h2></div>
-          <button onClick={() => openExam("associate")}><span>Associate · disponible</span><b>45 preguntas · 90 min</b><small>{progress.examScores.associate !== undefined ? `Último resultado: ${progress.examScores.associate}% · banco de ${examPoolSizes.associate}` : `Banco de ${examPoolSizes.associate}: ${examOriginCounts.associate.original} originales + ${examOriginCounts.associate.augmented} ampliadas`}</small></button>
-          <button onClick={() => openExam("professional")}><span>Professional · disponible</span><b>59 preguntas · 120 min</b><small>{progress.examScores.professional !== undefined ? `Último resultado: ${progress.examScores.professional}% · banco de ${examPoolSizes.professional}` : `Banco de ${examPoolSizes.professional}: ${examOriginCounts.professional.original} originales + ${examOriginCounts.professional.augmented} ampliadas`}</small></button>
-        </section>
-        </details>
-
-        <section id="resources" className="resource-hub" aria-labelledby="resources-title">
-          <div className="resource-hub-heading"><p className="eyebrow">Consulta cuando lo necesites</p><h2 id="resources-title">Método, blueprint y revisión.</h2><p>La información de referencia sigue disponible sin competir con tu actividad diaria.</p></div>
+        {workspaceView === "resources" && <section id="resources" className="resource-hub workspace-surface" aria-labelledby="resources-title">
+          <div className="resource-hub-heading"><p className="eyebrow">Consulta cuando lo necesites</p><h2 id="resources-title" ref={resourcesHeadingRef} tabIndex={-1}>Método, blueprint y revisión.</h2><p>La información de referencia sigue disponible sin competir con tu actividad diaria.</p></div>
         <details className="daily-disclosure method-disclosure">
           <summary><span><b>Cómo estudiar</b><small>El método progresivo en cuatro pasos</small></span><i>Abrir</i></summary>
         <section className="study-method" aria-labelledby="study-method-title">
@@ -611,35 +721,28 @@ export default function Home() {
 
           <BlueprintMatrix onOpen={openModule} />
           <EditorialSection />
-        </section>
+        </section>}
 
-        <section id="catalog" className="catalog" aria-labelledby="catalog-title">
-          <div className="section-heading"><div><p className="eyebrow">{studyRoutes[studyRoute].label}</p><h2 id="catalog-title">Elige cuánto necesitas recorrer.</h2><p>Abre cualquier módulo de la ruta. Si aún no está desbloqueado, entrarás en vista previa sin modificar tu progreso.</p></div><button ref={resetButtonRef} className="text-button danger" onClick={() => setResetPending(true)}>Reiniciar progreso</button></div>
+        {workspaceView === "route" && <section id="catalog" className="catalog workspace-surface" aria-labelledby="catalog-title">
+          <div className="section-heading"><div><p className="eyebrow">{studyRoutes[studyRoute].label}</p><h2 id="catalog-title" ref={catalogHeadingRef} tabIndex={-1}>Elige cuánto necesitas recorrer.</h2><p>Abre cualquier módulo de la ruta. Si aún no está desbloqueado, entrarás en vista previa sin modificar tu progreso.</p></div><button ref={resetButtonRef} className="text-button danger" onClick={() => setResetPending(true)}>Reiniciar progreso</button></div>
           <div className="study-routes" role="radiogroup" aria-label="Ruta de estudio">{(Object.entries(studyRoutes) as [StudyRoute, typeof studyRoutes[StudyRoute]][]).map(([id, route]) => { const minutes = modules.filter((module) => route.moduleIds.includes(module.id)).reduce((sum, module) => sum + module.minutes, 0); return <button key={id} role="radio" aria-checked={studyRoute === id} className={studyRoute === id ? "active" : ""} onClick={() => setStudyRoute(id)}><span>{route.focus}</span><b>{route.label}</b><p>{route.description}</p><small>{route.moduleIds.length} módulos · {formatHours(minutes)}</small></button>; })}</div>
           <p className="route-note">Cambiar de ruta solo filtra y prioriza contenido; nunca borra progreso ni XP.</p>
           <div className="filters">
-            <label><span>Buscar</span><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Ej. Auto Loader, ABAC, skew…" /></label>
-            <details className="filter-disclosure"><summary>Más filtros</summary><div><label><span>Rama</span><select value={trackFilter} onChange={(event) => setTrackFilter(event.target.value as TrackId | "all")}><option value="all">Todas</option>{trackOrder.map((track) => <option key={track} value={track}>{trackMeta[track].name}</option>)}</select></label><label><span>Nivel</span><select value={levelFilter} onChange={(event) => setLevelFilter(event.target.value as LevelFilter)}><option value="all">Todos</option><option value="associate">Associate</option><option value="professional">Professional</option></select></label><label><span>Tema</span><select value={topicFilter} onChange={(event) => setTopicFilter(event.target.value as TopicFilter)}><option value="all">Todos</option>{Object.entries(topicGroups).map(([value, group]) => <option key={value} value={value}>{group.label}</option>)}</select></label><label><span>Estado</span><select value={statusFilter} onChange={(event) => setStatusFilter(event.target.value as StatusFilter)}><option value="all">Todos</option><option value="available">Sin empezar</option><option value="in-progress">En curso</option><option value="completed">Superados</option><option value="locked">Bloqueados</option></select></label></div></details>
+            <label htmlFor="module-search"><span>Buscar</span><input id="module-search" type="search" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Ej. Auto Loader, ABAC, skew…" /></label>
+            <details className="filter-disclosure"><summary id="filter-summary">Más filtros</summary><div role="group" aria-labelledby="filter-summary"><label htmlFor="filter-track"><span>Rama</span><select id="filter-track" value={trackFilter} onChange={(event) => setTrackFilter(event.target.value as TrackId | "all")}><option value="all">Todas</option>{trackOrder.map((track) => <option key={track} value={track}>{trackMeta[track].name}</option>)}</select></label><label htmlFor="filter-level"><span>Nivel</span><select id="filter-level" value={levelFilter} onChange={(event) => setLevelFilter(event.target.value as LevelFilter)}><option value="all">Todos</option><option value="associate">Associate</option><option value="professional">Professional</option></select></label><label htmlFor="filter-topic"><span>Tema</span><select id="filter-topic" value={topicFilter} onChange={(event) => setTopicFilter(event.target.value as TopicFilter)}><option value="all">Todos</option>{Object.entries(topicGroups).map(([value, group]) => <option key={value} value={value}>{group.label}</option>)}</select></label><label htmlFor="filter-status"><span>Estado</span><select id="filter-status" value={statusFilter} onChange={(event) => setStatusFilter(event.target.value as StatusFilter)}><option value="all">Todos</option><option value="available">Sin empezar</option><option value="in-progress">En curso</option><option value="completed">Superados</option><option value="locked">Bloqueados</option></select></label></div></details>
             <div className="result-count" aria-live="polite"><strong>{filteredModules.length}</strong><span>módulos</span></div>
           </div>
           <div className="module-grid">
             {filteredModules.map((module) => <ModuleCard key={module.id} module={module} unlocked={isUnlocked(module)} done={completed.has(module.id)} progress={moduleProgressPercent(module, progress)} onLink={handleModuleLink} />)}
           </div>
           {!filteredModules.length && <div className="empty-state"><b>No hay módulos con esos filtros.</b><button onClick={() => { setSearch(""); setTrackFilter("all"); setLevelFilter("all"); setTopicFilter("all"); setStatusFilter("all"); }}>Limpiar filtros</button></div>}
-        </section>
+        </section>}
 
-        <section id="academy" className="academy" aria-labelledby="module-title">
-          <aside className="academy-sidebar">
-            <p className="eyebrow">Academia</p>
-            <nav className="sidebar-list" aria-label="Módulos de la academia">
-              {modules.filter((module) => routeModuleSet.has(module.id) || module.id === activeModule.id).map((module) => <a key={module.id} href={`?module=${module.slug}`} data-preview={!isUnlocked(module) || undefined} aria-current={activeModule.id === module.id ? "step" : undefined} onClick={(event) => handleModuleLink(event, module)} className={activeModule.id === module.id ? "active" : completed.has(module.id) ? "done" : !isUnlocked(module) ? "preview-link" : ""}><span>{completed.has(module.id) ? "✓" : module.number}</span><div><b>{module.short}</b><small>{!isUnlocked(module) ? `Vista previa · requiere ${module.prerequisites.map((id) => modules.find((item) => item.id === id)?.number).join(", ")}` : trackMeta[module.track].name}</small></div></a>)}
-            </nav>
-          </aside>
-
+        {workspaceView === "learn" && <><section id="academy" className="academy workspace-surface" aria-labelledby="module-title">
           <div className="academy-content">
-            <details className="module-picker">
-              <summary><span>Módulo {activeModule.number} de {routeModuleSet.size}</span><b>{activeModule.short}</b><i>Cambiar</i></summary>
-              <nav aria-label="Cambiar módulo">{modules.filter((module) => routeModuleSet.has(module.id) || module.id === activeModule.id).map((module) => <a key={module.id} href={`?module=${module.slug}`} data-preview={!isUnlocked(module) || undefined} aria-current={activeModule.id === module.id ? "step" : undefined} onClick={(event) => handleModuleLink(event, module)} className={activeModule.id === module.id ? "active" : completed.has(module.id) ? "done" : !isUnlocked(module) ? "preview-link" : ""}><span>{completed.has(module.id) ? "✓" : module.number}</span><b>{module.short}</b><small>{!isUnlocked(module) ? "Vista previa" : completed.has(module.id) ? "Superado" : trackMeta[module.track].name}</small></a>)}</nav>
+            <details id="module-picker" className="module-picker" open={modulePickerOpen} onToggle={(event) => setModulePickerOpen(event.currentTarget.open)}>
+              <summary ref={modulePickerSummaryRef}><span>Módulo {activeModule.number} de {routeModuleSet.size}</span><b>{activeModule.short}</b><i>{modulePickerOpen ? "Cerrar" : "Cambiar"}</i></summary>
+              {modulePickerOpen && <nav aria-label="Cambiar módulo">{modules.filter((module) => routeModuleSet.has(module.id) || module.id === activeModule.id).map((module) => <a key={module.id} href={`?module=${module.slug}#academy`} data-preview={!isUnlocked(module) || undefined} aria-current={activeModule.id === module.id ? "step" : undefined} onClick={(event) => handleModuleLink(event, module)} className={activeModule.id === module.id ? "active" : completed.has(module.id) ? "done" : !isUnlocked(module) ? "preview-link" : ""}><span>{completed.has(module.id) ? "✓" : module.number}</span><b>{module.short}</b><small>{!isUnlocked(module) ? "Vista previa" : completed.has(module.id) ? "Superado" : trackMeta[module.track].name}</small></a>)}</nav>}
             </details>
             <div className="module-header">
               <div><p className="eyebrow">Módulo {activeModule.number} · {activeModule.level} · {formatHours(activeModule.minutes)}</p><h2 id="module-title" ref={moduleHeadingRef} tabIndex={-1}>{activeModule.title}</h2><p>{activeModule.description}</p></div>
@@ -653,27 +756,36 @@ export default function Home() {
               <button id="tab-quiz" role="tab" aria-controls="panel-quiz" aria-selected={view === "quiz"} tabIndex={view === "quiz" ? 0 : -1} className={view === "quiz" ? "active" : ""} onKeyDown={(event) => handleTabKey(event, "quiz")} onClick={() => selectView("quiz")}>03 · Test <i>{progress.quizScores[activeModule.id] ?? "—"}/4</i></button>
             </div>
 
-            {view === "lessons" && <LessonsView module={activeModule} completedLessons={previewMode ? [] : progress.completedLessons[activeModule.id] ?? []} preview={previewMode} onToggle={toggleLesson} onSource={reviewSource} onNext={() => selectView("lab")} />}
+            {view === "lessons" && <LessonsView key={activeModule.id} module={activeModule} completedLessons={previewMode ? [] : progress.completedLessons[activeModule.id] ?? []} preview={previewMode} requestedLessonId={pendingLessonId} onRecall={recordLessonRecall} onSource={reviewSource} onNext={() => selectView("lab")} />}
             {view === "lab" && <LabView module={activeModule} code={previewMode ? activeModule.lab.starterCode : progress.labCode[activeModule.id] ?? activeModule.lab.starterCode} cloud={cloud} result={previewMode ? null : labResult} passed={!previewMode && progress.labsPassed.includes(activeModule.id)} confirmed={!previewMode && progress.labConfirmed.includes(activeModule.id)} showSolution={!previewMode && showSolution} preview={previewMode} onCloud={setCloud} onCode={setLabCode} onConfirm={setLabConfirmed} onRun={runLab} onEdit={editPassedLab} onSolution={() => setShowSolution((value) => !value)} onNext={() => selectView("quiz")} />}
-            {view === "quiz" && <QuizView module={activeModule} answers={previewMode ? {} : progress.quizAnswers[activeModule.id] ?? {}} submitted={!previewMode && (submittedQuiz || progress.quizScores[activeModule.id] !== undefined)} score={previewMode ? undefined : progress.quizScores[activeModule.id]} preview={previewMode} requirementsMet={!previewMode && (progress.completedLessons[activeModule.id]?.length ?? 0) >= activeModule.lessons.length && progress.labsPassed.includes(activeModule.id) && (activeModule.id === "m12" ? progress.examCompleted.associate === true : activeModule.id === "m32" ? progress.examCompleted.professional === true : true)} examRequired={activeModule.id === "m12" ? "associate" : activeModule.id === "m32" ? "professional" : null} examDone={activeModule.id === "m12" ? progress.examCompleted.associate === true : activeModule.id === "m32" ? progress.examCompleted.professional === true : true} onExam={openExam} onAnswer={chooseQuizAnswer} onSubmit={submitQuiz} onRetry={resetQuizAttempt} onBack={() => selectView("lessons")} />}
-            {completed.has(activeModule.id) && <div className="completion-banner" role="status"><div><span>✓</span><div><b>Módulo {activeModule.number} superado</b><p>{activeModule.id === "m12" ? "Las cuatro especializaciones ya están abiertas." : activeModule.id === "m32" ? "Has completado toda la academia." : "Tu progreso se ha guardado en este dispositivo."}</p></div></div>{activeModule.id !== "m32" && (activeModule.id === "m12" ? <button className="primary-button" onClick={() => document.getElementById("catalog")?.scrollIntoView({ behavior: scrollBehavior() })}>Elegir especialización <span>→</span></button> : <button className="primary-button" onClick={() => openModule(continueModule)}>Continuar con {continueModule.number} <span>→</span></button>)}</div>}
+            {view === "quiz" && <QuizView module={activeModule} answers={previewMode ? {} : progress.quizAnswers[activeModule.id] ?? {}} submitted={!previewMode && (submittedQuiz === true || (submittedQuiz === null && progress.quizScores[activeModule.id] !== undefined && Object.keys(progress.quizAnswers[activeModule.id] ?? {}).length === activeModule.quiz.length))} retryOnlyMistakes={retryOnlyMistakes} score={previewMode ? undefined : progress.quizScores[activeModule.id]} preview={previewMode} requirementsMet={!previewMode && (progress.completedLessons[activeModule.id]?.length ?? 0) >= activeModule.lessons.length && progress.labsPassed.includes(activeModule.id) && (activeModule.id === "m12" ? progress.examCompleted.associate === true : activeModule.id === "m32" ? progress.examCompleted.professional === true : true)} examRequired={activeModule.id === "m12" ? "associate" : activeModule.id === "m32" ? "professional" : null} examDone={activeModule.id === "m12" ? progress.examCompleted.associate === true : activeModule.id === "m32" ? progress.examCompleted.professional === true : true} onExam={openExam} onAnswer={chooseQuizAnswer} onSubmit={submitQuiz} onRetryMistakes={retryQuizMistakes} onRetry={resetQuizAttempt} onBack={() => selectView("lessons")} />}
+            {completed.has(activeModule.id) && <div className="completion-banner" role="status"><div><span>✓</span><div><b>Módulo {activeModule.number} superado</b><p>{activeModule.id === "m12" ? "Las cuatro especializaciones ya están abiertas." : activeModule.id === "m32" ? "Has completado toda la academia." : "Tu progreso se ha guardado en este dispositivo."}</p></div></div>{activeModule.id !== "m32" && (activeModule.id === "m12" ? <button className="primary-button" onClick={() => navigateWorkspace("route")}>Elegir especialización <span>→</span></button> : <button className="primary-button" onClick={continueLearning}>Continuar con {continueModule.number} <span>→</span></button>)}</div>}
           </div>
         </section>
+        <details className="daily-disclosure exam-disclosure">
+          <summary><span><b>Simulacros de certificación</b><small>Associate y Professional · siempre disponibles</small></span><i>Ver simulacros</i></summary>
+          <section className="exam-strip" aria-label="Simulacros de certificación">
+            <div><p className="eyebrow">Evaluación acumulativa</p><h2>Dos hitos. Una carrera completa.</h2></div>
+            <button onClick={() => openExam("associate")}><span>Associate · disponible</span><b>45 preguntas · 90 min</b><small>{progress.examScores.associate !== undefined ? `Mejor resultado: ${progress.examScores.associate}% · banco de ${examPoolSizes.associate}` : `Banco de ${examPoolSizes.associate}: ${examOriginCounts.associate.original} originales + ${examOriginCounts.associate.augmented} ampliadas`}</small></button>
+            <button onClick={() => openExam("professional")}><span>Professional · disponible</span><b>59 preguntas · 120 min</b><small>{progress.examScores.professional !== undefined ? `Mejor resultado: ${progress.examScores.professional}% · banco de ${examPoolSizes.professional}` : `Banco de ${examPoolSizes.professional}: ${examOriginCounts.professional.original} originales + ${examOriginCounts.professional.augmented} ampliadas`}</small></button>
+          </section>
+        </details>
+        </>}
       </div>
 
       {resetPending && <div className="dialog-backdrop" onKeyDown={handleResetDialogKey}><div ref={resetDialogRef} className="confirm-dialog" role="dialog" aria-modal="true" aria-labelledby="reset-title" aria-describedby="reset-description"><p className="eyebrow">Acción irreversible</p><h2 id="reset-title">¿Reiniciar toda la academia?</h2><p id="reset-description">Se borrarán lecciones, laboratorios, tests, simulacros, XP, rachas e insignias guardados en este dispositivo.</p><div><button className="secondary-button" autoFocus onClick={closeResetDialog}>Conservar progreso</button><button className="danger-button" onClick={resetAcademy}>Sí, borrar progreso</button></div></div></div>}
 
-      <footer><a className="brand" href="#top"><span className="brand-mark"><i /><i /><i /></span>Lakehouse Lab</a><p>Autoría Lakehouse Lab · v{SITE_VERSION} · revisión {REVIEWED_AT} · no contiene preguntas reales de examen.</p><div><a href="#editorial">Autoría y changelog</a><a href="#top">Volver arriba ↑</a></div></footer>
+      <footer><a className="brand" href="#academy" onClick={(event) => { event.preventDefault(); navigateWorkspace("learn"); }}><span className="brand-mark"><i /><i /><i /></span>Lakehouse Lab</a><p>Autoría Lakehouse Lab · v{SITE_VERSION} · revisión {REVIEWED_AT} · no contiene preguntas reales de examen.</p><div><a href="#editorial" onClick={(event) => { event.preventDefault(); navigateWorkspace("resources"); }}>Autoría y changelog</a><a href={`#${workspaceView === "route" ? "catalog" : workspaceView === "resources" ? "resources" : "academy"}`} onClick={(event) => { event.preventDefault(); window.scrollTo({ top: 0, behavior: scrollBehavior() }); }}>Volver arriba ↑</a></div></footer>
     </main>
   );
 }
 
-function GamificationDashboard({ progress, level, completed }: { progress: ProgressState; level: ReturnType<typeof levelFor>; completed: Set<string> }) {
+function GamificationDashboard({ progress, level, completed, reviewCount, challengeLabel, onChallenge }: { progress: ProgressState; level: ReturnType<typeof levelFor>; completed: Set<string>; reviewCount: number; challengeLabel: string; onChallenge: () => void }) {
   const todayActions = progress.gamification.dailyActionCounts[localDate()] ?? 0;
   return <section className="game-panel" aria-labelledby="game-title">
     <div className="game-level"><div><p className="eyebrow">Nivel actual</p><h2 id="game-title">{level.current.name}</h2><span>{progress.gamification.xp.toLocaleString("es-ES")} XP{level.next ? ` · ${level.next.xp - progress.gamification.xp} para ${level.next.name}` : " · nivel máximo"}</span></div><strong>{progress.gamification.streak}<small>días</small></strong></div>
     <div className="level-progress" role="progressbar" aria-label="Progreso al siguiente nivel" aria-valuemin={0} aria-valuemax={100} aria-valuenow={level.percent}><i style={{ width: `${level.percent}%` }} /></div>
-    <div className="missions"><article><span>Reto diario</span><b>{dailyChallenge(modules, completed, progress.completedLessons)}</b></article><article><span>Misión semanal</span><b>{weeklyMission(modules, completed)}</b></article></div>
+    <div className="missions"><article className="active-mission"><span>{reviewCount > 0 ? `Repaso de hoy · ${reviewCount} pendiente${reviewCount === 1 ? "" : "s"}` : "Reto diario"}</span><b>{challengeLabel}</b><button type="button" onClick={onChallenge} disabled={!challengeLabel || challengeLabel.includes("al día")}>Responder ahora <i>→</i></button></article><article><span>Misión semanal</span><b>{weeklyMission(modules, completed)}</b></article></div>
     <div className="combo-row"><span>Combo de hoy</span>{[3,5,7].map((threshold) => <i key={threshold} className={todayActions >= threshold ? "earned" : ""}>{threshold}</i>)}</div>
     <div className="badge-row" aria-label="Insignias obtenidas">{progress.gamification.badges.length ? progress.gamification.badges.map((id) => { const badge = badgeCatalog[id as keyof typeof badgeCatalog]; return badge ? <span key={id} title={badge.label}><i>{badge.icon}</i>{badge.label}</span> : null; }) : <small>Tu primera insignia aparecerá al completar un laboratorio.</small>}</div>
   </section>;
@@ -711,7 +823,8 @@ function EditorialSection() {
       <article><span>Blueprints base</span><h3>Associate + Professional</h3><p><a href={OFFICIAL_BLUEPRINTS.Associate.href} target="_blank" rel="noreferrer">Associate · mayo 2026 ↗</a><a href={OFFICIAL_BLUEPRINTS.Professional.href} target="_blank" rel="noreferrer">Professional · noviembre 2025 ↗</a></p></article>
       <article><span>Procedimiento de revisión</span><h3>Revisión trimestral y por evento</h3><ol><li>Comprobar guías, Runtime y release notes.</li><li>Verificar cada afirmación y laboratorio.</li><li>Actualizar matriz, costes y changelog.</li><li>Revalidar enlaces, progreso, accesibilidad y build.</li><li>Comprobación recomendada dos semanas antes de cada examen.</li></ol></article>
     </div>
-    <div className="changelog"><div><p className="eyebrow">Changelog</p><h3>v{SITE_VERSION} · {REVIEWED_AT}</h3><p>Lectura progresiva y superficie diaria minimalista.</p></div><ul><li>La academia elimina la barra lateral permanente y la sustituye por un selector de módulo bajo demanda.</li><li>Objetivos, ruta conceptual, contexto multinube y blueprint permanecen completos, pero plegados.</li><li>Las cinco lecciones funcionan como acordeón: solo la siguiente se abre inicialmente.</li><li>Cada lección conserva explicación, código, errores, decisiones, comprobación y fuentes oficiales.</li><li>Se reducen paneles duplicados, fondos decorativos y métricas simultáneas en toda la experiencia.</li></ul></div>
+    <div className="changelog"><div><p className="eyebrow">Changelog</p><h3>v{SITE_VERSION} · {REVIEWED_AT}</h3><p>Aprendizaje activo, repaso espaciado y navegación enfocada.</p></div><ul><li>Aprender, Ruta y Recursos son superficies independientes: solo se monta lo que necesitas en ese momento.</li><li>«Continuar» y el reto diario abren la lección o actividad exacta, incluidos los repasos pendientes.</li><li>Cada lección exige explicar con tus palabras antes de mostrar la respuesta y programar el siguiente repaso.</li><li>Los tests conservan la mejor marca, explican cada respuesta y permiten reintentar únicamente los errores.</li><li>La interfaz adopta un cuaderno técnico más legible, con navegación móvil visible, foco claro y menos ruido visual.</li></ul></div>
+    <div className="changelog changelog-previous"><div><p className="eyebrow">Versión anterior</p><h3>v1.6.0 · {REVIEWED_AT}</h3><p>Lectura progresiva y superficie diaria minimalista.</p></div><ul><li>La academia eliminó la barra lateral permanente y añadió un selector de módulo bajo demanda.</li><li>Objetivos, ruta conceptual, contexto multinube y blueprint quedaron completos, pero plegados.</li><li>Las cinco lecciones pasaron a funcionar como acordeón.</li><li>Cada lección conservó explicación, código, errores, decisiones y fuentes oficiales.</li><li>Se redujeron paneles duplicados, fondos decorativos y métricas simultáneas.</li></ul></div>
     <div className="changelog changelog-previous"><div><p className="eyebrow">Versión anterior</p><h3>v1.5.1 · {REVIEWED_AT}</h3><p>Preguntas contenidas y laboratorios con límites explícitos.</p></div><ul><li>Los enunciados y respuestas se ajustan al ancho disponible, incluso con términos técnicos largos y en móvil.</li><li>Cada laboratorio organiza la práctica en construir, comprobar y explicar.</li><li>La ficha de entorno y requisitos queda plegada para reducir fricción sin perder trazabilidad.</li><li>El editor se identifica como borrador local: no ejecuta Databricks ni Spark.</li><li>La finalización registra evidencia declarada; no se presenta como validación independiente del workspace.</li></ul></div>
     <div className="changelog changelog-previous"><div><p className="eyebrow">Versión anterior</p><h3>v1.5.0 · {REVIEWED_AT}</h3><p>Simulacros siempre disponibles y bancos ampliados con procedencia explícita.</p></div><ul><li>Associate y Professional se pueden abrir desde el inicio, también mediante URL directa.</li><li>Associate amplía su banco a 80 preguntas: 50 originales del curso y 30 variantes sintéticas.</li><li>Professional amplía su banco a 100 preguntas: 64 originales del curso y 36 variantes sintéticas.</li><li>Las 14 muestras oficiales retiradas se indexan y enlazan en la página exacta de cada guía oficial.</li><li>Cada pregunta distingue su origen; no se incorporan dumps ni preguntas de exámenes activos.</li></ul></div>
     <div className="changelog changelog-previous"><div><p className="eyebrow">Versión anterior</p><h3>v1.4.0 · {REVIEWED_AT}</h3></div><ul><li>Fuentes específicas por subtema y matriz de evidencia por niveles.</li><li>Laboratorios con reproducibilidad declarada y rutas de estudio diferenciadas.</li><li>Contexto operativo común, AWS, Azure y GCP visible en cada módulo.</li></ul></div>
@@ -739,27 +852,27 @@ function ModuleCard({ module, unlocked, done, progress, onLink }: { module: Curr
     <span className="module-track">{trackMeta[module.track].name}</span>
     <b>{module.title}</b>
     <p>{module.description}</p>
-    <div><span>{formatHours(module.minutes)}</span><span>5 capítulos</span><span>{module.kind === "capstone" ? "Proyecto final" : "1 práctica"}</span>{progress > 0 && !done && <span>{progress}% completado</span>}</div>
+    <div className="module-card-meta"><span>{formatHours(module.minutes)}</span><span>5 capítulos</span><span>{module.kind === "capstone" ? "Proyecto final" : "1 práctica"}</span></div>
+    {progress > 0 && !done && <div className="module-card-meter"><span><i style={{ width: `${progress}%` }} /></span><small>{progress}%</small></div>}
     <small className={done ? "done" : unlocked ? "ready" : "locked"}>{done ? "Módulo superado" : unlocked ? "Abrir módulo →" : `Vista previa → · requiere ${prerequisiteNames}`}</small>
   </a>;
 }
 
-function ClaimRefs({ module, lessonId, refIds, onSource }: { module: CurriculumModule; lessonId: string; refIds: string[]; onSource: (lessonId: string, sourceId: string) => void }) {
-  const sources = refIds.map((id) => module.sources.find((source) => source.id === id)).filter((source): source is CurriculumModule["sources"][number] => Boolean(source));
-  return <sup className="claim-refs" aria-label="Fuentes de esta afirmación">{sources.map((source) => <a key={source.id} href={source.href} target="_blank" rel="noreferrer" title={`${source.label} · revisada ${source.reviewedAt}`} onClick={() => onSource(lessonId, source.id)}>[{module.sources.findIndex((item) => item.id === source.id) + 1}]</a>)}</sup>;
+function ClaimRefs(_props: { module: CurriculumModule; lessonId: string; refIds: string[]; onSource: (lessonId: string, sourceId: string) => void }) {
+  return null;
 }
 
-function LessonsView({ module, completedLessons, preview, onToggle, onSource, onNext }: { module: CurriculumModule; completedLessons: string[]; preview: boolean; onToggle: (id: string) => void; onSource: (lessonId: string, sourceId: string) => void; onNext: () => void }) {
+function LessonsView({ module, completedLessons, preview, requestedLessonId, onRecall, onSource, onNext }: { module: CurriculumModule; completedLessons: string[]; preview: boolean; requestedLessonId: string | null; onRecall: (id: string, rating: ReviewRating) => void; onSource: (lessonId: string, sourceId: string) => void; onNext: () => void }) {
   const mappedCoverage = examMappings.filter((mapping) => mapping.moduleIds.includes(module.id));
   const blueprintCoverage = mappedCoverage.length ? mappedCoverage : [{ level: module.level, domain: module.examDomains.join(" · "), objectives: module.outcomes }];
   const firstIncompleteLessonId = module.lessons.find((lesson) => !completedLessons.includes(lesson.id))?.id;
+  const [openLessonId, setOpenLessonId] = useState<string | null>(requestedLessonId ?? firstIncompleteLessonId ?? module.lessons[0]?.id ?? null);
   useEffect(() => {
-    if (!firstIncompleteLessonId) return;
-    const panel = document.getElementById("panel-lessons");
-    if (panel?.querySelector("details.lesson[open]")) return;
-    const nextLesson = panel?.querySelector<HTMLDetailsElement>(`details.lesson[data-lesson-id="${firstIncompleteLessonId}"]`);
-    if (nextLesson) nextLesson.open = true;
-  }, [module.id, firstIncompleteLessonId]);
+    if (requestedLessonId) setOpenLessonId(requestedLessonId);
+  }, [requestedLessonId]);
+  function handleRecall(lessonId: string, rating: ReviewRating) {
+    onRecall(lessonId, rating);
+  }
   return <div id="panel-lessons" className="lessons-view" role="tabpanel" aria-labelledby="tab-lessons" tabIndex={0}>
     <div className="lesson-context-list">
       <details className="outcomes compact-theory"><summary><span>Objetivos</span><b>Lo que podrás explicar al terminar</b><i>{module.outcomes.length}</i></summary><div>{module.outcomes.map((outcome) => <p key={outcome}>✓ {outcome}</p>)}</div></details>
@@ -779,13 +892,17 @@ function LessonsView({ module, completedLessons, preview, onToggle, onSource, on
       const previousLesson = index > 0 ? module.lessons[index - 1] : null;
       const nextLesson = module.lessons[index + 1] ?? null;
       const learningStage = ["Fundamentos", "Conecta", "Opera", "Decide", "Integra"][index];
-      return <details className={`lesson ${done ? "done" : ""}`} name={`lessons-${module.id}`} data-lesson-id={lesson.id} key={lesson.id} open={lesson.id === firstIncompleteLessonId}>
+      const isOpen = openLessonId === lesson.id;
+      return <details id={`lesson-${module.id}-${lesson.id}`} className={`lesson ${done ? "done" : ""}`} data-lesson-id={lesson.id} key={lesson.id} open={isOpen} onToggle={(event) => {
+        if (event.currentTarget.open) setOpenLessonId(lesson.id);
+        else setOpenLessonId((current) => current === lesson.id ? null : current);
+      }}>
         <summary className="lesson-summary"><span className="lesson-index">{String(index + 1).padStart(2,"0")}</span><div><small>{learningStage} · ≈ {lessonMinutes} min</small><h3>{lesson.title}</h3><p>{lesson.summary}</p></div><i>{done ? "✓" : "+"}</i></summary>
-        <div className="lesson-copy">
+        {isOpen && <div className="lesson-copy">
           <p className="eyebrow">{lesson.kicker} · {learningStage}</p><h3>{lesson.title}</h3>
           <div className="lesson-bridge"><div><span>Punto de partida</span><b>{previousLesson ? `Ya has visto: ${previousLesson.title}` : "Empezamos desde cero"}</b></div><p>{previousLesson ? `Ahora conectaremos esa idea con «${lesson.title}». No necesitas memorizar lo anterior: basta con recordar qué problema resolvía.` : `Primero situaremos «${lesson.title}» dentro del propósito general del módulo. Después añadiremos vocabulario, mecánica y una decisión real.`}</p>{nextLesson && <small>Esto preparará la siguiente pieza: {nextLesson.title}.</small>}</div>
           <p className="lead lesson-one-line"><span>En una frase</span>{lesson.summary}<ClaimRefs module={module} lessonId={lesson.id} refIds={lesson.refIds} onSource={onSource} /></p>
-          <details className="deep-dive" open={lesson.id === firstIncompleteLessonId}>
+          <details className="deep-dive" open={!done}>
             <summary><span>Explicación guiada, paso a paso</span><small>Problema → intuición → vocabulario → mecánica → caso · ≈ {lessonMinutes} min</small></summary>
             <div className="deep-dive-body progressive-body">
               <section className="explanation-stage stage-problem" data-step="1"><p className="eyebrow">Primero, el contexto</p><h4>Qué problema intentamos resolver</h4><p>{lesson.explanation[0]}<ClaimRefs module={module} lessonId={lesson.id} refIds={lesson.refIds} onSource={onSource} /></p><p className="stage-check"><b>Antes de seguir:</b> formula con tus palabras qué se vuelve difícil si esta capacidad no existe.</p></section>
@@ -798,15 +915,39 @@ function LessonsView({ module, completedLessons, preview, onToggle, onSource, on
           <div className="code-example"><div className="code-example-header"><div><span>Paso 6 · {lesson.example.language}</span><b>{lesson.example.title}</b></div><CopyCodeButton code={lesson.example.code} /></div><pre><code>{lesson.example.code}</code></pre><p>{lesson.example.note}<ClaimRefs module={module} lessonId={lesson.id} refIds={lesson.refIds} onSource={onSource} /></p></div>
           <div className="key-points"><h4>Haz una pausa: qué debes retener</h4><div>{lesson.keyPoints.map((point) => <span key={point}>✓ {point}<ClaimRefs module={module} lessonId={lesson.id} refIds={lesson.refIds} onSource={onSource} /></span>)}</div></div>
           <div className="lesson-guidance"><div className="pitfalls"><h4>Errores frecuentes</h4>{lesson.pitfalls.map((pitfall) => <p key={pitfall}>× {pitfall}<ClaimRefs module={module} lessonId={lesson.id} refIds={lesson.refIds} onSource={onSource} /></p>)}</div><div className="exam-decision"><h4>Decisión de examen</h4><p>{lesson.examDecision}<ClaimRefs module={module} lessonId={lesson.id} refIds={lesson.refIds} onSource={onSource} /></p></div></div>
-          <details className="checkpoint"><summary>Comprueba tu razonamiento</summary><p><b>{lesson.checkpoint.question}</b></p><p>{lesson.checkpoint.answer}<ClaimRefs module={module} lessonId={lesson.id} refIds={lesson.refIds} onSource={onSource} /></p></details>
+          <RecallPrompt lesson={lesson} done={done} preview={preview} onRate={(rating) => handleRecall(lesson.id, rating)} />
           <details className="lesson-sources"><summary>Fuentes oficiales <i>{lesson.refIds.length}</i></summary><div>{lesson.refIds.map((id) => module.sources.find((source) => source.id === id)).filter((source): source is CurriculumModule["sources"][number] => Boolean(source)).map((source) => <a key={source.id} href={source.href} target="_blank" rel="noreferrer" onClick={() => onSource(lesson.id, source.id)}>{source.label}<small>{source.publisher} · {source.cloud} · {source.version} · revisada {source.reviewedAt}</small></a>)}</div></details>
-          <div className="lesson-actions"><span>{preview ? "Vista previa de solo lectura" : done ? "Lección completada" : "Termina cuando puedas explicarla sin mirar"}</span><button className="lesson-check" disabled={preview} onClick={() => onToggle(lesson.id)} aria-pressed={done} title={preview ? "Disponible al desbloquear el módulo" : "Márcala solo cuando puedas explicar el modelo, la mecánica y la decisión sin mirar."}>{preview ? "Solo lectura" : done ? "✓ Puedo explicarla" : "Puedo explicarla"}</button></div>
-        </div>
+        </div>}
       </details>;
     })}
     <details className="sources-card"><summary><span>Referencias oficiales del módulo</span><i>{module.sources.length}</i></summary><ul>{module.sources.map((source) => <li key={source.href}><a href={source.href} target="_blank" rel="noreferrer">{source.label} <span>↗</span></a><small>{source.publisher} · {source.cloud} · revisada {source.reviewedAt}</small></li>)}</ul></details>
     <div className="view-next"><span>{preview ? "Vista previa: el progreso no cambia" : `${completedLessons.length}/5 lecciones completadas`}</span><button className="primary-button" onClick={onNext}>Ir al laboratorio <span>→</span></button></div>
   </div>;
+}
+
+function RecallPrompt({ lesson, done, preview, onRate }: { lesson: CurriculumModule["lessons"][number]; done: boolean; preview: boolean; onRate: (rating: ReviewRating) => void }) {
+  const [draft, setDraft] = useState("");
+  const [revealed, setRevealed] = useState(false);
+  const [rated, setRated] = useState<ReviewRating | null>(null);
+  const [status, setStatus] = useState("");
+  const ready = draft.trim().length >= 20;
+  function rate(rating: ReviewRating) {
+    if (rated) return;
+    onRate(rating);
+    setRated(rating);
+    setStatus(rating === "good" ? "Recuerdo registrado. Volverá a aparecer según tu calendario de repaso." : "Programado para repasar mañana.");
+  }
+  return <section className={`retrieval-card ${done ? "is-review" : ""}`} aria-labelledby={`recall-title-${lesson.id}`}>
+    <div className="retrieval-heading"><div><p className="eyebrow">Recuerdo activo</p><h4 id={`recall-title-${lesson.id}`}>{done ? "Comprueba si todavía puedes explicarlo." : "Explícalo antes de mirar la respuesta."}</h4></div><span>{done ? "Repaso" : "Para completar"}</span></div>
+    <p className="retrieval-question">{lesson.checkpoint.question}</p>
+    <label htmlFor={`recall-${lesson.id}`}>Tu explicación, con tus palabras</label>
+    <textarea id={`recall-${lesson.id}`} value={draft} minLength={20} rows={4} disabled={preview} onChange={(event) => { setDraft(event.target.value); setStatus(""); }} placeholder="Escribe qué ocurre, por qué y qué decisión tomarías…" />
+    {!revealed ? <div className="retrieval-actions"><small>{preview ? "Disponible cuando desbloquees el módulo." : ready ? "Ya puedes comparar." : "Escribe al menos una idea completa (20 caracteres)."}</small><button className="primary-button" disabled={preview || !ready} onClick={() => setRevealed(true)}>Comparar respuesta <span>→</span></button></div> : <>
+      <div className="retrieval-answer" role="note"><span>Respuesta de referencia</span><p>{lesson.checkpoint.answer}</p></div>
+      <div className="retrieval-rating"><p>Compara ideas, no palabras exactas. ¿Tu explicación incluía la relación y la decisión clave?</p><div><button className="secondary-button" disabled={Boolean(rated)} onClick={() => rate("again")}>Necesito repasarla</button><button className="primary-button" disabled={Boolean(rated)} onClick={() => rate("good")}>{done ? "La sigo explicando bien" : "La expliqué bien"}<span>✓</span></button></div></div>
+    </>}
+    <p className="retrieval-status" aria-live="polite">{status}</p>
+  </section>;
 }
 
 function CopyCodeButton({ code }: { code: string }) {
@@ -859,12 +1000,19 @@ function LabView({ module, code, cloud, result, passed, confirmed, showSolution,
   </div>;
 }
 
-function QuizView({ module, answers, submitted, score, preview, requirementsMet, examRequired, examDone, onExam, onAnswer, onSubmit, onRetry, onBack }: { module: CurriculumModule; answers:Record<number,number>; submitted:boolean; score?:number; preview:boolean; requirementsMet:boolean; examRequired:StoredExamMode|null; examDone:boolean; onExam:(mode:StoredExamMode)=>void; onAnswer:(question:number,option:number)=>void; onSubmit:()=>void; onRetry:()=>void; onBack:()=>void }) {
+function QuizView({ module, answers, submitted, retryOnlyMistakes, score, preview, requirementsMet, examRequired, examDone, onExam, onAnswer, onSubmit, onRetryMistakes, onRetry, onBack }: { module: CurriculumModule; answers:Record<number,number>; submitted:boolean; retryOnlyMistakes:boolean; score?:number; preview:boolean; requirementsMet:boolean; examRequired:StoredExamMode|null; examDone:boolean; onExam:(mode:StoredExamMode)=>void; onAnswer:(question:number,option:number)=>void; onSubmit:()=>void; onRetryMistakes:()=>void; onRetry:()=>void; onBack:()=>void }) {
+  const answered = Object.keys(answers).length;
+  const attemptScore = module.quiz.reduce((total, question, index) => total + (answers[index] === question.answer ? 1 : 0), 0);
+  const mistakes = module.quiz.length - attemptScore;
+  const pending = module.quiz.length - answered;
   return <div id="panel-quiz" className="quiz-view" role="tabpanel" aria-labelledby="tab-quiz" tabIndex={0}>
-    <div className="quiz-intro"><div><p className="eyebrow">Evaluación razonada</p><h3>{preview ? "Preguntas visibles, respuestas protegidas." : "Necesitas 3 de 4 respuestas correctas."}</h3><p>{preview ? "El test está en modo lectura. Desbloquea el módulo para responder, corregir y ganar XP." : "Las preguntas plantean decisiones técnicas. Para superar el módulo también debes completar las lecciones y ejecutar la práctica."}</p></div><strong>{Object.keys(answers).length}/4</strong></div>
-    <div className={`quiz-list ${preview ? "preview-quiz" : ""}`}>{module.quiz.map((question,index) => <fieldset key={question.question}><legend><span>{String(index+1).padStart(2,"0")}</span>{question.question}</legend><small className="domain-label">{question.domain}</small><div>{question.options.map((option,optionIndex) => { const selected=answers[index]===optionIndex; const correct=question.answer===optionIndex; return <label key={option} className={submitted ? correct?"correct":selected?"incorrect":"" : selected?"selected":""}><input type="radio" name={`${module.id}-${index}`} checked={selected} disabled={preview || submitted} onChange={() => onAnswer(index,optionIndex)} /><span>{String.fromCharCode(65+optionIndex)}</span>{option}</label>; })}</div>{submitted && !preview && <p className="quiz-feedback"><b>{answers[index] === question.answer ? "Correcta. " : "Respuesta recomendada. "}</b>{question.explanation}</p>}</fieldset>)}</div>
+    <div className="quiz-intro"><div><p className="eyebrow">Evaluación razonada</p><h3>{preview ? "Preguntas visibles, respuestas protegidas." : retryOnlyMistakes ? `Corrige ${pending} ${pending === 1 ? "decisión pendiente" : "decisiones pendientes"}.` : "Necesitas 3 de 4 respuestas correctas."}</h3><p>{preview ? "El test está en modo lectura. Desbloquea el módulo para responder, corregir y ganar XP." : retryOnlyMistakes ? "Tus respuestas correctas se conservan. Vuelve a razonar únicamente las que fallaste." : "Responde primero; después verás tu elección, la respuesta correcta y el razonamiento."}</p></div><strong>{submitted ? attemptScore : answered}/4</strong></div>
+    <div className={`quiz-list ${preview ? "preview-quiz" : ""}`}>{module.quiz.map((question,index) => {
+      const retainedCorrect = retryOnlyMistakes && !submitted && answers[index] === question.answer;
+      return <fieldset key={question.question} className={retainedCorrect ? "retained-correct" : ""}><legend><span>{String(index+1).padStart(2,"0")}</span>{question.question}</legend><small className="domain-label">{question.domain}{retainedCorrect ? " · correcta conservada" : ""}</small><div>{question.options.map((option,optionIndex) => { const selected=answers[index]===optionIndex; const correct=question.answer===optionIndex; return <label key={option} className={submitted ? correct?"correct":selected?"incorrect":"" : selected?"selected":""}><input type="radio" name={`${module.id}-${index}`} checked={selected} disabled={preview || submitted || retainedCorrect} onChange={() => onAnswer(index,optionIndex)} /><span>{String.fromCharCode(65+optionIndex)}</span>{option}</label>; })}</div>{submitted && !preview && <div className="quiz-feedback"><span><b>Tu respuesta:</b> {answers[index] === undefined ? "Sin respuesta" : question.options[answers[index]]}</span><span><b>Respuesta correcta:</b> {question.options[question.answer]}</span><p>{question.explanation}</p></div>}</fieldset>;
+    })}</div>
     {examRequired && !examDone && !preview && <div className="capstone-exam"><div><p className="eyebrow">Requisito del capstone</p><h3>Completa el simulacro {examRequired === "associate" ? "Associate" : "Professional"}.</h3><p>El intento es obligatorio para cerrar el proyecto. El 80% sigue siendo sólo un indicador interno de preparación.</p></div><button className="primary-button" onClick={() => onExam(examRequired)}>Abrir simulacro <span>→</span></button></div>}
-    <div className="quiz-submit"><button className="secondary-button" onClick={onBack}>← Volver a lecciones</button><div aria-live="polite">{submitted && !preview && <p className={(score??0)>=3&&requirementsMet?"pass":"warn"}>{(score??0)>=3 ? requirementsMet ? "Módulo superado. El siguiente ya está disponible." : examRequired && !examDone ? "Test aprobado; falta completar el simulacro del capstone." : "Test aprobado; completa las lecciones y la práctica." : `Resultado: ${score ?? 0}/4. Repasa las explicaciones.`}</p>}{preview ? <button className="primary-button" disabled>Disponible al desbloquear</button> : submitted ? <button className="secondary-button" onClick={onRetry}>Nuevo intento</button> : <button className="primary-button" disabled={Object.keys(answers).length<4} onClick={onSubmit}>Corregir test <span>→</span></button>}</div></div>
+    <div className="quiz-submit"><button className="secondary-button" onClick={onBack}>← Volver a lecciones</button><div aria-live="polite">{submitted && !preview && <p className={attemptScore>=3&&requirementsMet?"pass":"warn"}>{attemptScore>=3 ? requirementsMet ? "Módulo superado. El siguiente ya está disponible." : examRequired && !examDone ? "Test aprobado; falta completar el simulacro del capstone." : "Test aprobado; completa las lecciones y la práctica." : `Resultado de este intento: ${attemptScore}/4. Tu mejor marca es ${score ?? attemptScore}/4.`}</p>}{preview ? <button className="primary-button" disabled>Disponible al desbloquear</button> : submitted ? <div className="quiz-retry-actions">{mistakes > 0 && <button className="primary-button" onClick={onRetryMistakes}>Reintentar solo {mistakes} <span>→</span></button>}<button className="secondary-button" onClick={onRetry}>Repetir las 4</button></div> : <button className="primary-button" disabled={answered<4} onClick={onSubmit}>{retryOnlyMistakes ? `Corregir ${pending} pendientes` : "Corregir test"} <span>→</span></button>}</div></div>
   </div>;
 }
 

@@ -4,6 +4,14 @@ import { emptyGamification, sanitizeGamification, type GamificationState } from 
 export type ModuleView = "lessons" | "lab" | "quiz";
 export type ExamMode = "associate" | "professional";
 export type QuizAnswers = Record<string, Record<number, number>>;
+export type ReviewRating = "again" | "good";
+export type LessonReview = {
+  dueOn: string;
+  intervalDays: number;
+  attempts: number;
+  lastRating: ReviewRating;
+  lastReviewedOn: string;
+};
 
 export type ProgressState = {
   contentVersion: string;
@@ -16,13 +24,14 @@ export type ProgressState = {
   labCode: Record<string, string>;
   examScores: Partial<Record<ExamMode, number>>;
   examCompleted: Partial<Record<ExamMode, boolean>>;
+  lessonReviews: Record<string, LessonReview>;
   lastModuleId: string;
   lastView: ModuleView;
   gamification: GamificationState;
 };
 
 export const STORAGE_KEY = "lakehouse-lab-progress-v2";
-export const CONTENT_VERSION = "lakehouse-lab-v1.6.0";
+export const CONTENT_VERSION = "lakehouse-lab-v1.7.0";
 
 export const emptyProgress: ProgressState = {
   contentVersion: CONTENT_VERSION,
@@ -35,6 +44,7 @@ export const emptyProgress: ProgressState = {
   labCode: {},
   examScores: {},
   examCompleted: {},
+  lessonReviews: {},
   lastModuleId: "m01",
   lastView: "lessons",
   gamification: emptyGamification,
@@ -48,6 +58,69 @@ function validModuleIds(values: unknown): string[] {
   if (!Array.isArray(values)) return [];
   const allowed = new Set(modules.map((module) => module.id));
   return [...new Set(values.filter((value): value is string => typeof value === "string" && allowed.has(value)))];
+}
+
+export function lessonReviewKey(moduleId: string, lessonId: string) {
+  return `${moduleId}:${lessonId}`;
+}
+
+function addDays(date: string, days: number) {
+  const value = new Date(`${date}T12:00:00`);
+  value.setDate(value.getDate() + days);
+  return `${value.getFullYear()}-${String(value.getMonth() + 1).padStart(2, "0")}-${String(value.getDate()).padStart(2, "0")}`;
+}
+
+export function scheduleLessonReview(progress: ProgressState, moduleId: string, lessonId: string, rating: ReviewRating, today: string): ProgressState {
+  const key = lessonReviewKey(moduleId, lessonId);
+  const previous = progress.lessonReviews[key];
+  const intervals = [1, 3, 7, 14, 30];
+  const intervalDays = rating === "again"
+    ? 1
+    : previous?.lastReviewedOn === today
+      ? Math.max(1, previous.intervalDays)
+      : intervals.find((interval) => interval > (previous?.intervalDays ?? 0)) ?? 30;
+  return {
+    ...progress,
+    lessonReviews: {
+      ...progress.lessonReviews,
+      [key]: {
+        dueOn: addDays(today, intervalDays),
+        intervalDays,
+        attempts: (previous?.attempts ?? 0) + 1,
+        lastRating: rating,
+        lastReviewedOn: today,
+      },
+    },
+  };
+}
+
+export function dueLessonReviews(progress: ProgressState, today: string) {
+  const scheduled = Object.entries(progress.lessonReviews)
+    .filter(([, review]) => review.dueOn <= today)
+    .map(([key, review]) => {
+      const [moduleId, lessonId] = key.split(":");
+      const curriculumModule = modules.find((item) => item.id === moduleId);
+      const lesson = curriculumModule?.lessons.find((item) => item.id === lessonId);
+      const completed = progress.completedLessons[moduleId]?.includes(lessonId);
+      return curriculumModule && lesson && completed ? { module: curriculumModule, lesson, review } : null;
+    })
+    .filter((item): item is NonNullable<typeof item> => Boolean(item))
+    .sort((a, b) => a.review.dueOn.localeCompare(b.review.dueOn));
+
+  const scheduledKeys = new Set(Object.keys(progress.lessonReviews));
+  const legacy = modules.flatMap((curriculumModule) => (progress.completedLessons[curriculumModule.id] ?? [])
+    .filter((lessonId) => !scheduledKeys.has(lessonReviewKey(curriculumModule.id, lessonId)))
+    .map((lessonId) => {
+      const lesson = curriculumModule.lessons.find((item) => item.id === lessonId);
+      return lesson ? {
+        module: curriculumModule,
+        lesson,
+        review: { dueOn: today, intervalDays: 0, attempts: 0, lastRating: "good" as const, lastReviewedOn: today },
+      } : null;
+    }))
+    .filter((item): item is NonNullable<typeof item> => Boolean(item));
+
+  return [...scheduled, ...legacy.slice(0, Math.max(0, 3 - scheduled.length))];
 }
 
 export function deriveProgress(progress: ProgressState): ProgressState {
@@ -124,6 +197,25 @@ export function sanitizeProgress(value: unknown): ProgressState {
     }
   }
 
+  const lessonReviews: Record<string, LessonReview> = {};
+  if (isRecord(value.lessonReviews)) {
+    const validKeys = new Set(modules.flatMap((curriculumModule) => curriculumModule.lessons.map((lesson) => lessonReviewKey(curriculumModule.id, lesson.id))));
+    for (const [key, raw] of Object.entries(value.lessonReviews)) {
+      if (!validKeys.has(key) || !isRecord(raw)) continue;
+      const dueOn = raw.dueOn;
+      const lastReviewedOn = raw.lastReviewedOn;
+      const intervalDays = raw.intervalDays;
+      const attempts = raw.attempts;
+      const lastRating = raw.lastRating;
+      if (typeof dueOn !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(dueOn)) continue;
+      if (typeof lastReviewedOn !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(lastReviewedOn)) continue;
+      if (typeof intervalDays !== "number" || !Number.isInteger(intervalDays) || intervalDays < 0 || intervalDays > 365) continue;
+      if (typeof attempts !== "number" || !Number.isInteger(attempts) || attempts < 0 || attempts > 10_000) continue;
+      if (lastRating !== "again" && lastRating !== "good") continue;
+      lessonReviews[key] = { dueOn, intervalDays, attempts, lastRating, lastReviewedOn };
+    }
+  }
+
   const labsPassed = validModuleIds(value.labsPassed);
   const confirmed = validModuleIds(value.labConfirmed);
   const labConfirmed = confirmed.length ? confirmed : labsPassed;
@@ -141,6 +233,7 @@ export function sanitizeProgress(value: unknown): ProgressState {
     labCode,
     examScores,
     examCompleted,
+    lessonReviews,
     lastModuleId,
     lastView,
     gamification: sanitizeGamification(value.gamification),

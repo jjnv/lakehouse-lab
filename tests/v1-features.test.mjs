@@ -16,37 +16,40 @@ const [course, editorial, game, page, progress, layout, packageSource, examAugme
   read("app/globals.css"),
 ]);
 
-test("publishes an auditable 1.6.0 editorial record and current official blueprints", () => {
-  assert.match(editorial, /SITE_VERSION = "1\.6\.0"/);
+test("publishes an auditable 1.7.0 editorial record and current official blueprints", () => {
+  assert.match(editorial, /SITE_VERSION = "1\.7\.0"/);
   assert.match(editorial, /may-4-2026\.pdf/);
   assert.match(editorial, /professional-exam-guide-november-30-2025_0\.pdf/);
   assert.match(page, /Revisión trimestral/);
   assert.match(page, /cobertura interna del curso, no pesos oficiales ni suficiencia/);
-  assert.equal(JSON.parse(packageSource).version, "1.6.0");
-  assert.match(layout, /og-v1-1\.png/);
+  assert.equal(JSON.parse(packageSource).version, "1.7.0");
+  assert.match(layout, /\/og\.png/);
 });
 
 test("keeps the daily interface focused while retaining advanced content on demand", () => {
   assert.match(page, /Continúa donde lo dejaste/);
-  assert.match(page, /href="#academy">Aprender/);
-  assert.match(page, /href="#catalog">Ruta/);
-  assert.match(page, /href="#resources">Recursos/);
+  assert.match(page, /href="#academy"/);
+  assert.match(page, />Aprender<\/a>/);
+  assert.match(page, /href="#catalog"/);
+  assert.match(page, />Ruta<\/a>/);
+  assert.match(page, /href="#resources"/);
+  assert.match(page, />Recursos<\/a>/);
   assert.doesNotMatch(page, /id="roadmap"/);
-  assert.match(page, /Retos, combos e insignias/);
+  assert.match(page, /Repaso, retos e insignias/);
   assert.match(page, /className="daily-disclosure blueprint-disclosure"/);
   assert.match(page, /className="daily-disclosure editorial-disclosure"/);
-  assert.match(page, /<summary>Más filtros<\/summary>/);
+  assert.match(page, /<summary id="filter-summary">Más filtros<\/summary>/);
 });
 
 test("uses progressive disclosure without removing theoretical content", () => {
-  assert.match(page, /<details className="module-picker">/);
+  assert.match(page, /<details id="module-picker" className="module-picker" open=\{modulePickerOpen\}/);
   assert.match(page, /className="lesson-context-list"/);
   assert.match(page, /className="outcomes compact-theory"/);
   assert.match(page, /className="module-learning-map compact-theory"/);
   assert.match(page, /className="cloud-context compact-theory"/);
   assert.match(page, /className="blueprint-coverage compact-theory"/);
-  assert.match(page, /name=\{`lessons-\$\{module\.id\}`\}/);
-  assert.match(page, /querySelector\("details\.lesson\[open\]"\)/);
+  assert.match(page, /open=\{isOpen\}/);
+  assert.match(page, /\{isOpen && <div className="lesson-copy">/);
   assert.match(page, /className="lesson-sources"/);
   for (const retained of ["lesson.explanation[0]", "lesson.deepDive.mentalModel", "lesson.deepDive.concepts", "lesson.deepDive.mechanics", "lesson.deepDive.workedScenario", "lesson.example.code", "lesson.keyPoints", "lesson.pitfalls", "lesson.examDecision", "lesson.checkpoint"]) assert.ok(page.includes(retained), `${retained} must remain available`);
 });
@@ -135,7 +138,7 @@ test("all lessons use a progressive explanation sequence without losing citation
   assert.match(page, /module-learning-map/);
   assert.match(page, /lesson-bridge/);
   assert.match(page, /Explicación guiada, paso a paso/);
-  assert.match(page, /open=\{lesson\.id === firstIncompleteLessonId\}/);
+  assert.match(page, /className="deep-dive" open=\{!done\}/);
   assert.match(page, /lesson\.explanation\[0\]/);
   assert.match(page, /lesson\.explanation\[1\]/);
   const orderedStages = ["stage-problem", "mental-model explanation-stage", "concepts explanation-stage", "mechanics explanation-stage", "worked-scenario explanation-stage"];
@@ -147,4 +150,42 @@ test("all lessons use a progressive explanation sequence without losing citation
   }
   for (const step of ["1", "2", "3", "4", "5"]) assert.match(page, new RegExp(`data-step="${step}"`));
   assert.match(page, /ClaimRefs module=\{module\} lessonId=\{lesson\.id\}/);
+  assert.match(page, /function ClaimRefs\(_props:[\s\S]*?return null;/);
+});
+
+test("requires active recall and schedules spaced reviews without storing the draft", () => {
+  assert.match(progress, /lessonReviews: Record<string, LessonReview>/);
+  assert.match(progress, /const intervals = \[1, 3, 7, 14, 30\]/);
+  assert.match(progress, /previous\?\.lastReviewedOn === today/);
+  assert.match(progress, /export function dueLessonReviews/);
+  assert.match(page, /minLength=\{20\}/);
+  assert.match(page, /Comparar respuesta/);
+  assert.match(page, /Necesito repasarla/);
+  assert.match(page, /La expliqué bien/);
+  assert.match(page, /disabled=\{Boolean\(rated\)\}/);
+  assert.match(page, /scheduleLessonReview\(current, activeModule\.id, lessonId, rating, localDate\(\)\)/);
+  assert.doesNotMatch(progress, /recallDraft|recallText/);
+});
+
+test("preserves the best quiz score and can retry only failed decisions", () => {
+  assert.match(page, /Math\.max\(current\.quizScores\[activeModule\.id\] \?\? 0, score\)/);
+  assert.match(page, /function retryQuizMistakes/);
+  assert.match(page, /currentAnswers\[index\] === question\.answer/);
+  assert.match(page, /Reintentar solo \{mistakes\}/);
+  assert.match(page, /Repetir las 4/);
+  assert.match(page, /Tu respuesta:/);
+  assert.match(page, /Respuesta correcta:/);
+});
+
+test("mounts one workspace surface at a time and keeps mobile navigation visible", () => {
+  assert.match(page, /workspaceView === "learn"/);
+  assert.match(page, /workspaceView === "route"/);
+  assert.match(page, /workspaceView === "resources"/);
+  assert.match(styles, /details:not\(\[open\]\)>:not\(summary\)\{display:none!important\}/);
+  assert.match(styles, /\.site-header nav\{display:grid!important/);
+  assert.match(page, /htmlFor="module-search"/);
+  assert.match(page, /htmlFor="filter-track"/);
+  assert.match(page, /htmlFor="filter-level"/);
+  assert.match(page, /htmlFor="filter-topic"/);
+  assert.match(page, /htmlFor="filter-status"/);
 });
