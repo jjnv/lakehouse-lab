@@ -1,7 +1,24 @@
 {
-  "name": "databricks-learning-path",
+  "name": "lakehouse-lab",
   "version": "2.0.0",
   "private": true,
+  "description": "Ruta práctica e independiente en español para aprender ingeniería de datos y arquitectura lakehouse.",
+  "homepage": "https://databricks-learning-path.jjxn.chatgpt.site",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/jjnv/lakehouse-lab.git"
+  },
+  "bugs": {
+    "url": "https://github.com/jjnv/lakehouse-lab/issues"
+  },
+  "keywords": [
+    "databricks",
+    "lakehouse",
+    "data-engineering",
+    "learning-platform",
+    "nextjs",
+    "cloudflare-workers"
+  ],
   "engines": {
     "node": ">=22.13.0"
   },

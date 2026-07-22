@@ -130,7 +130,10 @@ export function useDashboard() {
     }
   }, []);
 
-  useEffect(() => { void refresh(); }, [refresh]);
+  useEffect(() => {
+    const frame = requestAnimationFrame(() => void refresh());
+    return () => cancelAnimationFrame(frame);
+  }, [refresh]);
   useEffect(() => {
     const online = () => { setSaveState("saved"); void refresh(); };
     const offline = () => setSaveState("offline");

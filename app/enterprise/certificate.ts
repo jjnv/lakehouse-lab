@@ -13,7 +13,7 @@ import {
 } from "./assessment-private";
 
 export const CERTIFICATE_SCHEMA_VERSION = "1.0" as const;
-export const INTERNAL_CERTIFICATE_DISCLAIMER = "Certificado interno de finalización; no constituye una certificación oficial de Databricks ni una evaluación proctorizada";
+export const INTERNAL_CERTIFICATE_DISCLAIMER = "Credencial de finalización de Lakehouse Lab; no constituye una certificación oficial de Databricks ni una evaluación proctorizada";
 
 export type CertificateSpecification = Readonly<{
   schemaVersion: typeof CERTIFICATE_SCHEMA_VERSION;

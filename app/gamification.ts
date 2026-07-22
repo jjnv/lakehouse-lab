@@ -149,10 +149,10 @@ export function levelFor(xp: number) {
 }
 
 export function dailyChallenge(modules: CurriculumModule[], completed: Set<string>, completedLessons: Record<string, string[]>) {
-  const module = modules.find((item) => item.prerequisites.every((id) => completed.has(id)) && !completed.has(item.id));
-  if (!module) return "Revisa una fuente oficial y conserva tu cobertura al día.";
-  const lesson = module.lessons.find((item) => !(completedLessons[module.id] ?? []).includes(item.id));
-  return lesson ? `Explica «${lesson.title}» sin mirar.` : `Completa el laboratorio del módulo ${module.number}.`;
+  const courseModule = modules.find((item) => item.prerequisites.every((id) => completed.has(id)) && !completed.has(item.id));
+  if (!courseModule) return "Revisa una fuente oficial y conserva tu cobertura al día.";
+  const lesson = courseModule.lessons.find((item) => !(completedLessons[courseModule.id] ?? []).includes(item.id));
+  return lesson ? `Explica «${lesson.title}» sin mirar.` : `Completa el laboratorio del módulo ${courseModule.number}.`;
 }
 
 export function weeklyMission(modules: CurriculumModule[], completed: Set<string>) {

@@ -103,16 +103,16 @@ export function publicModule(module: CurriculumModule): PublicModule {
 
 function assessmentDefinition(kind: AssessmentKind, moduleId: string | undefined, attemptOrdinal: number): PrivateAssessmentDefinition {
   if (kind === "module-quiz") {
-    const module = moduleId ? findModuleById(moduleId) : null;
-    if (!module) throw new RangeError("El módulo indicado no existe.");
+    const courseModule = moduleId ? findModuleById(moduleId) : null;
+    if (!courseModule) throw new RangeError("El módulo indicado no existe.");
     return {
-      sourceId: `module:${module.id}:quiz`,
+      sourceId: `module:${courseModule.id}:quiz`,
       contentVersion: CONTENT_VERSION,
       kind,
-      title: `Evaluación · ${module.title}`,
+      title: `Evaluación · ${courseModule.title}`,
       instructions: "Responde las cuatro preguntas. Necesitas al menos tres respuestas correctas.",
       baseDurationMinutes: 15,
-      questions: module.quiz.map((question, index) => privateQuestion(question, `${module.id}:q${index + 1}`)),
+      questions: courseModule.quiz.map((question, index) => privateQuestion(question, `${courseModule.id}:q${index + 1}`)),
     };
   }
 

@@ -1,5 +1,7 @@
 "use client";
 
+/* eslint-disable @next/next/no-img-element -- Tenant logos are runtime-configured external assets. */
+
 import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import { DEFAULT_BRAND_CONFIG } from "../../enterprise/brand";
 import type { BrandConfig } from "../../enterprise/types";
@@ -60,6 +62,7 @@ export default function AppShell({ active, title, eyebrow = "Lakehouse Lab", chi
     const previousOverflow = document.body.style.overflow;
     document.body.style.overflow = "hidden";
     const drawer = drawerRef.current;
+    const menuButton = menuButtonRef.current;
     drawerCloseRef.current?.focus();
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key === "Escape") {
@@ -84,7 +87,7 @@ export default function AppShell({ active, title, eyebrow = "Lakehouse Lab", chi
     return () => {
       document.removeEventListener("keydown", onKeyDown);
       document.body.style.overflow = previousOverflow;
-      if (restoreDrawerFocusRef.current) requestAnimationFrame(() => menuButtonRef.current?.focus());
+      if (restoreDrawerFocusRef.current) requestAnimationFrame(() => menuButton?.focus());
       restoreDrawerFocusRef.current = false;
     };
   }, [drawerOpen, mobileNavigation]);
@@ -150,6 +153,10 @@ export default function AppShell({ active, title, eyebrow = "Lakehouse Lab", chi
         <nav className="ent-nav ent-nav-secondary" aria-label="Configuración">
           <p>Cuenta</p>
           <a href="/ajustes" aria-current={active === "settings" ? "page" : undefined} onClick={() => closeDrawer(false)}><span aria-hidden="true">AJ</span>Ajustes</a>
+          <a href="/signout-with-chatgpt?return_to=%2F" onClick={() => closeDrawer(false)}><span aria-hidden="true">CS</span>Cerrar sesión</a>
+          <p>Proyecto</p>
+          <a href="/acerca-de" onClick={() => closeDrawer(false)}><span aria-hidden="true">PR</span>Acerca de</a>
+          <a href="/privacidad" onClick={() => closeDrawer(false)}><span aria-hidden="true">PV</span>Privacidad</a>
         </nav>
 
         <div className="ent-rail-note">

@@ -71,9 +71,10 @@ test("declares the enterprise release as version 2.0.0 everywhere that identifie
   assert.equal(packageJson.version, "2.0.0");
   assert.match(sources["app/editorial-data.ts"], /SITE_VERSION = "2\.0\.0"/u);
   assert.match(sources["app/progress.ts"], /CONTENT_VERSION = "lakehouse-lab-v2\.0\.0"/u);
-  assert.match(sources["app/page.tsx"], /redirect\("\/inicio"\)/u);
-  assert.match(sources["app/layout.tsx"], /Lakehouse Lab Enterprise/u);
-  assert.match(sources["app/layout.tsx"], /robots:\s*\{\s*index:\s*false,\s*follow:\s*false\s*\}/u);
+  assert.match(sources["app/page.tsx"], /getChatGPTUser\(\)/u);
+  assert.match(sources["app/page.tsx"], /href="\/demo"/u);
+  assert.match(sources["app/layout.tsx"], /PROJECT_NAME/u);
+  assert.match(sources["app/layout.tsx"], /robots:\s*\{\s*index:\s*true,\s*follow:\s*true\s*\}/u);
   assert.match(packageJson.scripts.test, /node --test tests\/\*\.test\.mjs/u);
 });
 
@@ -142,7 +143,7 @@ test("keeps authored course data and answer keys outside every client component"
   assert.match(publicQuizProjection, /options:\s*\[\.\.\.question\.options\]/u);
   assert.match(publicQuizProjection, /domain:\s*question\.domain/u);
   assert.doesNotMatch(publicQuizProjection, /\banswer\s*:|\bexplanation\s*:/u);
-  assert.match(routeSources["app/curso/[slug]/page.tsx"], /<CourseWorkspace module=\{publicModule\(module\)\}/u);
+  assert.match(routeSources["app/curso/[slug]/page.tsx"], /<CourseWorkspace module=\{publicModule\(courseModule\)\}/u);
 
   const service = sources["app/enterprise/learning-service.ts"];
   assert.match(service, /from "\.\.\/course-data"/u);
@@ -189,7 +190,7 @@ test("retains static accessibility contracts in the shell, course and assessment
   assert.match(shell, /aria-modal=\{drawerOpen && mobileNavigation \? true : undefined\}/u);
   assert.match(shell, /event\.key === "Escape"/u);
   assert.match(shell, /event\.key !== "Tab"/u);
-  assert.match(shell, /menuButtonRef\.current\?\.focus\(\)/u);
+  assert.match(shell, /menuButton\?\.focus\(\)/u);
 
   assert.match(course, /role="tablist"/u);
   assert.match(course, /role="tabpanel"/u);

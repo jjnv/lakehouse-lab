@@ -401,7 +401,8 @@ test("dependency and enterprise completion gates cannot be bypassed by stale sta
   assert.ok(publicQuizStart >= 0 && publicQuizEnd > publicQuizStart, "falta la proyecciÃ³n pÃºblica del test");
   const publicQuizProjection = enterpriseCurriculumSource.slice(publicQuizStart, publicQuizEnd);
   assert.doesNotMatch(publicQuizProjection, /\banswer\s*:|\bexplanation\s*:/);
-  assert.match(pageSource, /redirect\("\/inicio"\)/);
+  assert.match(pageSource, /getChatGPTUser\(\)/);
+  assert.match(pageSource, /href="\/demo"/);
   assert.doesNotMatch(courseSource, /function makeQuiz/);
 });
 

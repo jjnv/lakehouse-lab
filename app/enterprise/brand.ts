@@ -2,7 +2,7 @@ import type { BrandConfig, BrandValidationIssue, BrandValidationResult } from ".
 
 export const DEFAULT_BRAND_CONFIG: BrandConfig = Object.freeze({
   organizationName: "Lakehouse Lab",
-  productName: "Academia interna",
+  productName: "Proyecto educativo",
   logoUrl: null,
   logoAlt: null,
   primaryColor: "#694BB5",

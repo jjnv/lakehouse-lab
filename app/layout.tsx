@@ -1,60 +1,32 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
-import { headers } from "next/headers";
+import { PROJECT_DESCRIPTION, PROJECT_NAME, PROJECT_PUBLIC_URL, PROJECT_TAGLINE } from "./project-info";
 import "./globals.css";
+import "./public.css";
 
-const geistSans = Geist({
-  variable: "--font-geist-sans",
-  subsets: ["latin"],
-});
+const geistSans = Geist({ variable: "--font-geist-sans", subsets: ["latin"] });
+const geistMono = Geist_Mono({ variable: "--font-geist-mono", subsets: ["latin"] });
 
-const geistMono = Geist_Mono({
-  variable: "--font-geist-mono",
-  subsets: ["latin"],
-});
-
-export async function generateMetadata(): Promise<Metadata> {
-  const incoming = await headers();
-  const host = incoming.get("x-forwarded-host") ?? incoming.get("host") ?? "databricks-learning-path.jjxn.chatgpt.site";
-  const protocol = incoming.get("x-forwarded-proto") ?? (host.includes("localhost") ? "http" : "https");
-  const metadataBase = new URL(`${protocol}://${host}`);
-
+export function generateMetadata(): Metadata {
   return {
-    metadataBase,
-    title: {
-      default: "Lakehouse Lab Enterprise — Academia interna",
-      template: "%s · Lakehouse Lab",
-    },
-    description: "Portal interno de formación Databricks con una ruta Professional de 20 semanas, práctica guiada y progreso sincronizado.",
-    robots: { index: false, follow: false },
+    metadataBase: new URL(PROJECT_PUBLIC_URL),
+    title: { default: `${PROJECT_NAME} — ${PROJECT_TAGLINE}`, template: `%s · ${PROJECT_NAME}` },
+    description: PROJECT_DESCRIPTION,
+    applicationName: PROJECT_NAME,
+    robots: { index: true, follow: true },
     openGraph: {
-      title: "Lakehouse Lab Enterprise",
-      description: "Formación Databricks que se practica, se mide y se conserva.",
+      title: PROJECT_NAME,
+      description: PROJECT_TAGLINE,
       type: "website",
-      images: [{ url: "/og.png", width: 1731, height: 909, alt: "Lakehouse Lab Enterprise: ruta interna de aprendizaje Databricks" }],
+      siteName: PROJECT_NAME,
+      locale: "es_ES",
+      images: [{ url: "/og-public.png", width: 1734, height: 907, alt: `${PROJECT_NAME}: ${PROJECT_TAGLINE}` }],
     },
-    twitter: {
-      card: "summary_large_image",
-      title: "Lakehouse Lab Enterprise",
-      description: "Formación Databricks que se practica, se mide y se conserva.",
-      images: ["/og.png"],
-    },
+    twitter: { card: "summary_large_image", title: PROJECT_NAME, description: PROJECT_TAGLINE, images: ["/og-public.png"] },
     icons: { icon: "/favicon.svg", shortcut: "/favicon.svg" },
   };
 }
 
-export default function RootLayout({
-  children,
-}: Readonly<{
-  children: React.ReactNode;
-}>) {
-  return (
-    <html lang="es">
-      <body
-        className={`${geistSans.variable} ${geistMono.variable} antialiased`}
-      >
-        {children}
-      </body>
-    </html>
-  );
+export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
+  return <html lang="es"><body className={`${geistSans.variable} ${geistMono.variable} antialiased`}>{children}</body></html>;
 }

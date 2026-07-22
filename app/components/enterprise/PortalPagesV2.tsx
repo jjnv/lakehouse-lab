@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+/* eslint-disable @next/next/no-html-link-for-pages -- Full document navigation is intentional in the authenticated shell. */
+import { useEffect, useRef, useState } from "react";
 import type { LearnerDashboard, ModuleSummary } from "../../enterprise/contracts";
 import { SaveState, useDashboard } from "./useDashboard";
 
@@ -43,7 +44,7 @@ function LegacyImportCard({ dashboard, candidate, onImport, onDismiss }: {
   return <section className="ent-import-card" aria-labelledby="legacy-import-heading">
     <div><p className="ent-kicker">Importación opcional</p><h2 id="legacy-import-heading">Hemos encontrado progreso en este navegador.</h2><p>Compáralo antes de decidir. Nunca se subirán código, borradores, respuestas antiguas ni texto de recuerdo activo.</p></div>
     <div className="ent-import-comparison" role="group" aria-label="Comparación del progreso">
-      <article><span>Cuenta corporativa</span><strong>{serverLessons} lecciones</strong><small>{serverLabs} laboratorios · revisión {dashboard.revision.value}</small></article>
+      <article><span>Tu cuenta</span><strong>{serverLessons} lecciones</strong><small>{serverLabs} laboratorios · revisión {dashboard.revision.value}</small></article>
       <span aria-hidden="true">→</span>
       <article><span>Este navegador</span><strong>{candidate.summary.lessons} lecciones</strong><small>{candidate.summary.labs} laboratorios · {candidate.summary.quizzes} tests</small></article>
     </div>
@@ -54,13 +55,14 @@ function LegacyImportCard({ dashboard, candidate, onImport, onDismiss }: {
 
 export function EmployeeHomeV2() {
   const state = useDashboard();
+  const [renderedAt] = useState(() => Date.now());
   if (state.loading) return <LoadingState />;
   if (!state.dashboard) return <ErrorState message={state.error ?? "Inténtalo de nuevo."} retry={state.refresh} />;
   const dashboard = state.dashboard;
   const percent = totalProgress(dashboard);
   const completedModules = dashboard.progress.filter((item) => item.completed).length;
   const start = Date.parse(dashboard.enrollment.startedAt);
-  const currentWeek = Math.max(1, Math.min(20, Math.floor((Date.now() - start) / 604_800_000) + 1));
+  const currentWeek = Math.max(1, Math.min(20, Math.floor((renderedAt - start) / 604_800_000) + 1));
   const weeklyPercent = Math.min(100, Math.round(dashboard.weeklyMinutes / dashboard.enrollment.weeklyTargetMinutes * 100));
 
   return <div className="ent-page-stack">
@@ -127,7 +129,7 @@ export function MyLearningV2() {
     </div>
 
     <section id="repasos" className="ent-section" aria-labelledby="reviews-heading"><div className="ent-section-heading"><div><p className="ent-kicker">Recuerdo espaciado</p><h2 id="reviews-heading">Repasos pendientes</h2></div><span>{dashboard.reviews.length}</span></div>
-      {dashboard.reviews.length ? <div className="ent-review-list">{dashboard.reviews.map((review) => { const module = dashboard.modules.find((item) => item.id === review.moduleId); return <article key={`${review.moduleId}-${review.lessonId}`}><span>{module?.number}</span><div><b>{module?.short}</b><small>Intervalo {review.intervalDays} días · venció {review.dueOn}</small></div><a href={`/curso/${module?.slug}?lesson=${review.lessonId}`}>Repasar</a></article>; })}</div> : <div className="ent-empty"><strong>Todo al día</strong><p>Los próximos repasos aparecerán aquí cuando corresponda.</p></div>}
+      {dashboard.reviews.length ? <div className="ent-review-list">{dashboard.reviews.map((review) => { const courseModule = dashboard.modules.find((item) => item.id === review.moduleId); return <article key={`${review.moduleId}-${review.lessonId}`}><span>{courseModule?.number}</span><div><b>{courseModule?.short}</b><small>Intervalo {review.intervalDays} días · venció {review.dueOn}</small></div><a href={`/curso/${courseModule?.slug}?lesson=${review.lessonId}`}>Repasar</a></article>; })}</div> : <div className="ent-empty"><strong>Todo al día</strong><p>Los próximos repasos aparecerán aquí cuando corresponda.</p></div>}
     </section>
   </div>;
 }
@@ -148,9 +150,9 @@ export function LearningRecordV2() {
   const dashboard = state.dashboard;
   const visible = dashboard.modules.filter((module) => { const progress = moduleProgress(dashboard, module.id); return progress?.completedLessonIds.length || progress?.labAttested || progress?.quizBestPercent !== null; });
   return <div className="ent-page-stack">
-    <section className="ent-page-intro" aria-labelledby="record-heading"><div><p className="ent-kicker">Expediente personal</p><h2 id="record-heading">Resultados y evidencias de aprendizaje</h2><p>Este expediente pertenece al empleado. XP, rachas e insignias son motivación privada y no una evaluación laboral.</p></div><SaveState value={state.saveState} onRetry={state.refresh} /></section>
+    <section className="ent-page-intro" aria-labelledby="record-heading"><div><p className="ent-kicker">Expediente personal</p><h2 id="record-heading">Resultados y evidencias de aprendizaje</h2><p>Este expediente te pertenece. XP, rachas e insignias son motivación privada y no una evaluación laboral.</p></div><SaveState value={state.saveState} onRetry={state.refresh} /></section>
     <section className="ent-overview-grid ent-overview-grid-three" aria-label="Resumen del expediente"><article><span>Módulos superados</span><strong>{dashboard.progress.filter((item) => item.completed).length}<small>/32</small></strong></article><article><span>Associate</span><strong>{dashboard.bestSimulatorScores.associate === null ? "—" : `${dashboard.bestSimulatorScores.associate}%`}</strong></article><article><span>Professional</span><strong>{dashboard.bestSimulatorScores.professional === null ? "—" : `${dashboard.bestSimulatorScores.professional}%`}</strong></article></section>
-    <section className="ent-credential-card" aria-labelledby="credential-heading"><div><p className="ent-kicker">Credencial interna</p><h2 id="credential-heading">{dashboard.credential ? "Certificado emitido" : "Certificado aún no disponible"}</h2><p>{dashboard.credential ? `Emitido el ${new Intl.DateTimeFormat("es-ES", { dateStyle: "long" }).format(new Date(dashboard.credential.issuedAt))}.` : "Completa los 32 módulos, los dos simulacros al 80 %, el capstone y un nuevo intento Professional posterior a cualquier importación."}</p></div>{dashboard.credential ? <div><a className="ent-primary-action" href={dashboard.credential.pdfHref}>Descargar PDF</a><a href={dashboard.credential.verificationHref}>Verificar credencial</a></div> : <a className="ent-secondary-action" href="/mi-aprendizaje">Ver requisitos</a>}<small>Certificado interno de finalización; no constituye una certificación oficial de Databricks ni una evaluación proctorizada.</small></section>
+    <section className="ent-credential-card" aria-labelledby="credential-heading"><div><p className="ent-kicker">Credencial de finalización</p><h2 id="credential-heading">{dashboard.credential ? "Certificado emitido" : "Certificado aún no disponible"}</h2><p>{dashboard.credential ? `Emitido el ${new Intl.DateTimeFormat("es-ES", { dateStyle: "long" }).format(new Date(dashboard.credential.issuedAt))}.` : "Completa los 32 módulos, los dos simulacros al 80 %, el capstone y un nuevo intento Professional posterior a cualquier importación."}</p></div>{dashboard.credential ? <div><a className="ent-primary-action" href={dashboard.credential.pdfHref}>Descargar PDF</a><a href={dashboard.credential.verificationHref}>Verificar credencial</a></div> : <a className="ent-secondary-action" href="/mi-aprendizaje">Ver requisitos</a>}<small>Credencial propia de Lakehouse Lab; no constituye una certificación oficial de Databricks ni una evaluación proctorizada.</small></section>
     <section className="ent-section" aria-labelledby="record-table-heading"><div className="ent-section-heading"><div><p className="ent-kicker">Actividad acreditada</p><h2 id="record-table-heading">Detalle por módulo</h2></div></div>{visible.length ? <div className="ent-table-wrap" tabIndex={0} aria-label="Tabla de progreso desplazable"><table className="ent-table"><thead><tr><th>Módulo</th><th>Estado</th><th>Lecciones</th><th>Laboratorio</th><th>Mejor test</th><th><span className="sr-only">Acción</span></th></tr></thead><tbody>{visible.map((module) => { const progress = moduleProgress(dashboard, module.id)!; return <tr key={module.id}><td data-label="Módulo"><span>{module.number}</span><b>{module.short}</b></td><td data-label="Estado"><span className={`ent-status ${progress.completed ? "is-complete" : "is-progress"}`}>{progress.completed ? "Superado" : "En curso"}</span></td><td data-label="Lecciones">{progress.completedLessonIds.length}/5</td><td data-label="Laboratorio">{progress.labAttested ? "Autoatestiguado" : "Pendiente"}</td><td data-label="Mejor test">{progress.quizBestPercent === null ? "—" : `${progress.quizBestPercent}%`}</td><td data-label="Acción"><a href={`/curso/${module.slug}`}>Abrir</a></td></tr>; })}</tbody></table></div> : <div className="ent-empty"><strong>Aún no hay actividad</strong><p>Empieza el primer módulo para construir tu expediente.</p><a href="/curso/data-intelligence-platform-y-arquitectura-lakehouse">Empezar</a></div>}</section>
     <section className="ent-private-motivation" aria-labelledby="motivation-heading"><div><p className="ent-kicker">Motivación privada</p><h2 id="motivation-heading">Tu constancia, para ti</h2></div><div><article><span>XP</span><strong>{dashboard.motivation.xp.toLocaleString("es-ES")}</strong></article><article><span>Racha</span><strong>{dashboard.motivation.streakDays} días</strong></article><article><span>Insignias</span><strong>{dashboard.motivation.badges.length}</strong></article></div></section>
   </div>;
@@ -165,16 +167,15 @@ export function LearnerSettingsV2() {
   const cancelRef = useRef<HTMLButtonElement>(null);
   const deleteTriggerRef = useRef<HTMLButtonElement>(null);
   const dialogRef = useRef<HTMLElement>(null);
-  const deletingRef = useRef(false);
-  deletingRef.current = deletePending;
 
   useEffect(() => {
     if (!confirmDelete) return;
     const previousOverflow = document.body.style.overflow;
+    const returnFocusTarget = deleteTriggerRef.current;
     document.body.style.overflow = "hidden";
     const focusFrame = requestAnimationFrame(() => cancelRef.current?.focus());
     const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape" && !deletingRef.current) {
+      if (event.key === "Escape" && !deletePending) {
         event.preventDefault();
         setConfirmDelete(false);
         setDeleteText("");
@@ -199,12 +200,12 @@ export function LearnerSettingsV2() {
       cancelAnimationFrame(focusFrame);
       document.removeEventListener("keydown", onKeyDown);
       document.body.style.overflow = previousOverflow;
-      requestAnimationFrame(() => deleteTriggerRef.current?.focus());
+      requestAnimationFrame(() => returnFocusTarget?.focus());
     };
-  }, [confirmDelete]);
+  }, [confirmDelete, deletePending]);
 
   function closeDeleteDialog() {
-    if (deletingRef.current) return;
+    if (deletePending) return;
     setConfirmDelete(false);
     setDeleteText("");
     setDeleteError(null);
@@ -239,10 +240,10 @@ export function LearnerSettingsV2() {
   const deleting = deletePending;
   return <>
   <div className="ent-page-stack" inert={confirmDelete ? true : undefined}>
-    <section className="ent-page-intro" aria-labelledby="settings-heading"><div><p className="ent-kicker">Cuenta y preferencias</p><h2 id="settings-heading">Ajustes</h2><p>Tu identidad procede de ChatGPT. El progreso se guarda en la cuenta corporativa; este navegador solo conserva preferencias y borradores privados.</p></div><SaveState value={state.saveState} onRetry={state.refresh} /></section>
+    <section className="ent-page-intro" aria-labelledby="settings-heading"><div><p className="ent-kicker">Cuenta y preferencias</p><h2 id="settings-heading">Ajustes</h2><p>Tu identidad procede de ChatGPT. El progreso se vincula a tu cuenta; este navegador solo conserva preferencias y borradores privados.</p></div><SaveState value={state.saveState} onRetry={state.refresh} /></section>
     <section className="ent-settings-grid-v2">
       <article><p className="ent-kicker">Perfil</p><h2>{dashboard.learner.displayName}</h2><dl><div><dt>Cuenta</dt><dd>{dashboard.learner.email}</dd></div><div><dt>Idioma</dt><dd>Español</dd></div><div><dt>Zona horaria</dt><dd>{dashboard.learner.timezone}</dd></div></dl></article>
-      <article><p className="ent-kicker">Organización</p><h2>{dashboard.brand.organizationName}</h2><p>Los colores y el co-branding se gestionan mediante la configuración segura de Sites.</p><div className="ent-brand-swatches" aria-label="Colores de la organización"><span style={{ background: dashboard.brand.primaryColor }} /><span style={{ background: dashboard.brand.accentColor }} /></div>{dashboard.brand.supportEmail ? <a href={`mailto:${dashboard.brand.supportEmail}`}>Contactar con soporte</a> : null}</article>
+      <article><p className="ent-kicker">Organización</p><h2>{dashboard.brand.organizationName}</h2><p>Los colores y el co-branding se gestionan mediante la configuración segura de Sites.</p><div className="ent-brand-swatches" aria-hidden="true"><span style={{ background: dashboard.brand.primaryColor }} /><span style={{ background: dashboard.brand.accentColor }} /></div>{dashboard.brand.supportEmail ? <a href={`mailto:${dashboard.brand.supportEmail}`}>Contactar con soporte</a> : null}</article>
     </section>
     <section className="ent-account-actions" aria-labelledby="data-heading"><div><p className="ent-kicker">Tus datos</p><h2 id="data-heading">Portabilidad y control</h2><p>Descarga una copia personal o elimina el progreso de aprendizaje. La matrícula seguirá existiendo para que puedas empezar de nuevo.</p></div><div><a className="ent-secondary-action" href="/api/me/export" download>Exportar mis datos</a><button ref={deleteTriggerRef} type="button" className="ent-danger-action" aria-haspopup="dialog" onClick={() => { setDeleteError(null); setConfirmDelete(true); }}>Eliminar progreso</button></div></section>
   </div>

@@ -83,11 +83,7 @@ export default function AssessmentPanel({
   const [currentRevision, setCurrentRevision] = useState(revision);
   const submittingRef = useRef(false);
   const pageSize = kind === "module-quiz" ? 4 : 10;
-
-  useEffect(
-    () => setCurrentRevision((value) => Math.max(value, revision)),
-    [revision],
-  );
+  const effectiveRevision = Math.max(currentRevision, revision);
 
   const start = useCallback(async () => {
     setError(null);
@@ -101,7 +97,7 @@ export default function AssessmentPanel({
           moduleId,
           timingMode,
           clientMutationId: crypto.randomUUID(),
-          expectedRevision: currentRevision,
+          expectedRevision: effectiveRevision,
         }),
       });
       const envelope = await responseBody<
@@ -130,7 +126,7 @@ export default function AssessmentPanel({
       );
       onState(navigator.onLine ? "error" : "offline");
     }
-  }, [currentRevision, kind, moduleId, onState, timingMode]);
+  }, [effectiveRevision, kind, moduleId, onState, timingMode]);
 
   const submit = useCallback(async () => {
     if (!attempt || submittingRef.current) return;
@@ -143,7 +139,7 @@ export default function AssessmentPanel({
         headers: { "content-type": "application/json" },
         body: JSON.stringify({
           clientMutationId: crypto.randomUUID(),
-          expectedRevision: currentRevision,
+          expectedRevision: effectiveRevision,
         }),
       });
       const envelope = await responseBody<
@@ -163,26 +159,22 @@ export default function AssessmentPanel({
     } finally {
       submittingRef.current = false;
     }
-  }, [attempt, currentRevision, onCompleted, onState]);
+  }, [attempt, effectiveRevision, onCompleted, onState]);
 
   useEffect(() => {
     if (secondsLeft === null || result || !attempt) return;
-    if (secondsLeft <= 0) {
-      setWarning(
-        "El tiempo ha terminado. El intento se enviará para corrección.",
-      );
-      void submit();
-      return;
-    }
-    const timer = window.setTimeout(
-      () =>
-        setSecondsLeft((current) =>
-          current === null ? null : Math.max(0, current - 1),
-        ),
-      1000,
-    );
-    if (secondsLeft === 300) setWarning("Quedan cinco minutos.");
-    if (secondsLeft === 60) setWarning("Queda un minuto.");
+    const timer = window.setTimeout(() => {
+      const next = Math.max(0, secondsLeft - 1);
+      setSecondsLeft(next);
+      if (next === 300) setWarning("Quedan cinco minutos.");
+      if (next === 60) setWarning("Queda un minuto.");
+      if (next === 0) {
+        setWarning(
+          "El tiempo ha terminado. El intento se enviará para corrección.",
+        );
+        void submit();
+      }
+    }, secondsLeft <= 0 ? 0 : 1000);
     return () => window.clearTimeout(timer);
   }, [attempt, result, secondsLeft, submit]);
 
@@ -200,7 +192,7 @@ export default function AssessmentPanel({
         body: JSON.stringify({
           selections: next,
           clientMutationId: crypto.randomUUID(),
-          expectedRevision: currentRevision,
+          expectedRevision: effectiveRevision,
         }),
       });
       const envelope = await responseBody(response);

@@ -1251,7 +1251,7 @@ function pdfColor(hex: string) {
 export async function renderCredentialPdf(learner: LearnerContext, row: typeof credentials.$inferSelect) {
   const brand = await getOrganizationBranding(learner.organization.id);
   const pdf = await PDFDocument.create();
-  pdf.setTitle(`Certificado interno de finalización · ${learner.user.displayName}`);
+  pdf.setTitle(`Credencial de finalización · ${learner.user.displayName}`);
   pdf.setSubject(`${row.title}. ${CERTIFICATE_DISCLAIMER}`);
   pdf.setAuthor(brand.organizationName);
   pdf.setCreator("Lakehouse Lab Enterprise");
@@ -1275,7 +1275,7 @@ export async function renderCredentialPdf(learner: LearnerContext, row: typeof c
   page.drawRectangle({ x: 58, y: 86, width: 725.89, height: 80, color: pale });
 
   page.drawText(boldText(brand.organizationName), { x: 58, y: 518, size: 11, font: bold, color: ink });
-  page.drawText(regularText("Lakehouse Lab · Academia interna"), { x: 58, y: 500, size: 9, font: regular, color: muted });
+  page.drawText(regularText("Lakehouse Lab · Proyecto educativo independiente"), { x: 58, y: 500, size: 9, font: regular, color: muted });
   page.drawText(boldText("CERTIFICADO INTERNO DE FINALIZACIÓN"), { x: 58, y: 445, size: 12, font: bold, color: purple });
   page.drawText(boldText(row.title), { x: 58, y: 397, size: 27, font: bold, color: ink, maxWidth: 725 });
   page.drawText(regularText("Otorgado a"), { x: 58, y: 342, size: 10, font: regular, color: muted });
@@ -1313,6 +1313,7 @@ export async function exportLearnerData(learner: LearnerContext) {
     exportedAt: nowIso(),
     profile: dashboard.learner,
     enrollment: dashboard.enrollment,
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars -- Internal proof and idempotency fields are intentionally omitted from exports.
     progress: { modules: dashboard.progress, reviews, lessons, labs: labs.map(({ checksJson: _checks, idempotencyKey: _key, ...lab }) => lab) },
     assessments: attempts.map(assessmentResultPublic),
     credentials: credentialRows.map(publicCredential),
@@ -1351,7 +1352,7 @@ export async function deleteLearnerProgress(learner: LearnerContext, body: unkno
     status: "completed",
     requestedAt: deletedAt,
     completedAt: deletedAt,
-    resolutionNote: "Progreso personal eliminado por solicitud autenticada del empleado.",
+    resolutionNote: "Progreso personal eliminado por solicitud autenticada del estudiante.",
   }).onConflictDoNothing();
   await db.update(learnerAssignments).set({ status: "not_started", startedAt: null, completedAt: null, updatedAt: deletedAt }).where(and(eq(learnerAssignments.userId, learner.user.id), eq(learnerAssignments.assignmentId, learner.professionalAssignment.id)));
   return envelope({ deleted: true }, revision, false);

@@ -1,6 +1,7 @@
 import { defineConfig } from "@playwright/test";
 
-const baseURL = process.env.E2E_BASE_URL ?? "http://127.0.0.1:4173";
+const localPort = process.env.E2E_PORT ?? "4173";
+const baseURL = process.env.E2E_BASE_URL ?? `http://127.0.0.1:${localPort}`;
 const startsLocalServer = !process.env.E2E_BASE_URL;
 
 export default defineConfig({
@@ -12,6 +13,11 @@ export default defineConfig({
   globalSetup: startsLocalServer ? "./tests/e2e/global-setup.ts" : undefined,
   use: {
     baseURL,
+    extraHTTPHeaders: {
+      "oai-authenticated-user-email": "qa.employee@example.com",
+      "oai-authenticated-user-full-name": encodeURIComponent("Empleado de prueba"),
+      "oai-authenticated-user-full-name-encoding": "percent-encoded-utf-8",
+    },
     locale: "es-ES",
     timezoneId: "Europe/Madrid",
     colorScheme: "light",
@@ -20,7 +26,7 @@ export default defineConfig({
   },
   webServer: startsLocalServer
     ? {
-        command: "vite --host 127.0.0.1 --port 4173 --strictPort",
+        command: `vite --host 127.0.0.1 --port ${localPort} --strictPort`,
         url: `${baseURL}/api/me/dashboard`,
         reuseExistingServer: false,
         timeout: 120_000,

@@ -22,7 +22,7 @@ test("the compiled v2 client contains the real-route enterprise shell", () => {
   for (const route of ["/inicio", "/mi-aprendizaje", "/catalogo", "/expediente", "/ajustes"]) {
     assert.ok(clientJavaScript.includes(route), `compiled navigation is missing ${route}`);
   }
-  for (const contract of ["Academia interna", "Saltar al contenido", "main-content", "aria-current", "aria-modal"]) {
+  for (const contract of ["Proyecto educativo", "Saltar al contenido", "main-content", "aria-current", "aria-modal"]) {
     assert.ok(clientJavaScript.includes(contract), `compiled shell is missing ${contract}`);
   }
   assert.doesNotMatch(clientJavaScript, /codex-preview/iu);
@@ -58,4 +58,17 @@ test("the compiled UI retains keyboard, announcement and high-contrast affordanc
   assert.match(clientStyles, /@media\s*\(prefers-reduced-motion:\s*reduce\)/u);
   assert.match(clientStyles, /@media\s*\(forced-colors:\s*active\)/u);
   assert.match(clientStyles, /@media\s*\((?:max-width:\s*700px|width<=700px)\)/u);
+});
+
+test("the server bundle contains the complete public launch surface", () => {
+  for (const contract of [
+    "Beta pública",
+    "Explorar la demo",
+    "Tu progreso te pertenece",
+    "Condiciones de uso",
+    "Proyecto educativo independiente",
+    "og-public.png",
+  ]) {
+    assert.ok(serverJavaScript.includes(contract), `public launch surface is missing ${contract}`);
+  }
 });

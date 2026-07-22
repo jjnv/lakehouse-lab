@@ -175,9 +175,9 @@ footer{padding:30px max(24px,calc((100vw - var(--content))/2));background:#fffdf
 .ent-tenant small{color:var(--ent-muted);font-size:10px}
 .ent-tenant b{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:12px}
 .ent-nav{display:grid;gap:4px}
-.ent-nav p{margin:8px 10px 5px;color:#7a828d;font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.09em}
+.ent-nav p{margin:8px 10px 5px;color:#66707b;font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.09em}
 .ent-nav a{min-height:44px;display:grid;grid-template-columns:30px minmax(0,1fr);gap:9px;align-items:center;padding:5px 10px;border-radius:9px;color:#4f5865;text-decoration:none;font-size:13px;font-weight:680}
-.ent-nav a>span{width:28px;height:28px;display:grid;place-items:center;border-radius:7px;background:#f0f2f5;color:#707985;font:750 9px var(--mono)}
+.ent-nav a>span{width:28px;height:28px;display:grid;place-items:center;border-radius:7px;background:#f0f2f5;color:#5f6873;font:750 9px var(--mono)}
 .ent-nav a:hover{background:#f4f2f9;color:var(--tenant-primary,#513a92)}
 .ent-nav a[aria-current="page"]{background:color-mix(in srgb,var(--tenant-primary,#513a92) 11%,white);color:var(--tenant-primary,#513a92);font-weight:820;box-shadow:inset 3px 0 var(--tenant-primary,#513a92)}
 .ent-nav a[aria-current="page"]>span{background:var(--tenant-primary,#513a92);color:var(--tenant-on-primary,#fff)}
@@ -379,3 +379,9 @@ footer{padding:30px max(24px,calc((100vw - var(--content))/2));background:#fffdf
 .ent-verification-status p:last-child {
   font-size:16px;
 }
+
+/* Small status labels keep AA contrast on muted surfaces. */
+.ent-module-row.is-preview>span{color:#68717c}
+.ent-topbar .ent-topbar-account>span{color:#fff}
+.ent-course-tabs button{min-width:0}
+@media(max-width:400px){.ent-course-tabs button span{display:none}}

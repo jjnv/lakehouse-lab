@@ -24,6 +24,26 @@ export function json(data: unknown, init: ResponseInit = {}) {
 }
 
 export async function readJson(request: Request): Promise<unknown> {
+  const contentType = request.headers.get("content-type")?.split(";", 1)[0].trim().toLowerCase();
+  if (contentType !== "application/json") {
+    throw new LearningApiError(415, "JSON_REQUIRED", "La solicitud debe usar Content-Type: application/json.");
+  }
+  const fetchSite = request.headers.get("sec-fetch-site")?.toLowerCase();
+  if (fetchSite === "cross-site") {
+    throw new LearningApiError(403, "CROSS_SITE_REQUEST", "La operación debe iniciarse desde Lakehouse Lab.");
+  }
+  const origin = request.headers.get("origin");
+  if (origin) {
+    let expectedOrigin: string;
+    try {
+      expectedOrigin = new URL(request.url).origin;
+    } catch {
+      throw new LearningApiError(400, "INVALID_REQUEST_URL", "La URL de la solicitud no es válida.");
+    }
+    if (origin !== expectedOrigin) {
+      throw new LearningApiError(403, "CROSS_ORIGIN_REQUEST", "La operación debe iniciarse desde el mismo origen.");
+    }
+  }
   const declaredLength = Number(request.headers.get("content-length") ?? 0);
   if (Number.isFinite(declaredLength) && declaredLength > 1_500_000) {
     throw new LearningApiError(413, "PAYLOAD_TOO_LARGE", "La solicitud supera el tamaño permitido.");

@@ -13,6 +13,14 @@ const routes = [
   { path: "/certificados/credencial-inexistente", heading: "Verificar certificado" },
 ] as const;
 
+const publicRoutes = [
+  { path: "/", heading: "Ingeniería de datos que se practica." },
+  { path: "/demo", heading: "Así se aprende dentro de Lakehouse Lab." },
+  { path: "/acerca-de", heading: "Una academia construida como producto real." },
+  { path: "/privacidad", heading: "Tu progreso te pertenece." },
+  { path: "/terminos", heading: "Aprendizaje independiente, sin promesas engañosas." },
+] as const;
+
 async function waitForWorkspace(page: Page) {
   await expect(page.locator(".ent-state-card")).toHaveCount(0, { timeout: 20_000 });
   await expect(page.locator("main#main-content")).toBeVisible();
@@ -35,6 +43,17 @@ for (const route of routes) {
     const response = await page.goto(route.path);
     expect(response?.status()).toBeLessThan(400);
     await waitForWorkspace(page);
+    await expect(page.getByRole("heading", { level: 1, name: route.heading })).toBeVisible();
+    await expect(page.locator("h1")).toHaveCount(1);
+    await expectWcag22Aa(page);
+  });
+}
+
+for (const route of publicRoutes) {
+  test(`${route.path} es pública y conserva WCAG 2.2 AA`, async ({ page }) => {
+    const response = await page.goto(route.path);
+    expect(response?.status()).toBeLessThan(400);
+    await expect(page.locator("main#public-main")).toBeVisible();
     await expect(page.getByRole("heading", { level: 1, name: route.heading })).toBeVisible();
     await expect(page.locator("h1")).toHaveCount(1);
     await expectWcag22Aa(page);
@@ -113,5 +132,55 @@ test("la interfaz hace reflow a 320 CSS px", async ({ page }) => {
   await page.goto("/curso/data-intelligence-platform-y-arquitectura-lakehouse");
   await waitForWorkspace(page);
   const widths = await page.evaluate(() => ({ viewport: window.innerWidth, document: document.documentElement.scrollWidth }));
-  expect(widths.document).toBeLessThanOrEqual(widths.viewport);
+  const overflowing = await page.locator("body *").evaluateAll((elements) => elements
+    .map((element) => ({
+      tag: element.tagName.toLowerCase(),
+      className: element.getAttribute("class") ?? "",
+      parentClassName: element.parentElement?.getAttribute("class") ?? "",
+      text: element.textContent?.trim().slice(0, 80) ?? "",
+      left: Math.round(element.getBoundingClientRect().left),
+      right: Math.round(element.getBoundingClientRect().right),
+    }))
+    .filter((element) => element.right > window.innerWidth)
+    .slice(0, 12));
+  expect(widths.document, JSON.stringify(overflowing)).toBeLessThanOrEqual(widths.viewport);
+});
+
+test("dos identidades autenticadas conservan progreso aislado", async ({ browser, baseURL }) => {
+  const suffix = `${Date.now()}-${process.pid}`;
+  const identityHeaders = (email: string, name: string) => ({
+    "oai-authenticated-user-email": email,
+    "oai-authenticated-user-full-name": encodeURIComponent(name),
+    "oai-authenticated-user-full-name-encoding": "percent-encoded-utf-8",
+  });
+  const contextA = await browser.newContext({ extraHTTPHeaders: identityHeaders(`isolation-a-${suffix}@example.com`, "Persona A") });
+  const contextB = await browser.newContext({ extraHTTPHeaders: identityHeaders(`isolation-b-${suffix}@example.com`, "Persona B") });
+  try {
+    const pageA = await contextA.newPage();
+    const dashboardAResponse = await pageA.request.get(`${baseURL}/api/me/dashboard`);
+    expect(dashboardAResponse.ok()).toBeTruthy();
+    const dashboardA = await dashboardAResponse.json();
+    const mutation = await pageA.request.post(`${baseURL}/api/lessons/m01/m01-l1/review`, {
+      data: {
+        action: "complete",
+        clientMutationId: `isolation-a-complete-${suffix}`,
+        expectedRevision: dashboardA.revision.value,
+      },
+    });
+    expect(mutation.ok()).toBeTruthy();
+
+    const pageB = await contextB.newPage();
+    const dashboardBResponse = await pageB.request.get(`${baseURL}/api/me/dashboard`);
+    expect(dashboardBResponse.ok()).toBeTruthy();
+    const dashboardB = await dashboardBResponse.json();
+    const moduleB = dashboardB.progress.find((item: { moduleId: string }) => item.moduleId === "m01");
+    expect(moduleB.completedLessonIds).not.toContain("m01-l1");
+
+    const dashboardAAfter = await (await pageA.request.get(`${baseURL}/api/me/dashboard`)).json();
+    const moduleA = dashboardAAfter.progress.find((item: { moduleId: string }) => item.moduleId === "m01");
+    expect(moduleA.completedLessonIds).toContain("m01-l1");
+  } finally {
+    await contextA.close();
+    await contextB.close();
+  }
 });

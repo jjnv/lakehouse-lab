@@ -25,7 +25,7 @@ export default function CatalogWorkspace({ modules }: { modules: ModuleSummary[]
   }), [level, modules, normalized, phase, progressMap, status]);
 
   return <div className="ent-page-stack">
-    <section className="ent-page-intro" aria-labelledby="catalog-heading"><div><p className="ent-kicker">32 módulos · ruta obligatoria</p><h2 id="catalog-heading">Catálogo</h2><p>Busca por tema o fase. Puedes consultar los módulos futuros; el registro de actividad se activa al completar los prerrequisitos.</p></div>{state.dashboard ? <SaveState value={state.saveState} onRetry={state.refresh} /> : null}</section>
+    <section className="ent-page-intro" aria-labelledby="catalog-heading"><div><p className="ent-kicker">32 módulos · ruta completa</p><h2 id="catalog-heading">Catálogo</h2><p>Busca por tema o fase. Puedes consultar los módulos futuros; el registro de actividad se activa al completar los prerrequisitos.</p></div>{state.dashboard ? <SaveState value={state.saveState} onRetry={state.refresh} /> : null}</section>
     <section className="ent-catalog-filters" aria-label="Filtros del catálogo">
       <label className="ent-search-field"><span>Buscar</span><input type="search" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Ej. streaming, Unity Catalog…" /></label>
       <label><span>Fase</span><select value={phase} onChange={(event) => setPhase(event.target.value)}><option value="all">Todas</option>{[...new Map(modules.map((module) => [module.phaseId, module.phase])).entries()].map(([id, name]) => <option key={id} value={id}>{name}</option>)}</select></label>

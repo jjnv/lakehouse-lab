@@ -2,7 +2,6 @@
 
 import {
   useEffect,
-  useMemo,
   useRef,
   useState,
   type KeyboardEvent,
@@ -45,41 +44,44 @@ export default function CourseWorkspace({ module }: { module: PublicModule }) {
     moduleIndex >= 0 ? state.dashboard?.modules[moduleIndex + 1] : null;
 
   useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
-    const requestedSection = params.get("section") ?? params.get("view");
-    if (
-      requestedSection === "lessons" ||
-      requestedSection === "lab" ||
-      requestedSection === "quiz"
-    ) {
-      setSection(requestedSection);
-    }
-    const lesson = params.get("lesson");
-    if (lesson && module.lessons.some((item) => item.id === lesson)) {
-      setSection("lessons");
-      requestAnimationFrame(() => {
-        const target = document.getElementById(
-          `lesson-${lesson}`,
-        ) as HTMLDetailsElement | null;
-        if (target) {
-          target.open = true;
-          target.scrollIntoView({ block: "start" });
-          target.querySelector("summary")?.focus();
-        }
-      });
-    } else {
-      requestAnimationFrame(() => {
-        const firstLesson = document.getElementById(
-          `lesson-${module.lessons[0]?.id}`,
-        ) as HTMLDetailsElement | null;
-        if (firstLesson) firstLesson.open = true;
-      });
-    }
-    const saved: Record<string, string> = {};
-    for (const item of module.lessons)
-      saved[item.id] =
-        window.localStorage.getItem(`lakehouse-private-draft:${item.id}`) ?? "";
-    setRecall(saved);
+    const frame = requestAnimationFrame(() => {
+      const params = new URLSearchParams(window.location.search);
+      const requestedSection = params.get("section") ?? params.get("view");
+      if (
+        requestedSection === "lessons" ||
+        requestedSection === "lab" ||
+        requestedSection === "quiz"
+      ) {
+        setSection(requestedSection);
+      }
+      const lesson = params.get("lesson");
+      if (lesson && module.lessons.some((item) => item.id === lesson)) {
+        setSection("lessons");
+        requestAnimationFrame(() => {
+          const target = document.getElementById(
+            `lesson-${lesson}`,
+          ) as HTMLDetailsElement | null;
+          if (target) {
+            target.open = true;
+            target.scrollIntoView({ block: "start" });
+            target.querySelector("summary")?.focus();
+          }
+        });
+      } else {
+        requestAnimationFrame(() => {
+          const firstLesson = document.getElementById(
+            `lesson-${module.lessons[0]?.id}`,
+          ) as HTMLDetailsElement | null;
+          if (firstLesson) firstLesson.open = true;
+        });
+      }
+      const saved: Record<string, string> = {};
+      for (const item of module.lessons)
+        saved[item.id] =
+          window.localStorage.getItem(`lakehouse-private-draft:${item.id}`) ?? "";
+      setRecall(saved);
+    });
+    return () => cancelAnimationFrame(frame);
   }, [module.lessons]);
 
   function changeSection(nextSection: CourseSection, focus = true) {
