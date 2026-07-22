@@ -16,7 +16,8 @@
     "data-engineering",
     "learning-platform",
     "nextjs",
-    "cloudflare-workers"
+    "vercel",
+    "turso"
   ],
   "engines": {
     "node": ">=22.13.0"
