@@ -14,14 +14,14 @@ const [course, editorial, game, page, progress, layout, packageSource] = await P
   read("package.json"),
 ]);
 
-test("publishes an auditable 1.0.0 editorial record and current official blueprints", () => {
-  assert.match(editorial, /SITE_VERSION = "1\.0\.0"/);
+test("publishes an auditable 1.1.0 editorial record and current official blueprints", () => {
+  assert.match(editorial, /SITE_VERSION = "1\.1\.0"/);
   assert.match(editorial, /may-4-2026\.pdf/);
   assert.match(editorial, /professional-september-2025-exam-guide\.pdf/);
   assert.match(page, /Revisión trimestral/);
   assert.match(page, /cobertura del curso, no pesos oficiales del examen/);
-  assert.equal(JSON.parse(packageSource).version, "1.0.0");
-  assert.match(layout, /og-v1\.png/);
+  assert.equal(JSON.parse(packageSource).version, "1.1.0");
+  assert.match(layout, /og-v1-1\.png/);
 });
 
 test("maps every blueprint objective to theory, practice, assessment and modules", () => {
@@ -65,4 +65,22 @@ test("gamification uses persistent unique rewards, combos, streaks and nine leve
   assert.match(game, /\[\[3, 10\], \[5, 20\], \[7, 40\]\]/);
   assert.match(game, /dayDifference\(previousDate, today\) === 1/);
   assert.match(progress, /sanitizeGamification/);
+});
+
+test("all lessons use a progressive explanation sequence without losing citations", () => {
+  assert.match(page, /module-learning-map/);
+  assert.match(page, /lesson-bridge/);
+  assert.match(page, /Explicación guiada, paso a paso/);
+  assert.match(page, /defaultOpen=\{lesson\.id === firstIncompleteLessonId\}/);
+  assert.match(page, /lesson\.explanation\[0\]/);
+  assert.match(page, /lesson\.explanation\[1\]/);
+  const orderedStages = ["stage-problem", "mental-model explanation-stage", "concepts explanation-stage", "mechanics explanation-stage", "worked-scenario explanation-stage"];
+  let previous = -1;
+  for (const stage of orderedStages) {
+    const position = page.indexOf(stage);
+    assert.ok(position > previous, `${stage} must follow the prior learning stage`);
+    previous = position;
+  }
+  for (const step of ["1", "2", "3", "4", "5"]) assert.match(page, new RegExp(`data-step="${step}"`));
+  assert.match(page, /ClaimRefs module=\{module\} lessonId=\{lesson\.id\}/);
 });

@@ -24,7 +24,8 @@ test("renders the finished academy metadata and core content", async () => {
   assert.match(html, /Pipelines y orquestación/i);
   assert.match(html, /Rendimiento y FinOps/i);
   assert.match(html, /Entrega y gobierno/i);
-  assert.match(html, /Desarrollo conceptual completo/i);
+  assert.match(html, /Explicaci\u00f3n guiada, paso a paso/i);
+  assert.match(html, /Construiremos el tema por capas/i);
   assert.match(html, /Modelo mental/i);
   assert.match(html, /Método autosuficiente/i);
 });
