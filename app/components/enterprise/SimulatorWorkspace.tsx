@@ -1,6 +1,5 @@
 "use client";
 
-import Link from "next/link";
 import AssessmentPanel from "./AssessmentPanel";
 import { SaveState, useDashboard } from "./useDashboard";
 
@@ -15,6 +14,6 @@ export default function SimulatorWorkspace({ mode }: { mode: "associate" | "prof
     <div className="ent-simulator-context"><article><span>Umbral</span><strong>80 %</strong><p>Se exige un intento completo.</p></article><article><span>Mejor resultado</span><strong>{best === null ? "—" : `${best}%`}</strong><p>Un nuevo intento nunca reduce esta marca.</p></article><article><span>Adaptación de tiempo</span><strong>1× · 1,5× · 2×</strong><p>También puedes practicar sin límite.</p></article></div>
     <AssessmentPanel kind={kind} title={`Simulacro ${mode === "associate" ? "Associate" : "Professional"}`} bestScore={best} revision={state.dashboard.revision.value} onState={state.setSaveState} onCompleted={state.refresh} />
     <aside className="ent-simulator-disclaimer"><b>Uso interno</b><p>Las muestras oficiales se consultan desde las fuentes del curso. Lakehouse Lab no utiliza dumps ni afirma equivalencia con una certificación Databricks.</p></aside>
-    <Link href="/mi-aprendizaje" className="ent-back-link">← Volver a mi aprendizaje</Link>
+    <a href="/mi-aprendizaje" className="ent-back-link">← Volver a mi aprendizaje</a>
   </div>;
 }

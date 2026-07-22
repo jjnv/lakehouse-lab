@@ -20,7 +20,6 @@ import { modules } from "../course-data";
 import { CONTENT_VERSION } from "../progress";
 import { DEFAULT_BRAND_CONFIG, parseBrandConfig, resolveTenantBrandConfig } from "./brand";
 import type {
-  AssignmentSnapshot,
   BrandConfig,
   CompletionPolicy,
   CurriculumManifest,
@@ -178,7 +177,10 @@ function parseCompletionPolicy(value: string): CompletionPolicy {
   }
 }
 
-export async function ensureEnterpriseBootstrap() {
+type EnterpriseBootstrapResult = { manifestHash: string; manifest: CurriculumManifest };
+let enterpriseBootstrapPromise: Promise<EnterpriseBootstrapResult> | null = null;
+
+async function bootstrapEnterprise(): Promise<EnterpriseBootstrapResult> {
   const db = getDb();
   const created = nowIso();
   const tenantBrand = runtimeBrandConfig(DEFAULT_BRAND_CONFIG);
@@ -186,6 +188,10 @@ export async function ensureEnterpriseBootstrap() {
   const manifestJson = stableJson(PROFESSIONAL_MANIFEST);
   const manifestHash = await sha256(manifestJson);
   const policyJson = stableJson(PROFESSIONAL_COMPLETION_POLICY);
+
+  const [existingAssignment] = await db.select({ id: assignments.id }).from(assignments)
+    .where(eq(assignments.id, PROFESSIONAL_ASSIGNMENT_ID)).limit(1);
+  if (existingAssignment) return { manifestHash, manifest: PROFESSIONAL_MANIFEST };
 
   await db.insert(organizations).values({
     id: DEFAULT_ENTERPRISE_ORGANIZATION_ID,
@@ -242,6 +248,16 @@ export async function ensureEnterpriseBootstrap() {
   return { manifestHash, manifest: PROFESSIONAL_MANIFEST };
 }
 
+export function ensureEnterpriseBootstrap(): Promise<EnterpriseBootstrapResult> {
+  if (!enterpriseBootstrapPromise) {
+    enterpriseBootstrapPromise = bootstrapEnterprise().catch((error) => {
+      enterpriseBootstrapPromise = null;
+      throw error;
+    });
+  }
+  return enterpriseBootstrapPromise;
+}
+
 export async function autoEnrollProfessionalV1(userId: string, assignedAt = nowIso()) {
   const db = getDb();
   await ensureEnterpriseBootstrap();
@@ -272,6 +288,84 @@ export async function autoEnrollProfessionalV1(userId: string, assignedAt = nowI
   return enrollment;
 }
 
+async function loadLearnerContext(email: string): Promise<LearnerContext | null> {
+  const db = getDb();
+  const rows = await db.select({
+    userId: users.id,
+    email: users.emailNormalized,
+    displayName: users.displayName,
+    locale: users.locale,
+    userTimezone: users.timezone,
+    userLastActivityAt: users.lastActivityAt,
+    userStatus: users.status,
+    membershipStatus: organizationMemberships.status,
+    organizationId: organizations.id,
+    organizationSlug: organizations.slug,
+    organizationName: organizations.name,
+    organizationTimezone: organizations.timezone,
+    organizationStatus: organizations.status,
+    role: roleGrants.role,
+    assignmentId: assignments.id,
+    enrollmentStatus: learnerAssignments.status,
+    assignedAt: learnerAssignments.assignedAt,
+    dueAt: learnerAssignments.dueAt,
+    assignmentTitle: assignments.title,
+    assignmentDurationDays: assignments.defaultDurationDays,
+    completionPolicyJson: assignments.completionPolicyJson,
+    curriculumVersionId: curriculumVersions.id,
+  }).from(users)
+    .innerJoin(organizationMemberships, and(
+      eq(organizationMemberships.userId, users.id),
+      eq(organizationMemberships.organizationId, DEFAULT_ENTERPRISE_ORGANIZATION_ID),
+    ))
+    .innerJoin(organizations, eq(organizations.id, organizationMemberships.organizationId))
+    .innerJoin(learnerAssignments, and(
+      eq(learnerAssignments.userId, users.id),
+      eq(learnerAssignments.assignmentId, PROFESSIONAL_ASSIGNMENT_ID),
+    ))
+    .innerJoin(assignments, eq(assignments.id, learnerAssignments.assignmentId))
+    .innerJoin(curriculumVersions, eq(curriculumVersions.id, assignments.curriculumVersionId))
+    .leftJoin(roleGrants, and(
+      eq(roleGrants.userId, users.id),
+      eq(roleGrants.organizationId, organizations.id),
+    ))
+    .where(eq(users.emailNormalized, email));
+  const row = rows[0];
+  if (!row) return null;
+  if (row.userStatus !== "active" || row.membershipStatus !== "active" || row.organizationStatus !== "active") {
+    throw new LearnerAccessError();
+  }
+  return {
+    organization: {
+      id: row.organizationId,
+      slug: row.organizationSlug,
+      name: row.organizationName,
+      timezone: runtimeOrganizationTimezone(row.organizationTimezone),
+    },
+    user: {
+      id: row.userId,
+      email: row.email,
+      displayName: row.displayName,
+      locale: row.locale,
+      timezone: row.userTimezone,
+      lastActivityAt: row.userLastActivityAt,
+      status: row.userStatus,
+    },
+    roles: rows.map(({ role }) => role).filter((role): role is EnterpriseRole => role !== null),
+    professionalAssignment: {
+      id: row.assignmentId,
+      title: row.assignmentTitle,
+      curriculumVersionId: row.curriculumVersionId,
+      contentVersion: PROFESSIONAL_MANIFEST.contentVersion,
+      assignedAt: row.assignedAt,
+      dueAt: row.dueAt,
+      durationDays: row.assignmentDurationDays,
+      status: row.enrollmentStatus,
+      completionPolicy: parseCompletionPolicy(row.completionPolicyJson),
+    },
+  };
+}
+
 export async function ensureLearner(identity: EnterpriseIdentity): Promise<LearnerContext> {
   const db = getDb();
   await ensureEnterpriseBootstrap();
@@ -279,6 +373,9 @@ export async function ensureLearner(identity: EnterpriseIdentity): Promise<Learn
   const displayName = normalizeDisplayName(identity.fullName ?? identity.displayName, email);
   const userId = await deterministicId("usr", email);
   const seenAt = nowIso();
+
+  const existing = await loadLearnerContext(email);
+  if (existing) return existing;
 
   await db.insert(users).values({
     id: userId,
@@ -303,12 +400,6 @@ export async function ensureLearner(identity: EnterpriseIdentity): Promise<Learn
     joinedAt: seenAt,
   }).onConflictDoNothing();
 
-  const [membership] = await db.select().from(organizationMemberships).where(and(
-    eq(organizationMemberships.organizationId, DEFAULT_ENTERPRISE_ORGANIZATION_ID),
-    eq(organizationMemberships.userId, storedUser.id),
-  )).limit(1);
-  if (!membership || membership.status !== "active") throw new LearnerAccessError();
-
   await db.insert(roleGrants).values({
     organizationId: DEFAULT_ENTERPRISE_ORGANIZATION_ID,
     userId: storedUser.id,
@@ -316,34 +407,10 @@ export async function ensureLearner(identity: EnterpriseIdentity): Promise<Learn
     grantedAt: seenAt,
   }).onConflictDoNothing();
 
-  const enrollment = await autoEnrollProfessionalV1(storedUser.id, seenAt);
-  const [organization] = await db.select().from(organizations).where(eq(organizations.id, DEFAULT_ENTERPRISE_ORGANIZATION_ID)).limit(1);
-  const [assignment] = await db.select().from(assignments).where(eq(assignments.id, PROFESSIONAL_ASSIGNMENT_ID)).limit(1);
-  const [curriculum] = await db.select().from(curriculumVersions).where(eq(curriculumVersions.id, PROFESSIONAL_CURRICULUM_VERSION_ID)).limit(1);
-  const grantedRoles = await db.select({ role: roleGrants.role }).from(roleGrants).where(and(
-    eq(roleGrants.organizationId, DEFAULT_ENTERPRISE_ORGANIZATION_ID),
-    eq(roleGrants.userId, storedUser.id),
-  ));
-  if (!organization || organization.status !== "active" || !assignment || !curriculum) throw new LearnerAccessError();
-
-  const assignmentSnapshot: AssignmentSnapshot = {
-    id: assignment.id,
-    title: assignment.title,
-    curriculumVersionId: curriculum.id,
-    contentVersion: PROFESSIONAL_MANIFEST.contentVersion,
-    assignedAt: enrollment.assignedAt,
-    dueAt: enrollment.dueAt,
-    durationDays: assignment.defaultDurationDays,
-    status: enrollment.status,
-    completionPolicy: parseCompletionPolicy(assignment.completionPolicyJson),
-  };
-
-  return {
-    organization: { id: organization.id, slug: organization.slug, name: organization.name, timezone: runtimeOrganizationTimezone(organization.timezone) },
-    user: { id: storedUser.id, email: storedUser.emailNormalized, displayName: storedUser.displayName, locale: storedUser.locale, timezone: storedUser.timezone, lastActivityAt: storedUser.lastActivityAt, status: storedUser.status },
-    roles: grantedRoles.map(({ role }) => role as EnterpriseRole),
-    professionalAssignment: assignmentSnapshot,
-  };
+  await autoEnrollProfessionalV1(storedUser.id, seenAt);
+  const created = await loadLearnerContext(email);
+  if (!created) throw new LearnerAccessError("No se pudo completar la matrícula de esta cuenta.");
+  return created;
 }
 
 function validateSnapshot(input: ProgressSnapshotInput) {

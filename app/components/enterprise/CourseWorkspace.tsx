@@ -1,6 +1,5 @@
 "use client";
 
-import Link from "next/link";
 import {
   useEffect,
   useMemo,
@@ -261,7 +260,7 @@ export default function CourseWorkspace({ module }: { module: PublicModule }) {
           </button>
         </nav>
         {previous ? (
-          <Link href={`/curso/${previous.slug}`}>← Módulo anterior</Link>
+          <a href={`/curso/${previous.slug}`}>← Módulo anterior</a>
         ) : null}
       </aside>
 
@@ -641,14 +640,14 @@ export default function CourseWorkspace({ module }: { module: PublicModule }) {
         </p>
         <footer className="ent-course-footer">
           {previous ? (
-            <Link href={`/curso/${previous.slug}`}>← {previous.short}</Link>
+            <a href={`/curso/${previous.slug}`}>← {previous.short}</a>
           ) : (
             <span />
           )}
           {next ? (
-            <Link href={`/curso/${next.slug}`}>{next.short} →</Link>
+            <a href={`/curso/${next.slug}`}>{next.short} →</a>
           ) : (
-            <Link href="/expediente">Abrir expediente →</Link>
+            <a href="/expediente">Abrir expediente →</a>
           )}
         </footer>
       </article>

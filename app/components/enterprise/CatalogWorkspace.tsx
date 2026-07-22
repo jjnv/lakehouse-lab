@@ -1,6 +1,5 @@
 "use client";
 
-import Link from "next/link";
 import { useMemo, useState } from "react";
 import type { ModuleSummary } from "../../enterprise/contracts";
 import { SaveState, useDashboard } from "./useDashboard";
@@ -36,9 +35,10 @@ export default function CatalogWorkspace({ modules }: { modules: ModuleSummary[]
     </section>
     {filtered.length ? <div className="ent-catalog-grid">{filtered.map((module) => {
       const progress = progressMap.get(module.id);
-      const units = (progress?.completedLessonIds.length ?? 0) + Number(progress?.labAttested) + Number(progress?.quizBestPercent !== null && progress?.quizBestPercent !== undefined);
+      const units = (progress?.completedLessonIds.length ?? 0) + Number(Boolean(progress?.labAttested)) + Number(progress?.quizBestPercent !== null && progress?.quizBestPercent !== undefined);
       const percent = Math.round(units / 7 * 100);
-      return <article key={module.id} className={`ent-catalog-card ${progress?.completed ? "is-complete" : ""}`}><div className="ent-card-topline"><span>{module.number} · {module.phase}</span><small>{module.minutes} min</small></div><p>{module.level}</p><h2>{module.title}</h2><p>{module.description}</p><div className="ent-card-tags"><span>5 lecciones</span><span>Laboratorio</span><span>Test 75 %</span></div><div className="ent-catalog-card-footer"><div><span>{progress?.unlocked === false ? "Vista previa" : progress?.completed ? "Superado" : `${percent}% completado`}</span><div className="ent-progress" role="progressbar" aria-label={`Progreso de ${module.title}`} aria-valuemin={0} aria-valuemax={100} aria-valuenow={percent}><i style={{ width: `${percent}%` }} /></div></div><Link href={`/curso/${module.slug}`}>{progress?.unlocked === false ? "Previsualizar" : percent ? "Continuar" : "Abrir"}<span aria-hidden="true">→</span></Link></div></article>;
+      const action = progress?.unlocked === false ? "Previsualizar" : percent ? "Continuar" : "Abrir";
+      return <article key={module.id} className={`ent-catalog-card ${progress?.completed ? "is-complete" : ""}`}><div className="ent-card-topline"><span>{module.number} · {module.phase}</span><small>{module.minutes} min</small></div><p>{module.level}</p><h2><a className="ent-card-title-link" href={`/curso/${module.slug}`} aria-label={`${action}: ${module.title}`}>{module.title}</a></h2><p>{module.description}</p><div className="ent-card-tags"><span>5 lecciones</span><span>Laboratorio</span><span>Test 75 %</span></div><div className="ent-catalog-card-footer"><div><span>{progress?.unlocked === false ? "Vista previa" : progress?.completed ? "Superado" : `${percent}% completado`}</span><div className="ent-progress" role="progressbar" aria-label={`Progreso de ${module.title}`} aria-valuemin={0} aria-valuemax={100} aria-valuenow={percent}><i style={{ width: `${percent}%` }} /></div></div><span className="ent-catalog-card-action">{action}<span aria-hidden="true">→</span></span></div></article>;
     })}</div> : <div className="ent-empty"><strong>No hay coincidencias</strong><p>Prueba con menos filtros o un término más general.</p><button type="button" className="ent-secondary-action" onClick={() => { setSearch(""); setPhase("all"); setLevel("all"); setStatus("all"); }}>Limpiar filtros</button></div>}
   </div>;
 }

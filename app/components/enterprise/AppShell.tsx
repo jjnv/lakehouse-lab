@@ -1,6 +1,5 @@
 "use client";
 
-import Link from "next/link";
 import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import { DEFAULT_BRAND_CONFIG } from "../../enterprise/brand";
 import type { BrandConfig } from "../../enterprise/types";
@@ -108,10 +107,10 @@ export default function AppShell({ active, title, eyebrow = "Lakehouse Lab", chi
       <a className="ent-skip-link" href="#main-content">Saltar al contenido</a>
 
       <header className="ent-mobile-header" inert={drawerOpen && mobileNavigation ? true : undefined}>
-        <Link className="ent-mobile-brand" href="/inicio" aria-label={`${brand.productName}, ir a Inicio`}>
+        <a className="ent-mobile-brand" href="/inicio" aria-label={`${brand.productName}, ir a Inicio`}>
           {brand.logoUrl ? <img src={brand.logoUrl} alt={brand.logoAlt ?? brand.organizationName} /> : <span className="ent-brand-mark" aria-hidden="true"><i /><i /><i /></span>}
           <span><b>{brand.organizationName}</b><small>{brand.productName}</small></span>
-        </Link>
+        </a>
         <button ref={menuButtonRef} className="ent-menu-button" type="button" aria-controls="enterprise-navigation" aria-expanded={drawerOpen} aria-haspopup="dialog" onClick={() => { restoreDrawerFocusRef.current = false; setDrawerOpen(true); }}>
           <span aria-hidden="true"><i /><i /><i /></span>
           <span>Menú</span>
@@ -131,10 +130,10 @@ export default function AppShell({ active, title, eyebrow = "Lakehouse Lab", chi
         role={drawerOpen && mobileNavigation ? "dialog" : undefined}
       >
         <div className="ent-rail-brand">
-          <Link href="/inicio" aria-label={`${brand.productName}, ir a Inicio`} onClick={() => closeDrawer(false)}>
+          <a href="/inicio" aria-label={`${brand.productName}, ir a Inicio`} onClick={() => closeDrawer(false)}>
             {brand.logoUrl ? <img src={brand.logoUrl} alt={brand.logoAlt ?? brand.organizationName} /> : <span className="ent-brand-mark" aria-hidden="true"><i /><i /><i /></span>}
             <span><b>{brand.organizationName}</b><small>{brand.productName}</small></span>
-          </Link>
+          </a>
           <button ref={drawerCloseRef} className="ent-drawer-close" type="button" aria-label="Cerrar menú de navegación" onClick={() => closeDrawer(true)}>Cerrar</button>
         </div>
 
@@ -145,12 +144,12 @@ export default function AppShell({ active, title, eyebrow = "Lakehouse Lab", chi
 
         <nav className="ent-nav" aria-label="Áreas principales">
           <p>Aprendizaje</p>
-          {primaryNavigation.map((item) => <Link key={item.area} href={item.href} aria-current={active === item.area ? "page" : undefined} onClick={() => closeDrawer(false)}><span aria-hidden="true">{item.short}</span>{item.label}</Link>)}
+          {primaryNavigation.map((item) => <a key={item.area} href={item.href} aria-current={active === item.area ? "page" : undefined} onClick={() => closeDrawer(false)}><span aria-hidden="true">{item.short}</span>{item.label}</a>)}
         </nav>
 
         <nav className="ent-nav ent-nav-secondary" aria-label="Configuración">
           <p>Cuenta</p>
-          <Link href="/ajustes" aria-current={active === "settings" ? "page" : undefined} onClick={() => closeDrawer(false)}><span aria-hidden="true">AJ</span>Ajustes</Link>
+          <a href="/ajustes" aria-current={active === "settings" ? "page" : undefined} onClick={() => closeDrawer(false)}><span aria-hidden="true">AJ</span>Ajustes</a>
         </nav>
 
         <div className="ent-rail-note">
@@ -162,7 +161,7 @@ export default function AppShell({ active, title, eyebrow = "Lakehouse Lab", chi
       <div className="ent-workspace" inert={drawerOpen && mobileNavigation ? true : undefined}>
         <header className="ent-topbar">
           <div><span>{eyebrow}</span><h1>{title}</h1></div>
-          <Link href="/ajustes" className="ent-topbar-account" aria-label="Abrir ajustes del espacio"><span aria-hidden="true">{accountLabel.slice(0, 2).toLocaleUpperCase("es")}</span><b>{accountLabel}</b></Link>
+          <a href="/ajustes" className="ent-topbar-account" aria-label="Abrir ajustes del espacio"><span aria-hidden="true">{accountLabel.slice(0, 2).toLocaleUpperCase("es")}</span><b>{accountLabel}</b></a>
         </header>
         <main id="main-content" className="ent-main" tabIndex={-1}>{children}</main>
       </div>

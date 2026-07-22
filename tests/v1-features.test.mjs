@@ -25,6 +25,7 @@ const sources = Object.fromEntries(await Promise.all([
   "app/progress.ts",
   "app/globals.css",
   "app/components/enterprise/AppShell.tsx",
+  "app/components/enterprise/CatalogWorkspace.tsx",
   "app/components/enterprise/CourseWorkspace.tsx",
   "app/components/enterprise/AssessmentPanel.tsx",
   "app/components/enterprise/PortalPagesV2.tsx",
@@ -36,6 +37,7 @@ const sources = Object.fromEntries(await Promise.all([
   "app/enterprise/assessment.ts",
   "app/enterprise/assessment-private.ts",
   "app/enterprise/learning-service.ts",
+  "app/enterprise/store.ts",
   "app/api/_shared.ts",
   "app/api/credentials/[id]/pdf/route.ts",
   "db/index.ts",
@@ -99,6 +101,26 @@ test("uses real routes and protects every enterprise page with the signed-in lea
   for (const route of ["/inicio", "/mi-aprendizaje", "/catalogo", "/expediente", "/ajustes"]) {
     assert.ok(shell.includes(`href: "${route}"`) || shell.includes(`href="${route}"`), `missing shell route ${route}`);
   }
+});
+
+test("course navigation remains reliable and dashboard reads avoid sequential D1 round trips", () => {
+  for (const [path, source] of clientComponentSources) {
+    assert.doesNotMatch(source, /from ["']next\/link["']/u, `${path} must use resilient document navigation`);
+  }
+  const catalog = sources["app/components/enterprise/CatalogWorkspace.tsx"];
+  assert.match(catalog, /className="ent-card-title-link"/u);
+  assert.match(catalog, /href=\{`\/curso\/\$\{module\.slug\}`\}/u);
+  assert.match(catalog, /Number\(Boolean\(progress\?\.labAttested\)\)/u);
+
+  const store = sources["app/enterprise/store.ts"];
+  assert.match(store, /enterpriseBootstrapPromise/u);
+  assert.match(store, /loadLearnerContext\(email\)/u);
+  assert.match(store, /innerJoin\(learnerAssignments/u);
+  assert.ok(store.indexOf("const existing = await loadLearnerContext(email)") < store.indexOf("db.insert(users)"));
+
+  const service = sources["app/enterprise/learning-service.ts"];
+  assert.match(service, /db\.batch\(\[/u);
+  assert.match(service, /calculateModuleProgressFromRows\(lessonRows, labRows, attempts\)/u);
 });
 
 test("keeps authored course data and answer keys outside every client component", () => {

@@ -413,6 +413,14 @@ async function progressRows(learner: LearnerContext) {
 
 async function calculateModuleProgress(learner: LearnerContext): Promise<ModuleProgressPublic[]> {
   const { lessons, labs, attempts } = await progressRows(learner);
+  return calculateModuleProgressFromRows(lessons, labs, attempts);
+}
+
+function calculateModuleProgressFromRows(
+  lessons: Array<typeof lessonProgress.$inferSelect>,
+  labs: Array<typeof labAttestations.$inferSelect>,
+  attempts: Array<typeof assessmentAttempts.$inferSelect>,
+): ModuleProgressPublic[] {
   const lessonDates = new Map(lessons.filter((row) => row.status === "completed").map((row) => [row.lessonId, row.completedAt]));
   const labsDone = new Set(labs.map((row) => row.labId));
   const quizBest = new Map<string, number>();
@@ -483,21 +491,31 @@ function publicCredential(row: typeof credentials.$inferSelect): Credential {
 export async function getLearnerDashboard(learner: LearnerContext): Promise<LearnerDashboard> {
   const db = getDb();
   const weekStart = new Date(Date.now() - 7 * 86_400_000).toISOString();
-  const [brand, revision, progress, reviews, attempts, credentialRows, snapshot, motivationRows, rewardRows, legacyImport, activity, latestEvent, weeklyEvents] = await Promise.all([
+  const [brand, dashboardRows] = await Promise.all([
     getOrganizationBranding(learner.organization.id),
-    getProgressRevision(learner),
-    calculateModuleProgress(learner),
-    db.select().from(reviewSchedules).where(and(eq(reviewSchedules.userId, learner.user.id), eq(reviewSchedules.curriculumVersionId, PROFESSIONAL_CURRICULUM_VERSION_ID))).orderBy(reviewSchedules.dueOn),
-    db.select().from(assessmentAttempts).where(and(eq(assessmentAttempts.userId, learner.user.id), eq(assessmentAttempts.status, "submitted"))),
-    db.select().from(credentials).where(and(eq(credentials.userId, learner.user.id), eq(credentials.assignmentId, learner.professionalAssignment.id))).limit(1),
-    db.select().from(progressSnapshots).where(and(eq(progressSnapshots.userId, learner.user.id), eq(progressSnapshots.assignmentId, learner.professionalAssignment.id))).limit(1),
-    db.select().from(gamificationSummaries).where(and(eq(gamificationSummaries.userId, learner.user.id), eq(gamificationSummaries.curriculumVersionId, PROFESSIONAL_CURRICULUM_VERSION_ID))).limit(1),
-    db.select().from(earnedRewards).where(and(eq(earnedRewards.userId, learner.user.id), eq(earnedRewards.curriculumVersionId, PROFESSIONAL_CURRICULUM_VERSION_ID), eq(earnedRewards.rewardType, "badge"))),
-    getLegacyImportRecord(learner),
-    hasServerActivity(learner),
-    db.select({ occurredAt: learningEvents.occurredAt }).from(learningEvents).where(eq(learningEvents.userId, learner.user.id)).orderBy(desc(learningEvents.occurredAt)).limit(1),
-    db.select({ type: learningEvents.type, objectId: learningEvents.objectId, metadataJson: learningEvents.metadataJson }).from(learningEvents).where(and(eq(learningEvents.userId, learner.user.id), gte(learningEvents.occurredAt, weekStart))),
+    db.batch([
+      db.select({ value: learnerAssignments.progressRevision, updatedAt: learnerAssignments.updatedAt }).from(learnerAssignments).where(and(eq(learnerAssignments.assignmentId, learner.professionalAssignment.id), eq(learnerAssignments.userId, learner.user.id))).limit(1),
+      db.select().from(lessonProgress).where(and(eq(lessonProgress.userId, learner.user.id), eq(lessonProgress.curriculumVersionId, PROFESSIONAL_CURRICULUM_VERSION_ID))),
+      db.select().from(labAttestations).where(and(eq(labAttestations.userId, learner.user.id), eq(labAttestations.curriculumVersionId, PROFESSIONAL_CURRICULUM_VERSION_ID), eq(labAttestations.status, "self_attested"))),
+      db.select().from(assessmentAttempts).where(and(eq(assessmentAttempts.userId, learner.user.id), eq(assessmentAttempts.curriculumVersionId, PROFESSIONAL_CURRICULUM_VERSION_ID))),
+      db.select().from(reviewSchedules).where(and(eq(reviewSchedules.userId, learner.user.id), eq(reviewSchedules.curriculumVersionId, PROFESSIONAL_CURRICULUM_VERSION_ID))).orderBy(reviewSchedules.dueOn),
+      db.select().from(credentials).where(and(eq(credentials.userId, learner.user.id), eq(credentials.assignmentId, learner.professionalAssignment.id))).limit(1),
+      db.select().from(progressSnapshots).where(and(eq(progressSnapshots.userId, learner.user.id), eq(progressSnapshots.assignmentId, learner.professionalAssignment.id))).limit(1),
+      db.select().from(gamificationSummaries).where(and(eq(gamificationSummaries.userId, learner.user.id), eq(gamificationSummaries.curriculumVersionId, PROFESSIONAL_CURRICULUM_VERSION_ID))).limit(1),
+      db.select().from(earnedRewards).where(and(eq(earnedRewards.userId, learner.user.id), eq(earnedRewards.curriculumVersionId, PROFESSIONAL_CURRICULUM_VERSION_ID), eq(earnedRewards.rewardType, "badge"))),
+      db.select().from(legacyImports).where(and(eq(legacyImports.userId, learner.user.id), eq(legacyImports.curriculumVersionId, PROFESSIONAL_CURRICULUM_VERSION_ID))).limit(1),
+      db.select({ occurredAt: learningEvents.occurredAt }).from(learningEvents).where(eq(learningEvents.userId, learner.user.id)).orderBy(desc(learningEvents.occurredAt)).limit(1),
+      db.select({ type: learningEvents.type, objectId: learningEvents.objectId, metadataJson: learningEvents.metadataJson }).from(learningEvents).where(and(eq(learningEvents.userId, learner.user.id), gte(learningEvents.occurredAt, weekStart))),
+    ] as const),
   ]);
+  const [revisionRows, lessonRows, labRows, allAttempts, reviews, credentialRows, snapshot, motivationRows, rewardRows, legacyRows, latestEvent, weeklyEvents] = dashboardRows;
+  const revisionRow = revisionRows[0];
+  if (!revisionRow) throw new LearningApiError(403, "ENROLLMENT_REQUIRED", "No existe una matrícula activa para esta cuenta.");
+  const revision: ProgressRevision = { value: revisionRow.value, updatedAt: revisionRow.updatedAt };
+  const attempts = allAttempts.filter((row) => row.status === "submitted");
+  const progress = calculateModuleProgressFromRows(lessonRows, labRows, attempts);
+  const legacyImport = legacyRows[0] ?? null;
+  const activity = lessonRows.some((row) => row.source === "native") || labRows.length > 0 || allAttempts.length > 0;
 
   const best = (kind: "associate_exam" | "professional_exam") => {
     const scores = attempts.filter((row) => row.kind === kind && row.percent !== null).map((row) => row.percent as number);

@@ -56,13 +56,23 @@ test("el drawer móvil atrapa y restaura el foco", async ({ page }) => {
   await expect(menu).toBeFocused();
 });
 
-test("la navegación mueve el foco al contenido nuevo", async ({ page }) => {
+test("la navegación principal completa una carga de documento fiable", async ({ page }) => {
   await page.setViewportSize({ width: 1440, height: 1000 });
   await page.goto("/inicio");
   await waitForWorkspace(page);
   await page.getByRole("link", { name: "Catálogo", exact: true }).click();
   await expect(page).toHaveURL(/\/catalogo$/);
-  await expect(page.locator("main#main-content")).toBeFocused();
+  await waitForWorkspace(page);
+  await expect(page.getByRole("heading", { level: 1, name: "Catálogo" })).toBeVisible();
+});
+
+test("la tarjeta del catálogo abre el curso completo", async ({ page }) => {
+  await page.goto("/catalogo");
+  await waitForWorkspace(page);
+  await page.getByRole("link", { name: "Abrir: Data Intelligence Platform y arquitectura lakehouse" }).click();
+  await expect(page).toHaveURL(/\/curso\/data-intelligence-platform-y-arquitectura-lakehouse$/);
+  await waitForWorkspace(page);
+  await expect(page.getByRole("heading", { level: 2, name: "Data Intelligence Platform y arquitectura lakehouse" })).toBeVisible();
 });
 
 test("el diálogo destructivo mantiene una salida segura", async ({ page }) => {
