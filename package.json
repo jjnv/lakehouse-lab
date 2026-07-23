@@ -44,7 +44,7 @@
     "next": "16.2.6",
     "pdf-lib": "1.17.1",
     "react": "19.2.6",
-    "react-dom": "19.2.6"
+    "react-dom": "19.2.8"
   },
   "devDependencies": {
     "@axe-core/playwright": "^4.12.1",
