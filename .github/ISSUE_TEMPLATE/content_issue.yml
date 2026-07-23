@@ -1,0 +1,57 @@
+name: Corrección de contenido
+description: Propón una corrección curricular, terminológica o de fuentes.
+title: "[Contenido]: "
+labels:
+  - content
+body:
+  - type: input
+    id: location
+    attributes:
+      label: Módulo y ubicación
+      description: ID del módulo, lección, laboratorio, pregunta o archivo.
+      placeholder: m06 · lección 3 · app/curriculum/…
+    validations:
+      required: true
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problema
+      description: Explica qué es incorrecto, ambiguo o está desactualizado.
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Corrección propuesta
+    validations:
+      required: true
+  - type: textarea
+    id: sources
+    attributes:
+      label: Fuentes
+      description: Enlaces oficiales, versión y fecha de consulta.
+      placeholder: |
+        - https://docs.databricks.com/… · consultado AAAA-MM-DD
+    validations:
+      required: true
+  - type: dropdown
+    id: impact
+    attributes:
+      label: Impacto
+      options:
+        - Texto o terminología
+        - Código o laboratorio
+        - Pregunta o explicación
+        - Blueprint o certificación
+        - Progreso o credencial
+    validations:
+      required: true
+  - type: checkboxes
+    id: integrity
+    attributes:
+      label: Integridad
+      options:
+        - label: La propuesta no procede de un dump ni reproduce preguntas confidenciales.
+          required: true
+        - label: Tengo derecho a compartir cualquier material incluido.
+          required: true

@@ -1,23 +1,23 @@
 # Lakehouse Lab
 
-Plataforma educativa independiente en español para aprender ingeniería de datos sobre Databricks mediante una ruta de 20 semanas, 32 módulos, laboratorios, evaluaciones y progreso persistente.
+Plataforma educativa open source en español para aprender ingeniería de datos sobre Databricks mediante una ruta de 20 semanas, 32 módulos, laboratorios, evaluaciones y progreso persistente.
 
-> Proyecto personal e independiente. No está afiliado, patrocinado ni avalado por Databricks.
+> Proyecto comunitario e independiente. No está afiliado, patrocinado ni avalado por Databricks.
 
-[Explorar el código](https://github.com/jjnv/lakehouse-lab) · [Reportar una incidencia](https://github.com/jjnv/lakehouse-lab/issues)
+[Explorar el código](https://github.com/jjnv/lakehouse-lab) · [Contribuir](CONTRIBUTING.md) · [Roadmap](ROADMAP.md) · [Reportar una incidencia](https://github.com/jjnv/lakehouse-lab/issues)
 
 ![Vista de presentación de Lakehouse Lab](public/og-public.png)
 
 ## Qué incluye
 
-- Portada y demo públicas sin registro.
+- Catálogo, lecciones, laboratorios y notebooks públicos sin registro.
 - Espacio personal anónimo, sin pedir nombre ni correo.
 - 160 lecciones, 32 laboratorios y simulacros Associate y Professional.
 - Búsqueda global de módulos, lecciones y conceptos con navegación al punto exacto del temario.
 - Progreso persistente en Turso y repasos espaciados.
 - Evaluaciones corregidas en el servidor sin enviar claves de respuesta al cliente.
 - Exportación y eliminación del progreso.
-- Credenciales de finalización verificables y exportables en PDF.
+- Credenciales de finalización verificables públicamente y exportables en PDF.
 - Diseño adaptable y comprobaciones WCAG 2.2 AA.
 
 ## Arquitectura
@@ -28,7 +28,7 @@ Plataforma educativa independiente en español para aprender ingeniería de dato
 - Sesión anónima mediante una cookie privada, aleatoria, `HttpOnly` y `SameSite`.
 - Pruebas de contrato, currículo, renderizado, aislamiento de usuarios y accesibilidad.
 
-Las páginas públicas no requieren identidad. Al empezar, la aplicación crea un identificador aleatorio en el navegador y lo usa como credencial opaca; ninguna API acepta un correo o `userId` enviado por el cliente.
+Las páginas públicas no requieren identidad. La aplicación solo crea un espacio privado cuando el visitante decide guardar progreso. La identidad anónima se puede recuperar en otro navegador mediante un código privado; ninguna API acepta un correo o `userId` enviado por el cliente.
 
 ## Publicar en Vercel
 
@@ -59,9 +59,15 @@ TURSO_AUTH_TOKEN=...
 
 ```bash
 npm run lint
-npm test
+npm run typecheck
+npm run build
+npm run test:unit
 npm run test:e2e
 ```
+
+Las mismas comprobaciones se ejecutan en cada pull request mediante GitHub
+Actions. Consulta [CONTRIBUTING.md](CONTRIBUTING.md) para el proceso editorial,
+el DCO y los requisitos especiales de currículo, evaluaciones y recursos.
 
 ## Desarrollo asistido con Codex
 
@@ -86,12 +92,16 @@ consolida los hallazgos con referencias a archivos y pruebas.
 Consulta la [guía de uso de los agentes](.codex/README.md) para ver flujos,
 plantillas y ejemplos completos.
 
-## Privacidad y contenido
+## Comunidad, privacidad y contenido
 
-La demo pública no guarda progreso. El espacio personal informa de los datos tratados y permite exportar o eliminar la actividad. El contenido se redacta de forma original y enlaza documentación oficial; no contiene dumps de exámenes ni promete aprobar una certificación.
+La lectura pública no guarda progreso. El espacio personal informa de los datos tratados y permite recuperar, exportar o eliminar la actividad. El contenido se redacta de forma original y enlaza documentación oficial; no contiene dumps de exámenes ni promete aprobar una certificación.
+
+- Las decisiones y responsabilidades están en [GOVERNANCE.md](GOVERNANCE.md).
+- Las vulnerabilidades se comunican siguiendo [SECURITY.md](SECURITY.md), no mediante una issue pública.
+- Las normas de participación están en [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md).
 
 Versión editorial: **2026.07**. Última revisión: **22 de julio de 2026**.
 
 ## Licencias
 
-El código fuente se publica bajo licencia MIT. El contenido educativo de `app/curriculum/` y los bancos de preguntas se distribuye bajo **Creative Commons Attribution-NonCommercial-ShareAlike 4.0 International**. Consulta [LICENSE](LICENSE) y [CONTENT-LICENSE.md](CONTENT-LICENSE.md).
+El código fuente se publica bajo licencia MIT. El contenido educativo original se distribuye bajo **Creative Commons Attribution-ShareAlike 4.0 International**. Los notebooks y materiales upstream conservan sus propias licencias y no se incorporan automáticamente a la distribución. Consulta [LICENSE](LICENSE), [CONTENT-LICENSE.md](CONTENT-LICENSE.md) y [LICENSES.md](LICENSES.md).

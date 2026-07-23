@@ -1,0 +1,67 @@
+name: Error de producto
+description: Comunica un comportamiento reproducible de la aplicación.
+title: "[Bug]: "
+labels:
+  - bug
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Gracias por ayudar a mejorar Lakehouse Lab. No incluyas secretos, datos personales ni vulnerabilidades.
+  - type: dropdown
+    id: area
+    attributes:
+      label: Área
+      options:
+        - Portada y navegación pública
+        - Catálogo y notebooks
+        - Curso y laboratorios
+        - Evaluaciones y simulacros
+        - Progreso y credenciales
+        - Ajustes y privacidad
+        - Instalación o despliegue
+        - Otra
+    validations:
+      required: true
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Pasos para reproducir
+      description: Incluye la ruta y la secuencia mínima.
+      placeholder: |
+        1. Abre…
+        2. Selecciona…
+        3. Observa…
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: Resultado actual
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Resultado esperado
+    validations:
+      required: true
+  - type: input
+    id: environment
+    attributes:
+      label: Entorno
+      description: Navegador, dispositivo, versión o despliegue.
+  - type: textarea
+    id: evidence
+    attributes:
+      label: Evidencia adicional
+      description: Capturas sin datos privados, logs saneados o enlaces relacionados.
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Comprobaciones
+      options:
+        - label: He buscado incidencias existentes.
+          required: true
+        - label: Esta incidencia no contiene secretos, datos personales ni detalles de una vulnerabilidad.
+          required: true

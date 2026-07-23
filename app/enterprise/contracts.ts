@@ -23,7 +23,7 @@ export type ProgramEnrollment = {
   startedAt: string;
   dueAt: string;
   durationDays: 140;
-  weeklyTargetMinutes: 300;
+  weeklyTargetMinutes: number;
   status: "not_started" | "in_progress" | "completed";
   overdue: boolean;
   completionPolicy: {
@@ -59,6 +59,14 @@ export type ModuleSummary = {
   resourceConcepts: string[];
 };
 
+export type LearnerPreferences = {
+  goal: "associate" | "professional" | "topics";
+  weeklyTargetMinutes: number;
+  cloud: "multicloud" | "azure" | "aws" | "gcp" | "free-edition";
+  onboardingCompleted: boolean;
+  updatedAt: string | null;
+};
+
 export type CurriculumSearchResult = {
   id: string;
   kind: "concept" | "lesson" | "module" | "resource";
@@ -72,6 +80,10 @@ export type CommunityResourceFormat = "ipynb" | "databricks-source" | "dbc" | "b
 export type CommunityResourceCoverage = "direct" | "partial" | "equivalent";
 export type CommunityResourceDifficulty = "beginner" | "intermediate" | "advanced";
 export type CommunityResourceLicenseStatus = "verified" | "unknown" | "restricted";
+export type CommunityResourcePreviewUnavailableReason =
+  | "license_unverified"
+  | "restricted_license"
+  | "no_compatible_file";
 
 export type CommunityResourcePublic = {
   id: string;
@@ -84,6 +96,7 @@ export type CommunityResourcePublic = {
   provenance: "official" | "community";
   license: string;
   licenseStatus: CommunityResourceLicenseStatus;
+  licenseEvidenceHref: string | null;
   format: CommunityResourceFormat;
   languages: string[];
   clouds: string[];
@@ -91,6 +104,9 @@ export type CommunityResourcePublic = {
   runtimeNotes: string;
   freeEdition: "supported" | "partial" | "unsupported" | "unknown";
   previewAvailable: boolean;
+  previewUnavailableReason: CommunityResourcePreviewUnavailableReason | null;
+  viewMode: "internal" | "github";
+  sourcePath: string;
   upstreamRef: string | null;
   reviewedAt: string;
   usageInstructions: string[];
@@ -174,6 +190,19 @@ export type Credential = {
   pdfHref: string;
 };
 
+export type PublicCredentialVerification = {
+  valid: boolean;
+  status: "issued" | "revoked" | "unknown";
+  credentialId: string;
+  certificateNumber: string | null;
+  title: string | null;
+  contentVersion: string | null;
+  issuedAt: string | null;
+  revokedAt: string | null;
+  learnerDisplayName: string | null;
+  issuerName: string;
+};
+
 export type LegacyImportPreview = {
   eligible: boolean;
   alreadyImported: boolean;
@@ -197,9 +226,11 @@ export type LearnerDashboard = {
     moduleId: string | null;
     lessonId: string | null;
     label: string;
+    reason: string;
     href: string;
   };
   credential: Credential | null;
+  preferences: LearnerPreferences;
   legacyImport: LegacyImportPreview;
 };
 

@@ -1,6 +1,8 @@
-import { and, eq } from "drizzle-orm";
+import { and, eq, gt, isNull } from "drizzle-orm";
 import { getDb } from "../../db";
 import {
+  anonymousRecoveryCredentials,
+  anonymousSessions,
   assignments,
   assignmentUsers,
   auditEvents,
@@ -17,6 +19,11 @@ import {
 } from "../../db/schema";
 import { modules } from "../course-data";
 import { CONTENT_VERSION } from "../progress";
+import {
+  generateRecoveryCode,
+  hashRecoveryCode,
+  RECOVERY_CODE_TTL_DAYS,
+} from "./anonymous-recovery";
 import { DEFAULT_BRAND_CONFIG, parseBrandConfig, resolveTenantBrandConfig } from "./brand";
 import type {
   BrandConfig,
@@ -111,6 +118,13 @@ export class IdempotencyConflictError extends Error {
   constructor() {
     super("La clave de idempotencia ya se utilizó con otro contenido.");
     this.name = "IdempotencyConflictError";
+  }
+}
+
+export class RecoveryCodeError extends Error {
+  constructor() {
+    super("El código de recuperación no es válido, ha caducado o ha sido revocado.");
+    this.name = "RecoveryCodeError";
   }
 }
 
@@ -410,6 +424,230 @@ export async function ensureLearner(identity: EnterpriseIdentity): Promise<Learn
   const created = await loadLearnerContext(email);
   if (!created) throw new LearnerAccessError("No se pudo completar la matrícula de esta cuenta.");
   return created;
+}
+
+export type AnonymousSessionResolution =
+  | { status: "missing" | "inactive" }
+  | {
+    status: "active";
+    identity: EnterpriseIdentity;
+    userId: string;
+    expiresAt: string;
+  };
+
+function validSecretHash(value: string) {
+  return /^[a-f0-9]{64}$/u.test(value);
+}
+
+function assertFutureIso(value: string) {
+  const timestamp = Date.parse(value);
+  if (!Number.isFinite(timestamp) || timestamp <= Date.now()) {
+    throw new EnterpriseInputError("La expiración de la sesión no es válida.");
+  }
+}
+
+export async function resolveAnonymousSession(tokenHash: string): Promise<AnonymousSessionResolution> {
+  if (!validSecretHash(tokenHash)) return { status: "missing" };
+  const db = getDb();
+  const [row] = await db.select({
+    userId: users.id,
+    email: users.emailNormalized,
+    displayName: users.displayName,
+    userStatus: users.status,
+    expiresAt: anonymousSessions.expiresAt,
+    revokedAt: anonymousSessions.revokedAt,
+  }).from(anonymousSessions)
+    .innerJoin(users, eq(users.id, anonymousSessions.userId))
+    .where(eq(anonymousSessions.tokenHash, tokenHash))
+    .limit(1);
+  if (!row) return { status: "missing" };
+  if (row.revokedAt !== null || row.userStatus !== "active" || Date.parse(row.expiresAt) <= Date.now()) {
+    return { status: "inactive" };
+  }
+  return {
+    status: "active",
+    identity: {
+      email: row.email,
+      displayName: row.displayName,
+      fullName: null,
+    },
+    userId: row.userId,
+    expiresAt: row.expiresAt,
+  };
+}
+
+export async function bindAnonymousSession(tokenHash: string, userId: string, expiresAt: string) {
+  if (!validSecretHash(tokenHash)) throw new EnterpriseInputError("La sesión anónima no es válida.");
+  assertFutureIso(expiresAt);
+  const db = getDb();
+  const [existing] = await db.select({
+    userId: anonymousSessions.userId,
+    revokedAt: anonymousSessions.revokedAt,
+  }).from(anonymousSessions).where(eq(anonymousSessions.tokenHash, tokenHash)).limit(1);
+  if (existing) {
+    if (existing.userId !== userId || existing.revokedAt !== null) {
+      throw new LearnerAccessError("La sesión anónima ya no puede vincularse.");
+    }
+    return;
+  }
+  const createdAt = nowIso();
+  await db.insert(anonymousSessions).values({
+    tokenHash,
+    userId,
+    createdAt,
+    expiresAt,
+    lastSeenAt: createdAt,
+  }).onConflictDoNothing();
+}
+
+export async function revokeAnonymousSession(tokenHash: string) {
+  if (!validSecretHash(tokenHash)) return false;
+  const db = getDb();
+  const revokedAt = nowIso();
+  const revoked = await db.transaction(async (tx) => {
+    const rows = await tx.update(anonymousSessions).set({ revokedAt })
+      .where(and(
+        eq(anonymousSessions.tokenHash, tokenHash),
+        isNull(anonymousSessions.revokedAt),
+      ))
+      .returning({ userId: anonymousSessions.userId });
+    const row = rows[0];
+    if (!row) return false;
+    await tx.insert(auditEvents).values({
+      id: await deterministicId("aud", `session-revoked:${tokenHash}`),
+      organizationId: DEFAULT_ENTERPRISE_ORGANIZATION_ID,
+      actorUserId: row.userId,
+      action: "anonymous_session.revoked",
+      targetType: "user",
+      targetId: row.userId,
+      payloadJson: "{}",
+      createdAt: revokedAt,
+    }).onConflictDoNothing();
+    return true;
+  });
+  return revoked;
+}
+
+export async function issueAnonymousRecoveryCode(learner: LearnerContext) {
+  const code = generateRecoveryCode();
+  const codeHash = hashRecoveryCode(code)!;
+  const createdAt = nowIso();
+  const expiresAt = addDays(createdAt, RECOVERY_CODE_TTL_DAYS);
+  const db = getDb();
+  await db.transaction(async (tx) => {
+    await tx.insert(anonymousRecoveryCredentials).values({
+      userId: learner.user.id,
+      codeHash,
+      createdAt,
+      expiresAt,
+    }).onConflictDoUpdate({
+      target: anonymousRecoveryCredentials.userId,
+      set: {
+        codeHash,
+        createdAt,
+        expiresAt,
+        lastUsedAt: null,
+        revokedAt: null,
+      },
+    });
+    await tx.insert(auditEvents).values({
+      id: await deterministicId("aud", `recovery-issued:${codeHash}`),
+      organizationId: learner.organization.id,
+      actorUserId: learner.user.id,
+      action: "anonymous_recovery.issued",
+      targetType: "user",
+      targetId: learner.user.id,
+      payloadJson: stableJson({ expiresAt }),
+      createdAt,
+    }).onConflictDoNothing();
+  });
+  return { code, expiresAt };
+}
+
+export async function revokeAnonymousRecoveryCode(learner: LearnerContext) {
+  const db = getDb();
+  const revokedAt = nowIso();
+  return db.transaction(async (tx) => {
+    const rows = await tx.update(anonymousRecoveryCredentials).set({ revokedAt })
+      .where(and(
+        eq(anonymousRecoveryCredentials.userId, learner.user.id),
+        isNull(anonymousRecoveryCredentials.revokedAt),
+      ))
+      .returning({ codeHash: anonymousRecoveryCredentials.codeHash });
+    const row = rows[0];
+    if (!row) return { revoked: false };
+    await tx.insert(auditEvents).values({
+      id: await deterministicId("aud", `recovery-revoked:${row.codeHash}`),
+      organizationId: learner.organization.id,
+      actorUserId: learner.user.id,
+      action: "anonymous_recovery.revoked",
+      targetType: "user",
+      targetId: learner.user.id,
+      payloadJson: "{}",
+      createdAt: revokedAt,
+    }).onConflictDoNothing();
+    return { revoked: true };
+  });
+}
+
+export async function recoverAnonymousSession(code: unknown, tokenHash: string, expiresAt: string) {
+  const codeHash = hashRecoveryCode(code);
+  if (!codeHash || !validSecretHash(tokenHash)) throw new RecoveryCodeError();
+  assertFutureIso(expiresAt);
+  const db = getDb();
+  const usedAt = nowIso();
+  return db.transaction(async (tx) => {
+    const rows = await tx.update(anonymousRecoveryCredentials).set({ lastUsedAt: usedAt })
+      .where(and(
+        eq(anonymousRecoveryCredentials.codeHash, codeHash),
+        isNull(anonymousRecoveryCredentials.revokedAt),
+        gt(anonymousRecoveryCredentials.expiresAt, usedAt),
+      ))
+      .returning({ userId: anonymousRecoveryCredentials.userId });
+    const credential = rows[0];
+    if (!credential) throw new RecoveryCodeError();
+
+    const [user] = await tx.select({
+      id: users.id,
+      userStatus: users.status,
+      membershipStatus: organizationMemberships.status,
+      organizationStatus: organizations.status,
+    }).from(users)
+      .innerJoin(organizationMemberships, and(
+        eq(organizationMemberships.userId, users.id),
+        eq(organizationMemberships.organizationId, DEFAULT_ENTERPRISE_ORGANIZATION_ID),
+      ))
+      .innerJoin(organizations, eq(organizations.id, organizationMemberships.organizationId))
+      .where(eq(users.id, credential.userId))
+      .limit(1);
+    if (
+      !user
+      || user.userStatus !== "active"
+      || user.membershipStatus !== "active"
+      || user.organizationStatus !== "active"
+    ) {
+      throw new RecoveryCodeError();
+    }
+
+    await tx.insert(anonymousSessions).values({
+      tokenHash,
+      userId: user.id,
+      createdAt: usedAt,
+      expiresAt,
+      lastSeenAt: usedAt,
+    });
+    await tx.insert(auditEvents).values({
+      id: await deterministicId("aud", `recovery-used:${tokenHash}`),
+      organizationId: DEFAULT_ENTERPRISE_ORGANIZATION_ID,
+      actorUserId: user.id,
+      action: "anonymous_recovery.used",
+      targetType: "user",
+      targetId: user.id,
+      payloadJson: stableJson({ sessionExpiresAt: expiresAt }),
+      createdAt: usedAt,
+    });
+    return { userId: user.id, expiresAt };
+  });
 }
 
 function validateSnapshot(input: ProgressSnapshotInput) {

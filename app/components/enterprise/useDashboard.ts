@@ -108,14 +108,18 @@ async function readJson<T>(response: Response): Promise<T> {
   return body as T;
 }
 
-export function useDashboard() {
+export function useDashboard(enabled = true) {
   const [dashboard, setDashboard] = useState<LearnerDashboard | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(enabled);
   const [error, setError] = useState<string | null>(null);
   const [saveState, setSaveState] = useState<"saved" | "saving" | "offline" | "error">("saved");
   const [legacyDismissed, setLegacyDismissed] = useState(false);
 
   const refresh = useCallback(async () => {
+    if (!enabled) {
+      setLoading(false);
+      return;
+    }
     setLoading(true);
     setError(null);
     try {
@@ -128,19 +132,21 @@ export function useDashboard() {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [enabled]);
 
   useEffect(() => {
+    if (!enabled) return;
     const frame = requestAnimationFrame(() => void refresh());
     return () => cancelAnimationFrame(frame);
-  }, [refresh]);
+  }, [enabled, refresh]);
   useEffect(() => {
+    if (!enabled) return;
     const online = () => { setSaveState("saved"); void refresh(); };
     const offline = () => setSaveState("offline");
     window.addEventListener("online", online);
     window.addEventListener("offline", offline);
     return () => { window.removeEventListener("online", online); window.removeEventListener("offline", offline); };
-  }, [refresh]);
+  }, [enabled, refresh]);
 
   const legacyCandidate = useMemo(
     () => dashboard && !legacyDismissed ? readLegacyCandidate(dashboard) : null,

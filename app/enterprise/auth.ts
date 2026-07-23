@@ -1,5 +1,5 @@
 import { getSessionUser, requireSessionUser } from "../session-auth";
-import { ensureLearner, LearnerAccessError } from "./store";
+import { bindAnonymousSession, ensureLearner, LearnerAccessError } from "./store";
 import type { EnterpriseRole, LearnerContext } from "./types";
 
 /**
@@ -9,11 +9,15 @@ import type { EnterpriseRole, LearnerContext } from "./types";
  */
 export async function requireLearner(returnTo = "/"): Promise<LearnerContext> {
   const identity = await requireSessionUser(returnTo);
-  return ensureLearner({
+  const learner = await ensureLearner({
     email: identity.email,
     displayName: identity.displayName,
     fullName: identity.fullName,
   });
+  if (identity.needsBinding) {
+    await bindAnonymousSession(identity.sessionHash, learner.user.id, identity.sessionExpiresAt);
+  }
+  return learner;
 }
 
 /**
@@ -24,11 +28,15 @@ export async function requireLearner(returnTo = "/"): Promise<LearnerContext> {
 export async function getLearner(): Promise<LearnerContext | null> {
   const identity = await getSessionUser();
   if (!identity) return null;
-  return ensureLearner({
+  const learner = await ensureLearner({
     email: identity.email,
     displayName: identity.displayName,
     fullName: identity.fullName,
   });
+  if (identity.needsBinding) {
+    await bindAnonymousSession(identity.sessionHash, learner.user.id, identity.sessionExpiresAt);
+  }
+  return learner;
 }
 
 export async function requireEnterpriseRole(role: EnterpriseRole, returnTo = "/") {

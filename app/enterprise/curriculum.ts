@@ -67,25 +67,41 @@ export function moduleSummaries(): ModuleSummary[] {
 
 function publicCommunityResource(item: ExpandedCommunityRecommendation): CommunityResourcePublic {
   const { artifact, repository } = item;
+  const previewAvailable = Boolean(artifact.preview && repository.licenseStatus === "verified");
+  const reviewedSource = artifact.preview ?? artifact.externalSource;
+  if (!reviewedSource) throw new Error(`El recurso ${artifact.id} no tiene un archivo revisado.`);
+  const reviewedSourceHref = `${repository.url}/blob/${reviewedSource.upstreamRef}/${reviewedSource.path.split("/").map(encodeURIComponent).join("/")}`;
   return {
     id: artifact.id,
     title: artifact.title,
     summary: artifact.summary,
-    href: artifact.href ?? repository.url,
+    href: reviewedSourceHref,
     repositoryName: repository.name,
     repositoryUrl: repository.url,
     author: repository.author,
     provenance: repository.provenance,
     license: repository.license,
     licenseStatus: repository.licenseStatus,
+    licenseEvidenceHref: repository.licenseEvidencePath && repository.licenseEvidenceRef
+      ? `${repository.url}/blob/${repository.licenseEvidenceRef}/${repository.licenseEvidencePath.split("/").map(encodeURIComponent).join("/")}`
+      : null,
     format: artifact.format,
     languages: [...artifact.languages],
     clouds: [...artifact.clouds],
     difficulty: artifact.difficulty,
     runtimeNotes: artifact.runtimeNotes,
     freeEdition: artifact.freeEdition,
-    previewAvailable: Boolean(artifact.preview && repository.licenseStatus === "verified"),
-    upstreamRef: artifact.preview?.upstreamRef ?? null,
+    previewAvailable,
+    previewUnavailableReason: previewAvailable
+      ? null
+      : repository.licenseStatus === "unknown"
+        ? "license_unverified"
+        : repository.licenseStatus === "restricted"
+          ? "restricted_license"
+          : "no_compatible_file",
+    viewMode: previewAvailable ? "internal" : "github",
+    sourcePath: reviewedSource.path,
+    upstreamRef: reviewedSource.upstreamRef,
     reviewedAt: repository.reviewedAt,
     usageInstructions: usageInstructionsFor(artifact),
   };

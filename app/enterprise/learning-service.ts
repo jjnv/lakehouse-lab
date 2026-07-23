@@ -11,6 +11,7 @@ import {
   labAttestations,
   legacyImports,
   learnerAssignments,
+  learnerPreferences,
   learningEvents,
   lessonProgress,
   privacyRequests,
@@ -43,6 +44,7 @@ import type {
   ModuleProgressPublic,
   MutationEnvelope,
   ProgressRevision,
+  PublicCredentialVerification,
   TenantBrandConfig,
 } from "./contracts";
 import { getOrganizationBranding, PROFESSIONAL_CURRICULUM_VERSION_ID } from "./store";
@@ -484,7 +486,7 @@ function publicCredential(row: typeof credentials.$inferSelect): Credential {
     contentVersion: row.contentVersion,
     issuedAt: row.issuedAt,
     status: row.status,
-    verificationHref: `/certificados/${encodeURIComponent(row.id)}`,
+    verificationHref: `/certificados/${encodeURIComponent(row.id)}?code=${encodeURIComponent(row.verificationCode)}`,
     pdfHref: `/api/credentials/${encodeURIComponent(row.id)}/pdf`,
   };
 }
@@ -507,9 +509,10 @@ export async function getLearnerDashboard(learner: LearnerContext): Promise<Lear
       db.select().from(legacyImports).where(and(eq(legacyImports.userId, learner.user.id), eq(legacyImports.curriculumVersionId, PROFESSIONAL_CURRICULUM_VERSION_ID))).limit(1),
       db.select({ occurredAt: learningEvents.occurredAt }).from(learningEvents).where(eq(learningEvents.userId, learner.user.id)).orderBy(desc(learningEvents.occurredAt)).limit(1),
       db.select({ type: learningEvents.type, objectId: learningEvents.objectId, metadataJson: learningEvents.metadataJson }).from(learningEvents).where(and(eq(learningEvents.userId, learner.user.id), gte(learningEvents.occurredAt, weekStart))),
+      db.select().from(learnerPreferences).where(eq(learnerPreferences.userId, learner.user.id)).limit(1),
     ] as const),
   ]);
-  const [revisionRows, lessonRows, labRows, allAttempts, reviews, credentialRows, snapshot, motivationRows, rewardRows, legacyRows, latestEvent, weeklyEvents] = dashboardRows;
+  const [revisionRows, lessonRows, labRows, allAttempts, reviews, credentialRows, snapshot, motivationRows, rewardRows, legacyRows, latestEvent, weeklyEvents, preferenceRows] = dashboardRows;
   const revisionRow = revisionRows[0];
   if (!revisionRow) throw new LearningApiError(403, "ENROLLMENT_REQUIRED", "No existe una matrícula activa para esta cuenta.");
   const revision: ProgressRevision = { value: revisionRow.value, updatedAt: revisionRow.updatedAt };
@@ -536,20 +539,22 @@ export async function getLearnerDashboard(learner: LearnerContext): Promise<Lear
   let nextActivity: LearnerDashboard["nextActivity"];
   if (dueReview) {
     const owner = modules.find((item) => item.lessons.some((lesson) => lesson.id === dueReview.lessonId));
-    nextActivity = { kind: "review", moduleId: owner?.id ?? null, lessonId: dueReview.lessonId, label: "Completar repaso pendiente", href: owner ? `/curso/${owner.slug}?lesson=${dueReview.lessonId}&review=1` : "/mi-aprendizaje" };
+    nextActivity = { kind: "review", moduleId: owner?.id ?? null, lessonId: dueReview.lessonId, label: "Completar repaso pendiente", reason: `Este recuerdo está programado desde el ${dueReview.dueOn}; repasarlo ahora refuerza la retención antes de avanzar.`, href: owner ? `/curso/${owner.slug}?lesson=${dueReview.lessonId}&review=1` : "/mi-aprendizaje" };
   } else if (nextModule && nextModuleProgress) {
     const lesson = nextModule.lessons.find((item) => !nextModuleProgress.completedLessonIds.includes(item.id));
     nextActivity = lesson
-      ? { kind: "lesson", moduleId: nextModule.id, lessonId: lesson.id, label: `Continuar · ${lesson.title}`, href: `/curso/${nextModule.slug}?lesson=${lesson.id}` }
+      ? { kind: "lesson", moduleId: nextModule.id, lessonId: lesson.id, label: `Continuar · ${lesson.title}`, reason: `Es la primera lección pendiente del módulo ${nextModule.number} y mantiene el orden de prerrequisitos de la ruta.`, href: `/curso/${nextModule.slug}?lesson=${lesson.id}` }
       : !nextModuleProgress.labAttested
-        ? { kind: "lab", moduleId: nextModule.id, lessonId: null, label: `Completar laboratorio · ${nextModule.short}`, href: `/curso/${nextModule.slug}?view=lab` }
-        : { kind: "quiz", moduleId: nextModule.id, lessonId: null, label: `Realizar test · ${nextModule.short}`, href: `/curso/${nextModule.slug}?view=quiz` };
+        ? { kind: "lab", moduleId: nextModule.id, lessonId: null, label: `Completar laboratorio · ${nextModule.short}`, reason: "Ya has leído las cinco lecciones; la práctica es el siguiente paso antes de evaluar el módulo.", href: `/curso/${nextModule.slug}?view=lab` }
+        : { kind: "quiz", moduleId: nextModule.id, lessonId: null, label: `Realizar test · ${nextModule.short}`, reason: nextModuleProgress.quizBestPercent === null ? "Lecciones y laboratorio completos: falta comprobar la comprensión del módulo." : `Tu mejor resultado es ${nextModuleProgress.quizBestPercent} %; el objetivo del módulo es 75 %.`, href: `/curso/${nextModule.slug}?view=quiz` };
   } else if (!passed("associate_exam")) {
-    nextActivity = { kind: "associate_simulator", moduleId: null, lessonId: null, label: "Realizar simulacro Associate", href: "/simulacro/associate" };
+    const score = best("associate_exam");
+    nextActivity = { kind: "associate_simulator", moduleId: null, lessonId: null, label: "Realizar simulacro Associate", reason: score === null ? "Has completado el tramo Associate; el simulacro mide qué dominios conviene reforzar." : `Tu mejor resultado es ${score} % y el objetivo es 80 %.`, href: "/simulacro/associate" };
   } else if (!passed("professional_exam") || requiresProfessionalRevalidation) {
-    nextActivity = { kind: "professional_simulator", moduleId: null, lessonId: null, label: "Realizar simulacro Professional", href: "/simulacro/professional" };
+    const score = best("professional_exam");
+    nextActivity = { kind: "professional_simulator", moduleId: null, lessonId: null, label: "Realizar simulacro Professional", reason: requiresProfessionalRevalidation ? "La importación se conserva, pero una credencial requiere un intento Professional corregido por este servidor." : score === null ? "La ruta está completa; el simulacro final comprueba la preparación transversal." : `Tu mejor resultado es ${score} % y el objetivo es 80 %.`, href: "/simulacro/professional" };
   } else {
-    nextActivity = { kind: "certificate", moduleId: null, lessonId: null, label: "Consultar expediente y certificado", href: "/expediente" };
+    nextActivity = { kind: "certificate", moduleId: null, lessonId: null, label: "Consultar expediente y certificado", reason: "Todos los requisitos están completos; revisa la evidencia y comparte el enlace público si lo deseas.", href: "/expediente" };
   }
 
   let snapshotPayload: Record<string, unknown> = {};
@@ -588,6 +593,8 @@ export async function getLearnerDashboard(learner: LearnerContext): Promise<Lear
     if (event.type === "assessment.submitted") return total + (metadata.kind === "module_quiz" ? 20 : metadata.kind === "associate_exam" ? 90 : 120);
     return total;
   }, 0));
+  const preferences = preferenceRows[0];
+  const weeklyTargetMinutes = preferences?.weeklyTargetMinutes ?? 300;
 
   return {
     brand: tenantBrand,
@@ -604,7 +611,7 @@ export async function getLearnerDashboard(learner: LearnerContext): Promise<Lear
       startedAt,
       dueAt,
       durationDays: 140,
-      weeklyTargetMinutes: 300,
+      weeklyTargetMinutes,
       status: routeComplete ? "completed" : activity ? "in_progress" : "not_started",
       overdue: !routeComplete && Date.parse(dueAt) < Date.now(),
       completionPolicy: {
@@ -647,6 +654,13 @@ export async function getLearnerDashboard(learner: LearnerContext): Promise<Lear
     weeklyMinutes,
     nextActivity,
     credential: credentialRows[0] ? publicCredential(credentialRows[0]) : null,
+    preferences: {
+      goal: preferences?.goal ?? "professional",
+      weeklyTargetMinutes,
+      cloud: preferences?.cloud ?? "multicloud",
+      onboardingCompleted: Boolean(preferences?.onboardingCompletedAt),
+      updatedAt: preferences?.updatedAt ?? null,
+    },
     legacyImport: {
       eligible: !imported && !activity,
       alreadyImported: imported,
@@ -654,6 +668,43 @@ export async function getLearnerDashboard(learner: LearnerContext): Promise<Lear
       requiresProfessionalRevalidation,
     },
   };
+}
+
+export async function updateLearnerPreferences(learner: LearnerContext, body: unknown) {
+  if (!isRecord(body)) throw new LearningApiError(422, "INVALID_BODY", "Las preferencias no tienen un formato válido.");
+  assertMutationInput(body);
+  const goal = body.goal;
+  const cloud = body.cloud;
+  const weeklyTargetMinutes = body.weeklyTargetMinutes;
+  if (goal !== "associate" && goal !== "professional" && goal !== "topics") {
+    throw new LearningApiError(422, "INVALID_GOAL", "El objetivo de aprendizaje no es válido.");
+  }
+  if (cloud !== "multicloud" && cloud !== "azure" && cloud !== "aws" && cloud !== "gcp" && cloud !== "free-edition") {
+    throw new LearningApiError(422, "INVALID_CLOUD", "El entorno de práctica no es válido.");
+  }
+  if (!Number.isInteger(weeklyTargetMinutes) || Number(weeklyTargetMinutes) < 60 || Number(weeklyTargetMinutes) > 840 || Number(weeklyTargetMinutes) % 30 !== 0) {
+    throw new LearningApiError(422, "INVALID_WEEKLY_TARGET", "El objetivo semanal debe estar entre 60 y 840 minutos, en bloques de 30.");
+  }
+  const canonical: {
+    goal: "associate" | "professional" | "topics";
+    cloud: "multicloud" | "azure" | "aws" | "gcp" | "free-edition";
+    weeklyTargetMinutes: number;
+  } = { goal, cloud, weeklyTargetMinutes: Number(weeklyTargetMinutes) };
+  const guard = await guardMutation(learner, body, "preferences.updated", canonical);
+  if (guard.replayed) return envelope((await getLearnerDashboard(learner)).preferences, guard.revision, true);
+  const changedAt = nowIso();
+  const db = getDb();
+  await db.insert(learnerPreferences).values({
+    userId: learner.user.id,
+    ...canonical,
+    onboardingCompletedAt: changedAt,
+    updatedAt: changedAt,
+  }).onConflictDoUpdate({
+    target: learnerPreferences.userId,
+    set: { ...canonical, onboardingCompletedAt: changedAt, updatedAt: changedAt },
+  });
+  const revision = await recordMutation(learner, guard, "preferences.updated", "user", learner.user.id, canonical);
+  return envelope((await getLearnerDashboard(learner)).preferences, revision, false);
 }
 
 export async function importLegacyProgress(learner: LearnerContext, body: unknown) {
@@ -987,6 +1038,76 @@ async function assertAssessmentAvailable(learner: LearnerContext, kind: Assessme
   if (!requiredIds.every((id) => completed.has(id))) {
     throw new LearningApiError(422, "PROGRAM_ACTIVITY_REQUIRED", kind === "associate-simulator" ? "Completa los doce módulos troncales antes del simulacro Associate." : "Completa los 32 módulos antes del simulacro Professional.");
   }
+}
+
+export async function getPublicCredentialVerification(credentialId: string, verificationCode: string): Promise<PublicCredentialVerification> {
+  const unknown: PublicCredentialVerification = {
+    valid: false,
+    status: "unknown",
+    credentialId,
+    certificateNumber: null,
+    title: null,
+    contentVersion: null,
+    issuedAt: null,
+    revokedAt: null,
+    learnerDisplayName: null,
+    issuerName: "Lakehouse Lab",
+  };
+  if (!credentialId || credentialId.length > 120 || !verificationCode || verificationCode.length > 120) return unknown;
+  const db = getDb();
+  const [row] = await db.select({
+    id: credentials.id,
+    status: credentials.status,
+    certificateNumber: credentials.certificateNumber,
+    title: credentials.title,
+    contentVersion: credentials.contentVersion,
+    issuedAt: credentials.issuedAt,
+    revokedAt: credentials.revokedAt,
+    organizationId: credentials.organizationId,
+    learnerDisplayName: users.displayName,
+  }).from(credentials)
+    .innerJoin(users, eq(users.id, credentials.userId))
+    .where(and(eq(credentials.id, credentialId), eq(credentials.verificationCode, verificationCode)))
+    .limit(1);
+  if (!row) return unknown;
+  const brand = await getOrganizationBranding(row.organizationId);
+  return {
+    valid: row.status === "issued",
+    status: row.status,
+    credentialId: row.id,
+    certificateNumber: row.certificateNumber,
+    title: row.title,
+    contentVersion: row.contentVersion,
+    issuedAt: row.issuedAt,
+    revokedAt: row.revokedAt,
+    learnerDisplayName: row.learnerDisplayName,
+    issuerName: brand.organizationName,
+  };
+}
+
+export async function getActiveAssessment(learner: LearnerContext, kind: unknown, requestedModuleId?: unknown) {
+  if (kind !== "module-quiz" && kind !== "associate-simulator" && kind !== "professional-simulator") {
+    throw new LearningApiError(422, "INVALID_ASSESSMENT_KIND", "El tipo de evaluación no es válido.");
+  }
+  const moduleId = kind === "module-quiz"
+    ? typeof requestedModuleId === "string" ? findModule(requestedModuleId).id : null
+    : null;
+  if (kind === "module-quiz" && !moduleId) {
+    throw new LearningApiError(422, "MODULE_REQUIRED", "El test necesita un moduleId.");
+  }
+  const db = getDb();
+  const conditions = [
+    eq(assessmentAttempts.userId, learner.user.id),
+    eq(assessmentAttempts.curriculumVersionId, PROFESSIONAL_CURRICULUM_VERSION_ID),
+    eq(assessmentAttempts.kind, mapAssessmentKind(kind)),
+    eq(assessmentAttempts.status, "started"),
+  ];
+  if (moduleId) conditions.push(eq(assessmentAttempts.moduleId, moduleId));
+  const [row] = await db.select().from(assessmentAttempts)
+    .where(and(...conditions))
+    .orderBy(desc(assessmentAttempts.startedAt))
+    .limit(1);
+  return row ? publicAttempt(row) : null;
 }
 
 export async function startAssessment(learner: LearnerContext, body: unknown) {

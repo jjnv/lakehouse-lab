@@ -69,9 +69,9 @@ test("the compiled UI retains keyboard, announcement and high-contrast affordanc
 
 test("the server bundle contains the complete public launch surface", () => {
   for (const contract of [
-    "Beta pública",
-    "Explorar la demo",
-    "Tu progreso te pertenece",
+    "Código abierto",
+    "Explorar el catálogo",
+    "Aprende con el proyecto",
     "Condiciones de uso",
     "Proyecto educativo independiente",
     "og-public.png",

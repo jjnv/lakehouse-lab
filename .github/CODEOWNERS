@@ -1,0 +1,23 @@
+# Propiedad por defecto
+* @jjnv
+
+# Currículo, evaluaciones y versión editorial
+/app/curriculum/ @jjnv
+/app/course-data.ts @jjnv
+/app/editorial-data.ts @jjnv
+/app/enterprise/assessment-private.ts @jjnv
+
+# Persistencia, sesiones y seguridad
+/db/ @jjnv
+/drizzle/ @jjnv
+/app/enterprise/auth.ts @jjnv
+/app/enterprise/store.ts @jjnv
+/app/session-auth.ts @jjnv
+
+# Gobernanza y licencias
+/.github/ @jjnv
+/LICENSE @jjnv
+/LICENSES.md @jjnv
+/CONTENT-LICENSE.md @jjnv
+/SECURITY.md @jjnv
+/GOVERNANCE.md @jjnv

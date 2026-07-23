@@ -16,9 +16,9 @@ const routes = [
 
 const publicRoutes = [
   { path: "/", heading: "Ingeniería de datos que se practica." },
-  { path: "/demo", heading: "Así se aprende dentro de Lakehouse Lab." },
-  { path: "/acerca-de", heading: "Una academia construida como producto real." },
+  { path: "/acerca-de", heading: "Una academia abierta construida como producto real." },
   { path: "/privacidad", heading: "Tu progreso te pertenece." },
+  { path: "/recuperar", heading: "Vuelve a tu aprendizaje." },
   { path: "/terminos", heading: "Aprendizaje independiente, sin promesas engañosas." },
 ] as const;
 
@@ -32,6 +32,22 @@ async function expectWcag22Aa(page: Page) {
     .withTags(["wcag2a", "wcag2aa", "wcag21aa", "wcag22aa"])
     .analyze();
   expect(result.violations, JSON.stringify(result.violations, null, 2)).toEqual([]);
+}
+
+function notebookPreviewPayload(resourceId: string, title: string) {
+  return {
+    resourceId,
+    title,
+    sourceHref: `https://example.invalid/${resourceId}`,
+    upstreamRef: "a".repeat(40),
+    path: `notebooks/${resourceId}.ipynb`,
+    reviewedAt: "23 jul 2026",
+    cells: [
+      { kind: "markdown", text: `# ${title}\n\nContenido seguro interceptado para la prueba.` },
+      { kind: "code", language: "python", text: "print('preview segura')", outputs: [{ kind: "text", text: "preview segura\n" }] },
+    ],
+    truncated: false,
+  };
 }
 
 test.describe.configure({ mode: "serial" });
@@ -60,6 +76,13 @@ for (const route of publicRoutes) {
     await expectWcag22Aa(page);
   });
 }
+
+test("la ruta antigua de demo redirige al catálogo abierto", async ({ page }) => {
+  const response = await page.goto("/demo");
+  expect(response?.status()).toBeLessThan(400);
+  await expect(page).toHaveURL(/\/catalogo$/u);
+  await expect(page.locator("main#main-content")).toBeVisible();
+});
 
 test("el drawer móvil atrapa y restaura el foco", async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
@@ -101,22 +124,105 @@ test("el catálogo descubre notebooks por temática sin duplicar el progreso", a
   await page.goto("/catalogo?view=resources");
   await waitForWorkspace(page);
   await expect(page.getByRole("tab", { name: /Notebooks/ })).toHaveAttribute("aria-selected", "true");
-  await expect(page.locator(".ent-resource-card")).toHaveCount(36);
+  const resourceCards = page.locator(".ent-resource-card");
+  await expect(resourceCards).toHaveCount(36);
+  await expect(resourceCards.locator(".ent-resource-card-topline b").filter({ hasText: "Vista interna" })).toHaveCount(19);
+  await expect(resourceCards.locator(".ent-resource-card-topline b").filter({ hasText: "Archivo en GitHub" })).toHaveCount(17);
+  const fileActions = resourceCards.getByRole("link", { name: /Ver archivo/ });
+  await expect(fileActions).toHaveCount(36);
+  await expect(resourceCards.getByRole("link", { name: /Ver notebook/ })).toHaveCount(36);
+  const reviewedHrefs = await fileActions.evaluateAll((links) => links.map((link) => (link as HTMLAnchorElement).href));
+  expect(reviewedHrefs.every((href) => /^https:\/\/github\.com\/[^/]+\/[^/]+\/blob\/[a-f0-9]{40}\/.+/.test(href))).toBe(true);
   await page.getByRole("searchbox", { name: "Buscar", exact: true }).fill("Change Data Feed");
   await expect(page.locator(".ent-resource-card")).toHaveCount(3);
   await expect(page.getByRole("heading", { name: "change-data-feed.ipynb" })).toBeVisible();
   await expectWcag22Aa(page);
 });
 
-test("la pestaña de notebooks admite enlace profundo y no cambia la revisión de progreso", async ({ page }) => {
+test("el catálogo abre el notebook en el visor lateral mediante un enlace profundo", async ({ page }) => {
+  await page.route("**/api/resources/delta-cdf/preview", async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify(notebookPreviewPayload("delta-cdf", "change-data-feed.ipynb")),
+    });
+  });
   const before = await (await page.request.get("/api/me/dashboard")).json();
-  await page.goto("/curso/delta-lake-acid-esquema-historial-y-dml?section=resources&resource=delta-cdf");
+  await page.goto("/catalogo?view=resources");
   await waitForWorkspace(page);
   await expect(page.getByRole("tab", { name: /Notebooks/ })).toHaveAttribute("aria-selected", "true");
-  await expect(page.getByRole("heading", { name: "change-data-feed.ipynb" })).toBeVisible();
+  await page.getByRole("searchbox", { name: "Buscar", exact: true }).fill("change-data-feed.ipynb");
+  const resourceCard = page.locator(".ent-resource-card").filter({ has: page.getByRole("heading", { name: "change-data-feed.ipynb", exact: true }) });
+  await resourceCard.getByRole("link", { name: /Ver notebook/ }).click();
+  await expect(page).toHaveURL(/\/curso\/change-data-feed-cdc-auto-cdc-y-scd\?section=resources&resource=delta-cdf/);
+  await waitForWorkspace(page);
+  await expect(page.getByRole("tab", { name: /Notebooks/ })).toHaveAttribute("aria-selected", "true");
+  const viewer = page.locator("dialog#community-preview");
+  await expect(viewer).toBeVisible();
+  await expect(viewer).toHaveAttribute("open", "");
+  await expect(viewer.locator("#community-preview-title")).toHaveText("change-data-feed.ipynb");
+  await expect(viewer.locator(".ent-notebook-cells > article")).toHaveCount(2);
   const after = await (await page.request.get("/api/me/dashboard")).json();
   expect(after.revision.value).toBe(before.revision.value);
   await expectWcag22Aa(page);
+  await page.keyboard.press("Escape");
+  await expect(viewer).toBeHidden();
+  await expect(page).toHaveURL(/\/curso\/change-data-feed-cdc-auto-cdc-y-scd\?section=resources$/);
+  await expect(page.locator("#community-resource-delta-cdf").getByRole("button", { name: /Ver notebook/ })).toBeFocused();
+});
+
+test("el visor interno renderiza celdas y Escape restaura el foco al botón que lo abrió", async ({ page }) => {
+  await page.route("**/api/resources/delta-cdf/preview", async (route) => {
+    const payload = notebookPreviewPayload("delta-cdf", "change-data-feed.ipynb");
+    payload.cells[0].text = [
+      "# change-data-feed.ipynb",
+      "Contenido seguro interceptado para la prueba.",
+      ...Array.from({ length: 170 }, (_, index) => `Bloque Markdown ${index + 1}`),
+    ].join("\n\n");
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify(payload),
+    });
+  });
+  await page.goto("/curso/delta-lake-acid-esquema-historial-y-dml?section=resources");
+  await waitForWorkspace(page);
+
+  const resourceCard = page.locator("#community-resource-delta-cdf");
+  const opener = resourceCard.getByRole("button", { name: /Ver notebook/ });
+  await expect(page.locator(".ent-community-card").getByRole("button", { name: /Ver notebook/ })).toHaveCount(3);
+  await opener.click();
+  const viewer = page.locator("dialog#community-preview");
+  await expect(viewer).toBeVisible();
+  await expect(viewer.locator(".ent-notebook-cells .is-markdown")).toContainText("Contenido seguro interceptado");
+  await expect(viewer.locator(".ent-markdown-truncated")).toHaveText("Contenido Markdown recortado para mantener el visor fluido.");
+  await expect(viewer.locator(".ent-notebook-cells .is-code")).toContainText("print('preview segura')");
+  await expect(viewer.getByText("preview segura", { exact: true })).toBeVisible();
+  await expect(viewer.getByRole("button", { name: "Cerrar visor de notebook" })).toBeFocused();
+  await page.keyboard.press("Escape");
+  await expect(viewer).toBeHidden();
+  await expect(opener).toBeFocused();
+});
+
+test("el recurso externo usa el mismo visor y ofrece GitHub sin solicitar la API interna", async ({ page }) => {
+  let previewRequests = 0;
+  page.on("request", (request) => {
+    if (/\/api\/resources\/[^/]+\/preview/.test(request.url())) previewRequests += 1;
+  });
+  await page.goto("/curso/data-intelligence-platform-y-arquitectura-lakehouse?section=resources");
+  await waitForWorkspace(page);
+
+  const resourceCard = page.locator("#community-resource-free-pipelines");
+  const opener = resourceCard.getByRole("button", { name: /Ver notebook/ });
+  await opener.click();
+  const viewer = page.locator("dialog#community-preview");
+  await expect(viewer).toBeVisible();
+  await expect(viewer.locator("#community-preview-title")).toHaveText("Databricks Free Declarative Pipelines");
+  await expect(viewer.getByText("Fuente revisada · vista externa")).toBeVisible();
+  const githubAction = viewer.getByRole("link", { name: /Ver notebook en GitHub/ });
+  await expect(githubAction).toBeVisible();
+  await expect(githubAction).toHaveAttribute("href", /^https:\/\/github\.com\/andkret\/Databricks-Free-Declarative-Pipelines\/blob\/[a-f0-9]{40}\//);
+  await expect.poll(() => previewRequests).toBe(0);
 });
 
 test("las cuatro pestañas del curso conservan navegación de teclado", async ({ page }) => {
@@ -157,7 +263,7 @@ test("la búsqueda global encuentra un notebook y abre su ficha", async ({ page 
   await result.click();
   await expect(page).toHaveURL(/\/curso\/photon-data-skipping-y-liquid-clustering\?section=resources&resource=learn-photon/);
   await waitForWorkspace(page);
-  await expect(page.getByRole("heading", { name: "Photon.py" })).toBeVisible();
+  await expect(page.locator("dialog#community-preview").getByRole("heading", { name: "Photon.py" })).toBeVisible();
 });
 
 test("el diálogo destructivo mantiene una salida segura", async ({ page }) => {
@@ -254,7 +360,18 @@ test("un visitante crea un espacio anónimo con una cookie privada", async ({ br
   try {
     const page = await context.newPage();
     await page.goto(`${baseURL}/`);
-    const start = page.getByRole("link", { name: "Empezar gratis" }).first();
+    await page.getByRole("link", { name: "Explorar el catálogo" }).click();
+    await expect(page).toHaveURL(/\/catalogo$/u);
+    await expect(page.getByText("Contenido abierto").first()).toBeVisible();
+    expect((await context.cookies()).some((item) => item.name === "lakehouse_session")).toBe(false);
+
+    await page.goto(`${baseURL}/curso/data-intelligence-platform-y-arquitectura-lakehouse`);
+    await expect(page.getByRole("heading", { level: 1, name: "Plataforma" })).toBeVisible();
+    await expect(page.getByText("Lectura pública").first()).toBeVisible();
+    expect((await context.cookies()).some((item) => item.name === "lakehouse_session")).toBe(false);
+
+    await page.goto(`${baseURL}/`);
+    const start = page.getByRole("link", { name: "Crear mi espacio" }).first();
     await expect(start).toHaveAttribute("href", /\/entrar\?return_to=/);
     await start.click();
     await expect(page).toHaveURL(/\/inicio$/);

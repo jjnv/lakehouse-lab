@@ -80,10 +80,58 @@ export default function AssessmentPanel({
   const [page, setPage] = useState(0);
   const [secondsLeft, setSecondsLeft] = useState<number | null>(null);
   const [warning, setWarning] = useState("");
+  const [recovering, setRecovering] = useState(true);
+  const [reviewing, setReviewing] = useState(false);
+  const [marked, setMarked] = useState<string[]>([]);
   const [currentRevision, setCurrentRevision] = useState(revision);
   const submittingRef = useRef(false);
   const pageSize = kind === "module-quiz" ? 4 : 10;
   const effectiveRevision = Math.max(currentRevision, revision);
+
+  const restoreAttempt = useCallback((next: AssessmentAttemptPublic) => {
+    setAttempt(next);
+    setSelections(next.selections ?? {});
+    setTimingMode(next.timingMode);
+    setResult(null);
+    const storageKey = `lakehouse-assessment:${next.id}`;
+    const savedPage = Number(window.sessionStorage.getItem(`${storageKey}:page`) ?? 0);
+    const maximumPage = Math.max(0, Math.ceil(next.assessment.questions.length / pageSize) - 1);
+    setPage(Number.isInteger(savedPage) && savedPage >= 0 ? Math.min(savedPage, maximumPage) : 0);
+    try {
+      const savedMarked = JSON.parse(window.sessionStorage.getItem(`${storageKey}:marked`) ?? "[]");
+      setMarked(Array.isArray(savedMarked) ? savedMarked.filter((item): item is string => typeof item === "string") : []);
+    } catch {
+      setMarked([]);
+    }
+    setSecondsLeft(
+      next.expiresAt
+        ? Math.max(0, Math.floor((Date.parse(next.expiresAt) - Date.now()) / 1000))
+        : null,
+    );
+  }, [pageSize]);
+
+  useEffect(() => {
+    const controller = new AbortController();
+    const params = new URLSearchParams({ kind });
+    if (moduleId) params.set("moduleId", moduleId);
+    void (async () => {
+      try {
+        const response = await fetch(`/api/assessments?${params}`, {
+          cache: "no-store",
+          headers: { accept: "application/json" },
+          signal: controller.signal,
+        });
+        const body = await response.json().catch(() => ({})) as { attempt?: AssessmentAttemptPublic | null; message?: string };
+        if (!response.ok) throw new Error(body.message || "No se pudo recuperar el intento.");
+        if (body.attempt) restoreAttempt(body.attempt);
+      } catch (caught) {
+        if (!controller.signal.aborted) setError(caught instanceof Error ? caught.message : "No se pudo recuperar el intento.");
+      } finally {
+        if (!controller.signal.aborted) setRecovering(false);
+      }
+    })();
+    return () => controller.abort();
+  }, [kind, moduleId, restoreAttempt]);
 
   const start = useCallback(async () => {
     setError(null);
@@ -107,18 +155,10 @@ export default function AssessmentPanel({
       const next = "attempt" in payload ? payload.attempt : payload;
       if (envelope.revision !== undefined)
         setCurrentRevision(envelope.revision);
-      setAttempt(next);
-      setSelections(next.selections ?? {});
+      restoreAttempt(next);
       setResult(null);
       setPage(0);
-      setSecondsLeft(
-        next.expiresAt
-          ? Math.max(
-              0,
-              Math.floor((Date.parse(next.expiresAt) - Date.now()) / 1000),
-            )
-          : null,
-      );
+      setReviewing(false);
       onState("saved");
     } catch (caught) {
       setError(
@@ -126,7 +166,7 @@ export default function AssessmentPanel({
       );
       onState(navigator.onLine ? "error" : "offline");
     }
-  }, [effectiveRevision, kind, moduleId, onState, timingMode]);
+  }, [effectiveRevision, kind, moduleId, onState, restoreAttempt, timingMode]);
 
   const submit = useCallback(async () => {
     if (!attempt || submittingRef.current) return;
@@ -149,6 +189,7 @@ export default function AssessmentPanel({
       if (envelope.revision !== undefined)
         setCurrentRevision(envelope.revision);
       setResult("result" in payload ? payload.result : payload);
+      setReviewing(false);
       onState("saved");
       await onCompleted();
     } catch (caught) {
@@ -223,6 +264,8 @@ export default function AssessmentPanel({
     secondsLeft === null
       ? "Sin límite"
       : `${String(Math.floor(secondsLeft / 60)).padStart(2, "0")}:${String(secondsLeft % 60).padStart(2, "0")}`;
+
+  if (recovering) return <div className="ent-state-card" role="status"><span className="ent-spinner" aria-hidden="true" /><div><strong>Buscando un intento guardado</strong><p>Si recargaste la página, continuarás donde lo dejaste.</p></div></div>;
 
   if (!attempt)
     return (
@@ -316,7 +359,32 @@ export default function AssessmentPanel({
       <p className="sr-only" aria-live="assertive">
         {warning}
       </p>
-      <div className="ent-question-list">
+      <nav className="ent-question-map" aria-label="Mapa de preguntas">
+        {questions.map((question, index) => {
+          const current = Math.floor(index / pageSize) === page;
+          const answered = Boolean(selections[question.id]);
+          const isMarked = marked.includes(question.id);
+          return <button key={question.id} type="button" className={`${answered ? "is-answered" : ""} ${isMarked ? "is-marked" : ""}`} aria-current={current ? "step" : undefined} aria-label={`Pregunta ${index + 1}${answered ? ", respondida" : ", pendiente"}${isMarked ? ", marcada para revisar" : ""}`} onClick={() => {
+            const nextPage = Math.floor(index / pageSize);
+            setPage(nextPage);
+            window.sessionStorage.setItem(`lakehouse-assessment:${attempt.id}:page`, String(nextPage));
+            setReviewing(false);
+            requestAnimationFrame(() => document.getElementById("assessment-heading")?.focus());
+          }}>{index + 1}</button>;
+        })}
+      </nav>
+      {reviewing ? <section className="ent-assessment-review" aria-labelledby="assessment-review-heading">
+        <p className="ent-kicker">Revisión final</p>
+        <h3 id="assessment-review-heading">Comprueba el intento antes de entregarlo</h3>
+        <p>Has respondido {Object.keys(selections).length} de {questions.length} preguntas. {marked.length ? `Mantienes ${marked.length} marcadas para revisar.` : "No hay preguntas marcadas."}</p>
+        <ul>{questions.map((question, index) => <li key={question.id}><button type="button" onClick={() => {
+          const nextPage = Math.floor(index / pageSize);
+          setPage(nextPage);
+          setReviewing(false);
+          requestAnimationFrame(() => document.getElementById("assessment-heading")?.focus());
+        }}><span>{index + 1}</span><b>{selections[question.id] ? "Respondida" : "Pendiente"}</b>{marked.includes(question.id) ? <small>Revisar</small> : null}</button></li>)}</ul>
+        <div className="ent-form-actions"><button type="button" className="ent-secondary-action" onClick={() => setReviewing(false)}>Volver al intento</button><button type="button" className="ent-primary-action" disabled={!complete} onClick={() => void submit()}>Confirmar entrega</button></div>
+      </section> : <div className="ent-question-list">
         {visible.map((question, index) => {
           const correction = correctionMap.get(question.id);
           return (
@@ -369,10 +437,17 @@ export default function AssessmentPanel({
                   <p>{correction.explanation}</p>
                 </div>
               ) : null}
+              {!result ? <button type="button" className={`ent-mark-question ${marked.includes(question.id) ? "is-active" : ""}`} aria-pressed={marked.includes(question.id)} onClick={() => {
+                setMarked((current) => {
+                  const next = current.includes(question.id) ? current.filter((id) => id !== question.id) : [...current, question.id];
+                  window.sessionStorage.setItem(`lakehouse-assessment:${attempt.id}:marked`, JSON.stringify(next));
+                  return next;
+                });
+              }}>{marked.includes(question.id) ? "Quitar marca" : "Marcar para revisar"}</button> : null}
             </fieldset>
           );
         })}
-      </div>
+      </div>}
       <nav
         className="ent-assessment-pagination"
         aria-label="Páginas de preguntas"
@@ -382,7 +457,12 @@ export default function AssessmentPanel({
           className="ent-secondary-action"
           disabled={page === 0}
           onClick={() => {
-            setPage((value) => Math.max(0, value - 1));
+            setReviewing(false);
+            setPage((value) => {
+              const next = Math.max(0, value - 1);
+              window.sessionStorage.setItem(`lakehouse-assessment:${attempt.id}:page`, String(next));
+              return next;
+            });
             document.getElementById("assessment-heading")?.focus();
           }}
         >
@@ -396,7 +476,12 @@ export default function AssessmentPanel({
             type="button"
             className="ent-primary-action"
             onClick={() => {
-              setPage((value) => Math.min(pages - 1, value + 1));
+              setReviewing(false);
+              setPage((value) => {
+                const next = Math.min(pages - 1, value + 1);
+                window.sessionStorage.setItem(`lakehouse-assessment:${attempt.id}:page`, String(next));
+                return next;
+              });
               document.getElementById("assessment-heading")?.focus();
             }}
           >
@@ -407,9 +492,9 @@ export default function AssessmentPanel({
             type="button"
             className="ent-primary-action"
             disabled={!complete || Boolean(result)}
-            onClick={() => void submit()}
+            onClick={() => setReviewing(true)}
           >
-            Entregar y corregir
+            Revisar entrega
           </button>
         )}
       </nav>
@@ -448,6 +533,8 @@ export default function AssessmentPanel({
                 setSelections({});
                 setResult(null);
                 setWarning("");
+                setMarked([]);
+                setReviewing(false);
               }}
             >
               Nuevo intento

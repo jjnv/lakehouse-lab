@@ -1,4 +1,8 @@
-import { findCommunityArtifact } from "../curriculum/community-resources";
+import {
+  findCommunityArtifact,
+  type CommunityArtifact,
+  type CommunityRepository,
+} from "../curriculum/community-resources";
 import type { NotebookPreviewCell, NotebookPreviewOutput, NotebookPreviewPayload } from "./contracts";
 
 const MAX_BYTES = 2_000_000;
@@ -6,7 +10,18 @@ const MAX_CELLS = 160;
 const MAX_CELL_CHARACTERS = 60_000;
 const MAX_OUTPUT_CHARACTERS = 40_000;
 const MAX_IMAGE_BASE64_CHARACTERS = 700_000;
-const ALLOWED_CONTENT_TYPES = ["application/json", "text/plain", "application/octet-stream"];
+const MAX_IMAGE_DIMENSION = 8_192;
+const MAX_IMAGE_PIXELS = 16_000_000;
+const ALLOWED_CONTENT_TYPES: Record<NonNullable<CommunityArtifact["preview"]>["kind"], readonly string[]> = {
+  ipynb: ["application/json", "text/plain"],
+  markdown: ["text/markdown", "text/plain"],
+  "databricks-source": ["text/plain"],
+};
+const PREVIEW_EXTENSIONS: Record<NonNullable<CommunityArtifact["preview"]>["kind"], readonly string[]> = {
+  ipynb: [".ipynb"],
+  markdown: [".md", ".markdown"],
+  "databricks-source": [".py", ".sql", ".scala", ".r"],
+};
 
 export class NotebookPreviewError extends Error {
   constructor(
@@ -33,16 +48,91 @@ function limited(value: string, maximum: number) {
   return value.length > maximum ? `${value.slice(0, maximum)}\n\n[Contenido recortado]` : value;
 }
 
+function curatedRawUrl(
+  repository: CommunityRepository,
+  preview: NonNullable<CommunityArtifact["preview"]>,
+) {
+  const repositoryMatch = /^https:\/\/github\.com\/([a-z0-9_.-]+)\/([a-z0-9_.-]+)\/?$/i.exec(repository.url);
+  const pathParts = preview.path.split("/");
+  const safePath = pathParts.length > 0
+    && pathParts.every((part) => part && part !== "." && part !== ".." && !part.includes("\\") && !part.includes("\0"));
+  if (!repositoryMatch || !safePath) {
+    throw new NotebookPreviewError(404, "PREVIEW_NOT_AVAILABLE", "La fuente editorial de esta vista previa no es válida.");
+  }
+  const expected = `https://raw.githubusercontent.com/${encodeURIComponent(repositoryMatch[1])}/${encodeURIComponent(repositoryMatch[2])}/${preview.upstreamRef}/${pathParts.map(encodeURIComponent).join("/")}`;
+  if (preview.rawUrl !== expected) {
+    throw new NotebookPreviewError(404, "PREVIEW_NOT_AVAILABLE", "La fuente editorial de esta vista previa no coincide con el recurso revisado.");
+  }
+  return expected;
+}
+
+function previewExtension(preview: NonNullable<CommunityArtifact["preview"]>) {
+  const normalizedPath = preview.path.toLocaleLowerCase("en");
+  const extension = PREVIEW_EXTENSIONS[preview.kind].find((candidate) => normalizedPath.endsWith(candidate));
+  if (!extension) {
+    throw new NotebookPreviewError(404, "PREVIEW_NOT_AVAILABLE", "El formato editorial de esta vista previa no coincide con el archivo revisado.");
+  }
+  return extension;
+}
+
 function textOutput(data: Record<string, unknown>): NotebookPreviewOutput | null {
   const value = sourceText(data["text/plain"]);
   return value ? { kind: "text", text: limited(value, MAX_OUTPUT_CHARACTERS) } : null;
+}
+
+function imageDimensions(mime: "image/png" | "image/jpeg", bytes: Uint8Array) {
+  if (mime === "image/png") {
+    const signature = [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a];
+    if (bytes.length < 24 || !signature.every((value, index) => bytes[index] === value)) return null;
+    const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+    return { width: view.getUint32(16), height: view.getUint32(20) };
+  }
+  if (bytes.length < 11 || bytes[0] !== 0xff || bytes[1] !== 0xd8 || bytes[2] !== 0xff) return null;
+  const startOfFrame = new Set([0xc0, 0xc1, 0xc2, 0xc3, 0xc5, 0xc6, 0xc7, 0xc9, 0xca, 0xcb, 0xcd, 0xce, 0xcf]);
+  let offset = 2;
+  while (offset + 8 < bytes.length) {
+    if (bytes[offset] !== 0xff) {
+      offset += 1;
+      continue;
+    }
+    const marker = bytes[offset + 1];
+    if (startOfFrame.has(marker)) {
+      return {
+        height: bytes[offset + 5] * 256 + bytes[offset + 6],
+        width: bytes[offset + 7] * 256 + bytes[offset + 8],
+      };
+    }
+    if (marker === 0xd8 || marker === 0xd9 || (marker >= 0xd0 && marker <= 0xd7)) {
+      offset += 2;
+      continue;
+    }
+    const segmentLength = bytes[offset + 2] * 256 + bytes[offset + 3];
+    if (segmentLength < 2) return null;
+    offset += segmentLength + 2;
+  }
+  return null;
 }
 
 function imageOutput(data: Record<string, unknown>): NotebookPreviewOutput | null {
   for (const mime of ["image/png", "image/jpeg"] as const) {
     const value = sourceText(data[mime]).replace(/\s+/g, "");
     if (value && value.length <= MAX_IMAGE_BASE64_CHARACTERS && /^[a-z0-9+/]+=*$/i.test(value)) {
-      return { kind: "image", mime, dataUrl: `data:${mime};base64,${value}` };
+      try {
+        const bytes = Uint8Array.from(atob(value), (character) => character.charCodeAt(0));
+        const dimensions = imageDimensions(mime, bytes);
+        if (
+          dimensions
+          && dimensions.width > 0
+          && dimensions.height > 0
+          && dimensions.width <= MAX_IMAGE_DIMENSION
+          && dimensions.height <= MAX_IMAGE_DIMENSION
+          && dimensions.width * dimensions.height <= MAX_IMAGE_PIXELS
+        ) {
+          return { kind: "image", mime, dataUrl: `data:${mime};base64,${value}` };
+        }
+      } catch {
+        // Invalid base64 is intentionally discarded.
+      }
     }
   }
   return null;
@@ -101,21 +191,34 @@ export function parseNotebookDocument(value: unknown, fallbackLanguage: string) 
   return { cells, truncated };
 }
 
-function stripMagicLine(line: string) {
-  return line.replace(/^\s*(?:#|--)\s*MAGIC\s?/, "");
+function commentPrefixForLanguage(language: string) {
+  switch (language.trim().toLocaleLowerCase("en")) {
+    case "sql":
+      return "--";
+    case "scala":
+      return "//";
+    default:
+      return "#";
+  }
 }
 
 export function parseDatabricksSource(value: string, language: string) {
-  const blocks = value.replace(/\r/g, "").split(/^\s*(?:#|--)\s+COMMAND\s+-{5,}\s*$/m);
+  const commentPrefix = commentPrefixForLanguage(language);
+  const escapedPrefix = commentPrefix.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const commandPattern = new RegExp(`^\\s*${escapedPrefix}\\s+COMMAND\\s+-{5,}\\s*$`, "m");
+  const headerPattern = new RegExp(`^\\s*${escapedPrefix}\\s+Databricks notebook source\\s*$`);
+  const magicPattern = new RegExp(`^\\s*${escapedPrefix}\\s*MAGIC\\b`);
+  const stripMagicPattern = new RegExp(`^\\s*${escapedPrefix}\\s*MAGIC\\s?`);
+  const blocks = value.replace(/\r/g, "").split(commandPattern);
   const cells: NotebookPreviewCell[] = [];
   let truncated = blocks.length > MAX_CELLS;
   for (const block of blocks.slice(0, MAX_CELLS)) {
     const lines = block.split("\n");
-    const meaningful = lines.filter((line) => line.trim() && !/^\s*(?:#|--)\s+Databricks notebook source\s*$/.test(line));
+    const meaningful = lines.filter((line) => line.trim() && !headerPattern.test(line));
     if (!meaningful.length) continue;
-    const magic = meaningful.every((line) => /^\s*(?:#|--)\s*MAGIC\b/.test(line));
+    const magic = meaningful.every((line) => magicPattern.test(line));
     if (magic) {
-      const text = meaningful.map(stripMagicLine).join("\n").replace(/^\s*%md\s*/, "");
+      const text = meaningful.map((line) => line.replace(stripMagicPattern, "")).join("\n").replace(/^\s*%md\s*/, "");
       if (text.trim()) cells.push({ kind: "markdown", text: limited(text, MAX_CELL_CHARACTERS) });
     } else {
       const text = limited(meaningful.join("\n"), MAX_CELL_CHARACTERS);
@@ -125,6 +228,18 @@ export function parseDatabricksSource(value: string, language: string) {
   }
   if (!cells.length) throw new NotebookPreviewError(502, "EMPTY_NOTEBOOK", "El archivo remoto no contiene celdas de lectura compatibles.");
   return { cells, truncated };
+}
+
+export function parseMarkdownDocument(value: string) {
+  const original = value.replace(/\r/g, "");
+  if (!original.trim()) {
+    throw new NotebookPreviewError(502, "EMPTY_NOTEBOOK", "El documento remoto no contiene texto compatible.");
+  }
+  const text = limited(original, MAX_CELL_CHARACTERS);
+  return {
+    cells: [{ kind: "markdown" as const, text }],
+    truncated: text.length !== original.length,
+  };
 }
 
 async function readLimitedBody(response: Response) {
@@ -162,12 +277,21 @@ export async function loadCommunityNotebookPreview(resourceId: string): Promise<
   if (!artifact.preview || repository.licenseStatus !== "verified") {
     throw new NotebookPreviewError(404, "PREVIEW_NOT_AVAILABLE", "Este recurso no dispone de una vista previa con licencia y formato verificados.");
   }
+  const rawUrl = curatedRawUrl(repository, artifact.preview);
+  const extension = previewExtension(artifact.preview);
 
   let response: Response;
   try {
-    response = await fetch(artifact.preview.rawUrl, {
+    response = await fetch(rawUrl, {
       signal: AbortSignal.timeout(7_000),
-      headers: { accept: artifact.preview.kind === "ipynb" ? "application/json,text/plain;q=0.9" : "text/plain" },
+      redirect: "error",
+      headers: {
+        accept: artifact.preview.kind === "ipynb"
+          ? "application/json,text/plain;q=0.9"
+          : artifact.preview.kind === "markdown"
+            ? "text/markdown,text/plain;q=0.9"
+            : "text/plain",
+      },
       next: { revalidate: 86_400 },
     });
   } catch (error) {
@@ -176,7 +300,7 @@ export async function loadCommunityNotebookPreview(resourceId: string): Promise<
   }
   if (!response.ok) throw new NotebookPreviewError(502, "UPSTREAM_ERROR", "La fuente original no pudo entregar el notebook.");
   const contentType = response.headers.get("content-type")?.split(";", 1)[0].trim().toLowerCase() ?? "";
-  if (contentType && !ALLOWED_CONTENT_TYPES.includes(contentType)) {
+  if (!contentType || !ALLOWED_CONTENT_TYPES[artifact.preview.kind].includes(contentType)) {
     throw new NotebookPreviewError(415, "UNSUPPORTED_PREVIEW_TYPE", "La fuente respondió con un formato que no se puede previsualizar de forma segura.");
   }
 
@@ -198,8 +322,17 @@ export async function loadCommunityNotebookPreview(resourceId: string): Promise<
       throw new NotebookPreviewError(502, "INVALID_NOTEBOOK", "La fuente no devolvió JSON de notebook válido.");
     }
     parsed = parseNotebookDocument(document, fallbackLanguage);
+  } else if (artifact.preview.kind === "markdown") {
+    parsed = parseMarkdownDocument(text);
   } else {
-    parsed = parseDatabricksSource(text, artifact.preview.path.endsWith(".sql") ? "sql" : fallbackLanguage);
+    const language = extension === ".sql"
+      ? "sql"
+      : extension === ".scala"
+        ? "scala"
+        : extension === ".r"
+          ? "r"
+          : "python";
+    parsed = parseDatabricksSource(text, language);
   }
 
   return {

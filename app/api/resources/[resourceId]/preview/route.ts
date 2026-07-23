@@ -1,19 +1,26 @@
-import { json, withLearner } from "../../../_shared";
-import { LearningApiError } from "../../../../enterprise/learning-service";
+import { json } from "../../../_shared";
 import { loadCommunityNotebookPreview, NotebookPreviewError } from "../../../../enterprise/notebook-preview";
 
 export const dynamic = "force-dynamic";
 
 export async function GET(_request: Request, { params }: { params: Promise<{ resourceId: string }> }) {
-  return withLearner(async () => {
-    const { resourceId } = await params;
-    try {
-      return json(await loadCommunityNotebookPreview(resourceId));
-    } catch (error) {
-      if (error instanceof NotebookPreviewError) {
-        throw new LearningApiError(error.status, error.code, error.message, error.status >= 500);
-      }
-      throw error;
+  const { resourceId } = await params;
+  try {
+    return json(await loadCommunityNotebookPreview(resourceId), {
+      headers: { "cache-control": "public, max-age=3600, stale-while-revalidate=86400", vary: "Accept-Encoding" },
+    });
+  } catch (error) {
+    if (error instanceof NotebookPreviewError) {
+      return json({
+        code: error.code,
+        message: error.message,
+        retryable: error.status >= 500,
+      }, { status: error.status });
     }
-  });
+    return json({
+      code: "PREVIEW_FAILED",
+      message: "No se pudo preparar la vista de lectura.",
+      retryable: true,
+    }, { status: 500 });
+  }
 }

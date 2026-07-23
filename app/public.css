@@ -7,3 +7,14 @@
 @media(max-width:650px){.public-header{padding-inline:16px}.public-brand small{display:none}.public-header-action{padding-inline:12px}.public-hero,.public-proof,.public-section,.public-cta,.public-document-main{width:min(100% - 24px,1180px)}.public-hero{padding-top:24px}.public-hero-copy,.public-product-preview{border-radius:16px}.public-hero-copy{padding:34px 22px}.public-hero h1{font-size:54px}.public-lead{font-size:17px}.public-actions{align-items:stretch;flex-direction:column}.public-primary,.public-secondary{width:100%}.public-preview-progress,.public-proof,.public-integrity dl,.public-facts{grid-template-columns:1fr}.public-preview-progress>div{display:flex;justify-content:space-between;align-items:center}.public-proof{gap:1px}.public-section{margin-block:80px}.public-section-heading h2,.public-integrity h2,.public-cta h2{font-size:43px}.public-phase-list li{grid-template-columns:1fr;gap:8px}.public-capability-grid{grid-template-columns:1fr}.public-integrity{gap:24px}.public-footer{grid-template-columns:1fr}.public-footer nav{grid-template-columns:1fr}.demo-reader{padding:24px 12px}.demo-sidebar nav{grid-template-columns:1fr 1fr}.demo-reader>header{grid-template-columns:1fr}.demo-score{display:none}.demo-outcomes{align-items:stretch;flex-direction:column}.demo-lesson summary{grid-template-columns:34px 1fr 28px;padding-inline:10px}.demo-lesson summary h3{font-size:18px}.demo-lesson>div{padding-inline:12px}.demo-mental-model>div,.demo-module-grid{grid-template-columns:1fr}.public-document>h1,.demo-intro h1{font-size:49px}}
 @media(prefers-reduced-motion:reduce){.public-site *{scroll-behavior:auto!important;transition:none!important}.demo-lesson[open] summary i{transform:none}}
 @media(forced-colors:active){.public-brand-mark i,.public-preview-path i{background:CanvasText}.public-primary,.public-header-action{border:2px solid ButtonText}}
+.public-integrity a{color:var(--public-purple);font-weight:800}
+@media(max-width:950px){
+  .public-header{grid-template-columns:minmax(0,1fr) auto;gap:8px 16px}
+  .public-header nav{grid-column:1/-1;display:flex;gap:20px;overflow-x:auto;overscroll-behavior-inline:contain;scrollbar-width:none}
+  .public-header nav::-webkit-scrollbar{display:none}
+  .public-header nav a{flex:0 0 auto}
+}
+@media(max-width:650px){
+  .public-header{gap:6px 12px}
+  .public-header nav{gap:18px}
+}

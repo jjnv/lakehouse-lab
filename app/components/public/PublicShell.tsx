@@ -6,12 +6,12 @@ type PublicShellProps = {
   children: ReactNode;
   accountHref?: string;
   accountLabel?: string;
-  active?: "demo" | "about" | "privacy" | "terms";
+  active?: "about" | "privacy" | "terms";
 };
 
 export default function PublicShell({
   children,
-  accountHref = "/entrar?return_to=%2Finicio",
+  accountHref = "/inicio",
   accountLabel = "Entrar",
   active,
 }: PublicShellProps) {
@@ -25,7 +25,8 @@ export default function PublicShell({
         </Link>
         <nav aria-label="Navegación pública">
           <Link href="/#programa">Programa</Link>
-          <Link href="/demo" aria-current={active === "demo" ? "page" : undefined}>Demo</Link>
+          <Link href="/catalogo">Catálogo</Link>
+          <Link href="/catalogo?view=resources">Notebooks</Link>
           <Link href="/acerca-de" aria-current={active === "about" ? "page" : undefined}>Proyecto</Link>
         </nav>
         <a className="public-header-action" href={accountHref}>{accountLabel}</a>
@@ -41,6 +42,7 @@ export default function PublicShell({
         </div>
         <nav aria-label="Información del proyecto">
           <Link href="/acerca-de">Acerca del proyecto</Link>
+          <Link href="/recuperar">Recuperar espacio</Link>
           <Link href="/privacidad" aria-current={active === "privacy" ? "page" : undefined}>Privacidad</Link>
           <Link href="/terminos" aria-current={active === "terms" ? "page" : undefined}>Términos</Link>
           {PROJECT_REPOSITORY_URL ? <a href={PROJECT_REPOSITORY_URL} rel="noreferrer">Código en GitHub</a> : null}

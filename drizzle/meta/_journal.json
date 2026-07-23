@@ -8,6 +8,20 @@
       "when": 1784721627473,
       "tag": "0000_peaceful_zaran",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "6",
+      "when": 1784836721828,
+      "tag": "0001_anonymous_identity_recovery",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "6",
+      "when": 1784837077485,
+      "tag": "0002_famous_nomad",
+      "breakpoints": true
     }
   ]
 }

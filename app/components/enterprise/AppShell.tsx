@@ -17,6 +17,7 @@ type AppShellProps = {
   courseMode?: boolean;
   brand?: BrandConfig;
   userDisplayName?: string;
+  publicMode?: boolean;
 };
 
 const primaryNavigation: Array<{ href: string; label: string; short: string; area: EnterpriseArea }> = [
@@ -27,7 +28,7 @@ const primaryNavigation: Array<{ href: string; label: string; short: string; are
 ];
 let lastClientPath: string | null = null;
 
-export default function AppShell({ active, title, eyebrow = "Lakehouse Lab", children, courseMode = false, brand = DEFAULT_BRAND_CONFIG, userDisplayName }: AppShellProps) {
+export default function AppShell({ active, title, eyebrow = "Lakehouse Lab", children, courseMode = false, brand = DEFAULT_BRAND_CONFIG, userDisplayName, publicMode = false }: AppShellProps) {
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [mobileNavigation, setMobileNavigation] = useState(false);
   const drawerRef = useRef<HTMLElement>(null);
@@ -105,13 +106,20 @@ export default function AppShell({ active, title, eyebrow = "Lakehouse Lab", chi
   } as CSSProperties;
   const organizationInitials = brand.organizationName.slice(0, 2).toLocaleUpperCase("es");
   const accountLabel = userDisplayName || brand.organizationName;
+  const brandHref = publicMode ? "/" : "/inicio";
+  const navigation = publicMode
+    ? [
+        { href: "/catalogo", label: "Módulos", short: "MO", area: "catalog" as const },
+        { href: "/catalogo?view=resources", label: "Notebooks", short: "NB", area: "catalog" as const },
+      ]
+    : primaryNavigation;
 
   return (
     <div className={`ent-shell ${courseMode ? "ent-shell-course" : ""}`} style={shellStyle}>
       <a className="ent-skip-link" href="#main-content">Saltar al contenido</a>
 
       <header className="ent-mobile-header" inert={drawerOpen && mobileNavigation ? true : undefined}>
-        <a className="ent-mobile-brand" href="/inicio" aria-label={`${brand.productName}, ir a Inicio`}>
+        <a className="ent-mobile-brand" href={brandHref} aria-label={`${brand.productName}, ir a Inicio`}>
           {brand.logoUrl ? <img src={brand.logoUrl} alt={brand.logoAlt ?? brand.organizationName} /> : <span className="ent-brand-mark" aria-hidden="true"><i /><i /><i /></span>}
           <span><b>{brand.organizationName}</b><small>{brand.productName}</small></span>
         </a>
@@ -134,26 +142,40 @@ export default function AppShell({ active, title, eyebrow = "Lakehouse Lab", chi
         role={drawerOpen && mobileNavigation ? "dialog" : undefined}
       >
         <div className="ent-rail-brand">
-          <a href="/inicio" aria-label={`${brand.productName}, ir a Inicio`} onClick={() => closeDrawer(false)}>
+          <a href={brandHref} aria-label={`${brand.productName}, ir a Inicio`} onClick={() => closeDrawer(false)}>
             {brand.logoUrl ? <img src={brand.logoUrl} alt={brand.logoAlt ?? brand.organizationName} /> : <span className="ent-brand-mark" aria-hidden="true"><i /><i /><i /></span>}
             <span><b>{brand.organizationName}</b><small>{brand.productName}</small></span>
           </a>
           <button ref={drawerCloseRef} className="ent-drawer-close" type="button" aria-label="Cerrar menú de navegación" onClick={() => closeDrawer(true)}>Cerrar</button>
         </div>
 
-        <div className="ent-tenant">
-          <span aria-hidden="true">{organizationInitials}</span>
-          <div><small>Organización</small><b>{brand.organizationName}</b></div>
-        </div>
+        {publicMode ? (
+          <div className="ent-tenant">
+            <span aria-hidden="true">OS</span>
+            <div><small>Acceso público</small><b>Contenido abierto</b></div>
+          </div>
+        ) : (
+          <div className="ent-tenant">
+            <span aria-hidden="true">{organizationInitials}</span>
+            <div><small>Organización</small><b>{brand.organizationName}</b></div>
+          </div>
+        )}
 
         <nav className="ent-nav" aria-label="Áreas principales">
           <p>Aprendizaje</p>
-          {primaryNavigation.map((item) => <a key={item.area} href={item.href} aria-current={active === item.area ? "page" : undefined} onClick={() => closeDrawer(false)}><span aria-hidden="true">{item.short}</span>{item.label}</a>)}
+          {navigation.map((item) => {
+            const isCurrent = active === item.area && (!publicMode || item.href === "/catalogo");
+            return <a key={item.href} href={item.href} aria-current={isCurrent ? "page" : undefined} onClick={() => closeDrawer(false)}><span aria-hidden="true">{item.short}</span>{item.label}</a>;
+          })}
         </nav>
 
         <nav className="ent-nav ent-nav-secondary" aria-label="Configuración">
-          <p>Cuenta</p>
-          <a href="/ajustes" aria-current={active === "settings" ? "page" : undefined} onClick={() => closeDrawer(false)}><span aria-hidden="true">AJ</span>Ajustes</a>
+          <p>{publicMode ? "Participa" : "Cuenta"}</p>
+          {publicMode ? (
+            <a href="/entrar?return_to=%2Finicio" onClick={() => closeDrawer(false)}><span aria-hidden="true">＋</span>Crear espacio personal</a>
+          ) : (
+            <a href="/ajustes" aria-current={active === "settings" ? "page" : undefined} onClick={() => closeDrawer(false)}><span aria-hidden="true">AJ</span>Ajustes</a>
+          )}
           {/* A document navigation intentionally resets the private workspace state. */}
           {/* eslint-disable-next-line @next/next/no-html-link-for-pages */}
           <a href="/" onClick={() => closeDrawer(false)}><span aria-hidden="true">↖</span>Volver a la portada</a>
@@ -164,7 +186,7 @@ export default function AppShell({ active, title, eyebrow = "Lakehouse Lab", chi
 
         <div className="ent-rail-note">
           <span aria-hidden="true" />
-          <p><b>Progreso persistente</b><small>Vinculado a este navegador</small></p>
+          <p><b>{publicMode ? "Exploración sin registro" : "Progreso persistente"}</b><small>{publicMode ? "Crea un espacio solo al guardar" : "Recuperable con tu código privado"}</small></p>
         </div>
       </aside>
 
@@ -172,7 +194,7 @@ export default function AppShell({ active, title, eyebrow = "Lakehouse Lab", chi
         <header className="ent-topbar">
           <div className="ent-topbar-title"><span>{eyebrow}</span><h1>{title}</h1></div>
           <CurriculumSearch />
-          <a href="/ajustes" className="ent-topbar-account" aria-label="Abrir ajustes del espacio"><span aria-hidden="true">{accountLabel.slice(0, 2).toLocaleUpperCase("es")}</span><b>{accountLabel}</b></a>
+          <a href={publicMode ? "/entrar?return_to=%2Finicio" : "/ajustes"} className="ent-topbar-account" aria-label={publicMode ? "Crear un espacio personal" : "Abrir ajustes del espacio"}><span aria-hidden="true">{publicMode ? "＋" : accountLabel.slice(0, 2).toLocaleUpperCase("es")}</span><b>{publicMode ? "Guardar progreso" : accountLabel}</b></a>
         </header>
         <main id="main-content" className="ent-main" tabIndex={-1}>{children}</main>
       </div>

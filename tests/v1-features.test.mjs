@@ -46,14 +46,17 @@ const sources = Object.fromEntries(await Promise.all([
   "db/schema.ts",
 ].map(async (path) => [path, await read(path)])));
 
-const routeContracts = [
+const protectedRouteContracts = [
   ["app/inicio/page.tsx", "/inicio"],
   ["app/mi-aprendizaje/page.tsx", "/mi-aprendizaje"],
-  ["app/catalogo/page.tsx", "/catalogo"],
   ["app/expediente/page.tsx", "/expediente"],
   ["app/ajustes/page.tsx", "/ajustes"],
-  ["app/curso/[slug]/page.tsx", "/curso/"],
   ["app/simulacro/[mode]/page.tsx", "/simulacro/"],
+];
+const routeContracts = [
+  ...protectedRouteContracts,
+  ["app/catalogo/page.tsx", "/catalogo"],
+  ["app/curso/[slug]/page.tsx", "/curso/"],
   ["app/certificados/[id]/page.tsx", "/certificados/"],
 ];
 const routeSources = Object.fromEntries(await Promise.all(
@@ -74,14 +77,15 @@ test("declares the enterprise release as version 2.0.0 everywhere that identifie
   assert.match(sources["app/editorial-data.ts"], /SITE_VERSION = "2\.0\.0"/u);
   assert.match(sources["app/progress.ts"], /CONTENT_VERSION = "lakehouse-lab-v2\.0\.0"/u);
   assert.match(sources["app/page.tsx"], /getSessionUser\(\)/u);
-  assert.match(sources["app/page.tsx"], /href="\/demo"/u);
+  assert.match(sources["app/page.tsx"], /const catalogHref = "\/catalogo"/u);
+  assert.doesNotMatch(sources["app/page.tsx"], /href=["']\/demo/u);
   assert.match(sources["app/layout.tsx"], /PROJECT_NAME/u);
   assert.match(sources["app/layout.tsx"], /robots:\s*\{\s*index:\s*true,\s*follow:\s*true\s*\}/u);
   assert.match(packageJson.scripts.test, /node --test tests\/\*\.test\.mjs/u);
 });
 
-test("uses real routes and protects every enterprise page with the signed-in learner context", () => {
-  for (const [path, returnPath] of routeContracts) {
+test("protects private pages while exposing hybrid learning and public credential routes", () => {
+  for (const [path, returnPath] of protectedRouteContracts) {
     const source = routeSources[path];
     assert.match(source, /requireEnterprisePageContext\(/u, `${path} must require the enterprise page context`);
     assert.match(source, /<AppShell\b/u, `${path} must render inside the application shell`);
@@ -89,15 +93,27 @@ test("uses real routes and protects every enterprise page with the signed-in lea
     assert.doesNotMatch(source, /href=["']#/u, `${path} must not replace navigation with an in-page hash`);
   }
 
+  for (const path of ["app/catalogo/page.tsx", "app/curso/[slug]/page.tsx"]) {
+    const source = routeSources[path];
+    assert.match(source, /getOptionalEnterprisePageContext\(/u, `${path} must support anonymous reading`);
+    assert.match(source, /publicMode=\{!personalized\}/u, `${path} must render the public shell without creating a session`);
+    assert.doesNotMatch(source, /requireEnterprisePageContext\(/u);
+  }
+  assert.match(routeSources["app/certificados/[id]/page.tsx"], /getPublicCredentialVerification\(/u);
+  assert.match(routeSources["app/certificados/[id]/page.tsx"], /publicMode/u);
+
   const shellContext = sources["app/components/enterprise/getShellContext.ts"];
   assert.ok(shellContext.indexOf("await requireLearner(returnTo)") < shellContext.indexOf("await getOrganizationBranding"));
+  assert.match(shellContext, /await getLearner\(\)/u);
   assert.match(sources["app/enterprise/auth.ts"], /await requireSessionUser\(returnTo\)/u);
-  assert.match(sources["app/enterprise/auth.ts"], /return ensureLearner\(\{/u);
+  assert.match(sources["app/enterprise/auth.ts"], /await ensureLearner\(\{/u);
+  assert.match(sources["app/enterprise/auth.ts"], /await bindAnonymousSession\(/u);
   assert.match(sources["app/session-auth.ts"], /SESSION_COOKIE_NAME = "lakehouse_session"/u);
   assert.match(sources["app/session-auth.ts"], /process\.env\.NODE_ENV !== "production"/u);
   assert.match(sources["app/session-auth.ts"], /if \(!value\.startsWith\("\/"\) \|\| value\.startsWith\("\/\/"\)\) return "\/"/u);
-  assert.match(sources["app/entrar/route.ts"], /httpOnly:\s*true/u);
-  assert.match(sources["app/entrar/route.ts"], /sameSite:\s*"lax"/u);
+  assert.match(sources["app/session-auth.ts"], /httpOnly:\s*true/u);
+  assert.match(sources["app/session-auth.ts"], /sameSite:\s*"lax"/u);
+  assert.match(sources["app/entrar/route.ts"], /sessionCookieOptions\(\)/u);
   assert.match(sources["app/api/_shared.ts"], /withLearner/u);
   assert.match(sources["app/api/_shared.ts"], /401, "AUTHENTICATION_REQUIRED"/u);
   assert.match(sources["app/api/_shared.ts"], /403, "ACCESS_DENIED"/u);
@@ -190,7 +206,7 @@ test("retains static accessibility contracts in the shell, course and assessment
   assert.match(layout, /<html lang="es">/u);
   assert.match(shell, /href="#main-content">Saltar al contenido/u);
   assert.ok(shell.indexOf("<header") < shell.indexOf('<main id="main-content"'));
-  assert.match(shell, /aria-current=\{active === item\.area \? "page" : undefined\}/u);
+  assert.match(shell, /aria-current=\{isCurrent \? "page" : undefined\}/u);
   assert.match(shell, /aria-modal=\{drawerOpen && mobileNavigation \? true : undefined\}/u);
   assert.match(shell, /event\.key === "Escape"/u);
   assert.match(shell, /event\.key !== "Tab"/u);

@@ -1,0 +1,65 @@
+name: Proponer un recurso comunitario
+description: Sugiere un notebook, proyecto o repositorio para el catálogo.
+title: "[Recurso]: "
+labels:
+  - community-resource
+body:
+  - type: input
+    id: repository
+    attributes:
+      label: Repositorio
+      placeholder: https://github.com/owner/repository
+    validations:
+      required: true
+  - type: input
+    id: path
+    attributes:
+      label: Ruta concreta
+      description: Archivo o carpeta curada dentro del repositorio.
+    validations:
+      required: true
+  - type: input
+    id: commit
+    attributes:
+      label: Commit
+      description: SHA completo de 40 caracteres.
+    validations:
+      required: true
+  - type: input
+    id: license
+    attributes:
+      label: Licencia y evidencia
+      description: Identificador de licencia y ruta del archivo LICENSE en el mismo commit.
+      placeholder: Apache-2.0 · LICENSE
+    validations:
+      required: true
+  - type: textarea
+    id: fit
+    attributes:
+      label: Encaje curricular
+      description: Módulos, conceptos y motivo pedagógico.
+    validations:
+      required: true
+  - type: textarea
+    id: environment
+    attributes:
+      label: Formato y entorno
+      description: Formato, lenguaje, cloud, runtime, dificultad y compatibilidad con Free Edition.
+    validations:
+      required: true
+  - type: textarea
+    id: verification
+    attributes:
+      label: Verificación
+      description: Indica si se ejecutó, dónde, cuándo y con qué resultado.
+  - type: checkboxes
+    id: rights
+    attributes:
+      label: Licencia y seguridad
+      options:
+        - label: La ruta y el commit existen y son públicos.
+          required: true
+        - label: La licencia permite el uso propuesto o acepto que quede solo como enlace.
+          required: true
+        - label: El recurso no contiene credenciales ni datos personales.
+          required: true

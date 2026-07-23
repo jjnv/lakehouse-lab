@@ -1,13 +1,20 @@
 import { notFound } from "next/navigation";
 import AppShell from "../../components/enterprise/AppShell";
 import CourseWorkspace from "../../components/enterprise/CourseWorkspace";
-import { requireEnterprisePageContext } from "../../components/enterprise/getShellContext";
-import { findModuleBySlug, publicModule } from "../../enterprise/curriculum";
+import { getOptionalEnterprisePageContext } from "../../components/enterprise/getShellContext";
+import { findModuleBySlug, moduleSummaries, publicModule } from "../../enterprise/curriculum";
 
 export default async function CursoPage({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params;
   const courseModule = findModuleBySlug(slug);
   if (!courseModule) notFound();
-  const context = await requireEnterprisePageContext(`/curso/${encodeURIComponent(slug)}`);
-  return <AppShell active="learning" eyebrow={`Módulo ${courseModule.number} · ${courseModule.level}`} title={courseModule.short} courseMode brand={context.brand} userDisplayName={context.userDisplayName}><CourseWorkspace module={publicModule(courseModule)} /></AppShell>;
+  const context = await getOptionalEnterprisePageContext();
+  const personalized = Boolean(context.learner);
+  const summaries = moduleSummaries();
+  const index = summaries.findIndex((item) => item.id === courseModule.id);
+  const navigation = {
+    previous: index > 0 ? summaries[index - 1] : null,
+    next: index >= 0 && index < summaries.length - 1 ? summaries[index + 1] : null,
+  };
+  return <AppShell active="learning" eyebrow={`Módulo ${courseModule.number} · ${courseModule.level}`} title={courseModule.short} courseMode brand={context.brand} userDisplayName={context.userDisplayName} publicMode={!personalized}><CourseWorkspace module={publicModule(courseModule)} personalized={personalized} navigation={navigation} /></AppShell>;
 }

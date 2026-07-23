@@ -1,0 +1,55 @@
+name: Propuesta de mejora
+description: Propón una mejora de producto, arquitectura o experiencia.
+title: "[Propuesta]: "
+labels:
+  - enhancement
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problema que quieres resolver
+      description: Describe la necesidad sin asumir una solución concreta.
+    validations:
+      required: true
+  - type: textarea
+    id: outcome
+    attributes:
+      label: Resultado observable
+      description: ¿Qué debería poder hacer o comprender una persona al terminar?
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Propuesta
+      description: Explica el flujo, contrato o cambio sugerido.
+    validations:
+      required: true
+  - type: textarea
+    id: scope
+    attributes:
+      label: Alcance y alternativas
+      description: Indica qué queda fuera y qué alternativas has considerado.
+  - type: dropdown
+    id: risk
+    attributes:
+      label: Área de riesgo principal
+      options:
+        - Producto y navegación
+        - Accesibilidad
+        - Currículo y evaluación
+        - Seguridad y privacidad
+        - Persistencia y compatibilidad
+        - Rendimiento y despliegue
+        - Comunidad y gobernanza
+    validations:
+      required: true
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Comprobaciones
+      options:
+        - label: He buscado propuestas existentes y no he encontrado una equivalente.
+          required: true
+        - label: La propuesta no incluye secretos, datos personales ni detalles de una vulnerabilidad.
+          required: true

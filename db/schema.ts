@@ -31,6 +31,37 @@ export const users = sqliteTable("users", {
   uniqueIndex("users_email_normalized_unique").on(table.emailNormalized),
 ]);
 
+export const anonymousSessions = sqliteTable("anonymous_sessions", {
+  tokenHash: text("token_hash").primaryKey(),
+  userId: text("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  createdAt: text("created_at").notNull(),
+  expiresAt: text("expires_at").notNull(),
+  lastSeenAt: text("last_seen_at").notNull(),
+  revokedAt: text("revoked_at"),
+}, (table) => [
+  index("anonymous_sessions_user_idx").on(table.userId, table.expiresAt),
+]);
+
+export const anonymousRecoveryCredentials = sqliteTable("anonymous_recovery_credentials", {
+  userId: text("user_id").primaryKey().references(() => users.id, { onDelete: "cascade" }),
+  codeHash: text("code_hash").notNull(),
+  createdAt: text("created_at").notNull(),
+  expiresAt: text("expires_at").notNull(),
+  lastUsedAt: text("last_used_at"),
+  revokedAt: text("revoked_at"),
+}, (table) => [
+  uniqueIndex("anonymous_recovery_credentials_code_unique").on(table.codeHash),
+]);
+
+export const learnerPreferences = sqliteTable("learner_preferences", {
+  userId: text("user_id").primaryKey().references(() => users.id, { onDelete: "cascade" }),
+  goal: text("goal", { enum: ["associate", "professional", "topics"] }).notNull().default("professional"),
+  weeklyTargetMinutes: integer("weekly_target_minutes").notNull().default(300),
+  cloud: text("cloud", { enum: ["multicloud", "azure", "aws", "gcp", "free-edition"] }).notNull().default("multicloud"),
+  onboardingCompletedAt: text("onboarding_completed_at"),
+  updatedAt: updatedAt(),
+});
+
 export const organizationMemberships = sqliteTable("organization_memberships", {
   organizationId: text("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
   userId: text("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
