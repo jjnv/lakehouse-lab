@@ -3,18 +3,25 @@ import { readFile, readdir } from "node:fs/promises";
 import test from "node:test";
 
 const root = new URL("../", import.meta.url);
-const assetsUrl = new URL("dist/client/assets/", root);
-const assetNames = await readdir(assetsUrl);
+const assetsUrl = new URL(".next/static/", root);
+const serverUrl = new URL(".next/server/", root);
+const assetNames = await readdir(assetsUrl, { recursive: true });
+const serverNames = await readdir(serverUrl, { recursive: true });
 const javascriptAssets = assetNames.filter((name) => name.endsWith(".js"));
 const stylesheetAssets = assetNames.filter((name) => name.endsWith(".css"));
+const serverAssets = serverNames.filter((name) => name.endsWith(".js"));
+const assetUrl = (name) => new URL(name.replaceAll("\\", "/"), assetsUrl);
+const serverAssetUrl = (name) => new URL(name.replaceAll("\\", "/"), serverUrl);
 
 const clientJavaScript = (await Promise.all(
-  javascriptAssets.map((name) => readFile(new URL(name, assetsUrl), "utf8")),
+  javascriptAssets.map((name) => readFile(assetUrl(name), "utf8")),
 )).join("\n");
 const clientStyles = (await Promise.all(
-  stylesheetAssets.map((name) => readFile(new URL(name, assetsUrl), "utf8")),
+  stylesheetAssets.map((name) => readFile(assetUrl(name), "utf8")),
 )).join("\n");
-const serverJavaScript = await readFile(new URL("dist/server/index.js", root), "utf8");
+const serverJavaScript = (await Promise.all(
+  serverAssets.map((name) => readFile(serverAssetUrl(name), "utf8")),
+)).join("\n");
 
 test("the compiled v2 client contains the real-route enterprise shell", () => {
   assert.ok(javascriptAssets.length > 0, "the production build must emit client JavaScript");

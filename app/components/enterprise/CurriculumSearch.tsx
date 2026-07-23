@@ -7,6 +7,7 @@ const kindLabel: Record<CurriculumSearchResult["kind"], string> = {
   concept: "Concepto",
   lesson: "Lección",
   module: "Módulo",
+  resource: "Notebook",
 };
 
 export default function CurriculumSearch() {

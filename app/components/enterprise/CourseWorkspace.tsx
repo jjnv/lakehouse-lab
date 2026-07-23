@@ -1,5 +1,7 @@
 "use client";
 
+/* eslint-disable @next/next/no-img-element -- Notebook previews only allow size-limited PNG/JPEG data URLs. */
+
 import {
   useEffect,
   useRef,
@@ -7,11 +9,53 @@ import {
   type KeyboardEvent,
 } from "react";
 import type { PublicModule } from "../../enterprise/curriculum";
+import type { CommunityResourceRecommendationPublic, NotebookPreviewPayload } from "../../enterprise/contracts";
 import { conceptAnchor } from "../../enterprise/search-anchor";
 import AssessmentPanel from "./AssessmentPanel";
 import { SaveState, useDashboard } from "./useDashboard";
 
-type CourseSection = "lessons" | "lab" | "quiz";
+type CourseSection = "lessons" | "lab" | "quiz" | "resources";
+const COURSE_SECTIONS: CourseSection[] = ["lessons", "lab", "quiz", "resources"];
+
+const sectionLabel: Record<CourseSection, string> = {
+  lessons: "Lecciones",
+  lab: "Laboratorio",
+  quiz: "Evaluación",
+  resources: "Notebooks",
+};
+
+const resourceCoverageLabel: Record<CommunityResourceRecommendationPublic["coverage"], string> = {
+  direct: "Cobertura directa",
+  partial: "Cobertura parcial",
+  equivalent: "Recurso equivalente",
+};
+
+const resourceDifficultyLabel: Record<CommunityResourceRecommendationPublic["difficulty"], string> = {
+  beginner: "Inicial",
+  intermediate: "Intermedio",
+  advanced: "Avanzado",
+};
+
+function NotebookMarkdown({ text }: { text: string }) {
+  const blocks = text.replace(/\r/g, "").split(/\n{2,}/).filter((block) => block.trim());
+  return <div className="ent-notebook-markdown">{blocks.map((block, index) => {
+    const trimmed = block.trim();
+    const heading = /^(#{1,4})\s+([\s\S]+)$/.exec(trimmed);
+    if (heading) {
+      const level = Math.min(heading[1].length + 2, 6);
+      const Heading = `h${level}` as "h3" | "h4" | "h5" | "h6";
+      return <Heading key={index}>{heading[2]}</Heading>;
+    }
+    const lines = trimmed.split("\n");
+    if (lines.every((line) => /^\s*[-*]\s+/.test(line))) {
+      return <ul key={index}>{lines.map((line, lineIndex) => <li key={lineIndex}>{line.replace(/^\s*[-*]\s+/, "")}</li>)}</ul>;
+    }
+    if (trimmed.startsWith("```") && trimmed.endsWith("```")) {
+      return <pre key={index}><code>{trimmed.replace(/^```[^\n]*\n?/, "").replace(/\n?```$/, "")}</code></pre>;
+    }
+    return <p key={index}>{trimmed}</p>;
+  })}</div>;
+}
 
 async function mutationResponse(response: Response) {
   const body = (await response.json().catch(() => ({}))) as {
@@ -29,6 +73,10 @@ export default function CourseWorkspace({ module }: { module: PublicModule }) {
   const [revealed, setRevealed] = useState<Record<string, boolean>>({});
   const [labChecks, setLabChecks] = useState<string[]>([]);
   const [message, setMessage] = useState("");
+  const [selectedResourceId, setSelectedResourceId] = useState(module.communityResources[0]?.id ?? "");
+  const [notebookPreview, setNotebookPreview] = useState<NotebookPreviewPayload | null>(null);
+  const [previewLoading, setPreviewLoading] = useState(false);
+  const [previewError, setPreviewError] = useState("");
   const tabRefs = useRef<Array<HTMLButtonElement | null>>([]);
   const courseReady = Boolean(!state.loading && state.dashboard);
 
@@ -53,9 +101,16 @@ export default function CourseWorkspace({ module }: { module: PublicModule }) {
       if (
         requestedSection === "lessons" ||
         requestedSection === "lab" ||
-        requestedSection === "quiz"
+        requestedSection === "quiz" ||
+        requestedSection === "resources"
       ) {
         setSection(requestedSection);
+      }
+      const requestedResource = params.get("resource");
+      if (requestedResource && module.communityResources.some((item) => item.id === requestedResource)) {
+        setSection("resources");
+        setSelectedResourceId(requestedResource);
+        requestAnimationFrame(() => document.getElementById(`community-resource-${requestedResource}`)?.focus());
       }
       const lesson = params.get("lesson");
       const requestedConcept = params.get("concept") ?? (window.location.hash.startsWith("#concept-") ? window.location.hash.slice(1) : null);
@@ -75,7 +130,7 @@ export default function CourseWorkspace({ module }: { module: PublicModule }) {
             });
           }
         });
-      } else {
+      } else if (requestedSection !== "resources" && !requestedResource) {
         requestAnimationFrame(() => {
           const firstLesson = document.getElementById(
             `lesson-${module.lessons[0]?.id}`,
@@ -90,7 +145,7 @@ export default function CourseWorkspace({ module }: { module: PublicModule }) {
       setRecall(saved);
     });
     return () => cancelAnimationFrame(frame);
-  }, [courseReady, module.lessons]);
+  }, [courseReady, module.communityResources, module.lessons]);
 
   function changeSection(nextSection: CourseSection, focus = true) {
     setSection(nextSection);
@@ -117,13 +172,36 @@ export default function CourseWorkspace({ module }: { module: PublicModule }) {
       event.key === "Home"
         ? 0
         : event.key === "End"
-          ? 2
-          : (index + (event.key === "ArrowRight" ? 1 : -1) + 3) % 3;
+          ? COURSE_SECTIONS.length - 1
+          : (index + (event.key === "ArrowRight" ? 1 : -1) + COURSE_SECTIONS.length) % COURSE_SECTIONS.length;
     tabRefs.current[target]?.focus();
-    changeSection(
-      (["lessons", "lab", "quiz"] as CourseSection[])[target],
-      false,
-    );
+    changeSection(COURSE_SECTIONS[target], false);
+  }
+
+  function selectResource(resourceId: string) {
+    setSelectedResourceId(resourceId);
+    setNotebookPreview(null);
+    setPreviewError("");
+    const params = new URLSearchParams({ section: "resources", resource: resourceId });
+    history.replaceState({}, "", `${window.location.pathname}?${params}`);
+  }
+
+  async function loadPreview(resource: CommunityResourceRecommendationPublic) {
+    selectResource(resource.id);
+    if (!resource.previewAvailable) return;
+    setPreviewLoading(true);
+    setPreviewError("");
+    try {
+      const response = await fetch(`/api/resources/${encodeURIComponent(resource.id)}/preview`, { headers: { accept: "application/json" } });
+      const body = await response.json().catch(() => ({})) as NotebookPreviewPayload & { message?: string };
+      if (!response.ok) throw new Error(body.message || "No se pudo cargar la vista previa.");
+      setNotebookPreview(body);
+    } catch (caught) {
+      setNotebookPreview(null);
+      setPreviewError(caught instanceof Error ? caught.message : "No se pudo cargar la vista previa.");
+    } finally {
+      setPreviewLoading(false);
+    }
   }
 
   async function lessonMutation(
@@ -268,6 +346,9 @@ export default function CourseWorkspace({ module }: { module: PublicModule }) {
             <span>{progress?.quizBestPercent != null ? "✓" : "T"}</span>
             Evaluación
           </button>
+          <button type="button" onClick={() => changeSection("resources")}>
+            <span aria-hidden="true">N</span>Notebooks
+          </button>
         </nav>
         {previous ? (
           <a href={`/curso/${previous.slug}`}>← Módulo anterior</a>
@@ -310,7 +391,7 @@ export default function CourseWorkspace({ module }: { module: PublicModule }) {
           role="tablist"
           aria-label="Actividades del módulo"
         >
-          {(["lessons", "lab", "quiz"] as CourseSection[]).map(
+          {COURSE_SECTIONS.map(
             (item, index) => (
               <button
                 id={`course-tab-${item}`}
@@ -326,11 +407,7 @@ export default function CourseWorkspace({ module }: { module: PublicModule }) {
                 onKeyDown={(event) => tabKey(event, index)}
                 onClick={() => changeSection(item)}
               >
-                {item === "lessons"
-                  ? "Lecciones"
-                  : item === "lab"
-                    ? "Laboratorio"
-                    : "Evaluación"}
+                {sectionLabel[item]}
                 <span>
                   {item === "lessons"
                     ? `${completedLessons.size}/5`
@@ -338,9 +415,11 @@ export default function CourseWorkspace({ module }: { module: PublicModule }) {
                       ? progress?.labAttested
                         ? "✓"
                         : "1"
-                      : progress?.quizBestPercent == null
-                        ? "4"
-                        : `${progress.quizBestPercent}%`}
+                      : item === "quiz"
+                        ? progress?.quizBestPercent == null
+                          ? "4"
+                          : `${progress.quizBestPercent}%`
+                        : module.communityResources.length}
                 </span>
               </button>
             ),
@@ -375,7 +454,6 @@ export default function CourseWorkspace({ module }: { module: PublicModule }) {
                   <i aria-hidden="true">+</i>
                 </summary>
                 <div className="ent-lesson-body">
-                  <p className="ent-lesson-lead">{lesson.detail}</p>
                   {lesson.explanation.map((paragraph) => (
                     <p key={paragraph}>{paragraph}</p>
                   ))}
@@ -643,6 +721,95 @@ export default function CourseWorkspace({ module }: { module: PublicModule }) {
               onState={state.setSaveState}
               onCompleted={state.refresh}
             />
+          </section>
+        ) : null}
+
+        {section === "resources" ? (
+          <section
+            id="course-panel-resources"
+            role="tabpanel"
+            tabIndex={-1}
+            aria-labelledby="course-tab-resources"
+            className="ent-community-panel"
+          >
+            <header className="ent-community-intro">
+              <div>
+                <p className="ent-kicker">Práctica complementaria · fuentes externas</p>
+                <h2>Notebooks para este módulo</h2>
+                <p>Estas recomendaciones amplían el laboratorio propio. Consultarlas no modifica el progreso, la evaluación ni el certificado.</p>
+              </div>
+              <a href="/catalogo?view=resources">Explorar todas las temáticas →</a>
+            </header>
+
+            <div className="ent-community-list">
+              {module.communityResources.map((resource) => (
+                <article
+                  id={`community-resource-${resource.id}`}
+                  key={resource.id}
+                  tabIndex={-1}
+                  className={`ent-community-card ${selectedResourceId === resource.id ? "is-selected" : ""}`}
+                >
+                  <div className="ent-community-card-heading">
+                    <div>
+                      <span>{resource.preferred ? "Recomendado" : `Opción ${resource.rank}`}</span>
+                      <small>{resourceCoverageLabel[resource.coverage]}</small>
+                    </div>
+                    <span>{resource.provenance === "official" ? "Fuente oficial" : "Comunidad"}</span>
+                  </div>
+                  <h3>{resource.title}</h3>
+                  <p>{resource.rationale}</p>
+                  <div className="ent-community-facts">
+                    <span>{resourceDifficultyLabel[resource.difficulty]}</span>
+                    <span>{resource.format}</span>
+                    <span>{resource.languages.join(" · ")}</span>
+                    <span>{resource.clouds.join(" · ")}</span>
+                    <span className={resource.licenseStatus === "unknown" ? "is-warning" : ""}>{resource.licenseStatus === "unknown" ? "Licencia no verificada" : resource.license}</span>
+                  </div>
+                  <div className="ent-community-concepts">{resource.concepts.map((concept) => <span key={concept}>{concept}</span>)}</div>
+                  <dl className="ent-community-metadata">
+                    <div><dt>Compatibilidad</dt><dd>{resource.runtimeNotes}</dd></div>
+                    <div><dt>Repositorio</dt><dd><a href={resource.repositoryUrl} target="_blank" rel="noreferrer">{resource.repositoryName}</a> · {resource.author}</dd></div>
+                    <div><dt>Revisión editorial</dt><dd>{resource.reviewedAt} · {resource.upstreamRef ? `commit ${resource.upstreamRef.slice(0, 7)}` : "sin commit fijado; solo enlace externo"}</dd></div>
+                  </dl>
+                  <details className="ent-community-steps">
+                    <summary>Cómo usarlo</summary>
+                    <ol>{resource.usageInstructions.map((step) => <li key={step}>{step}</li>)}</ol>
+                  </details>
+                  <footer>
+                    {resource.previewAvailable ? <button type="button" className="ent-secondary-action" aria-expanded={selectedResourceId === resource.id && Boolean(notebookPreview)} aria-controls="community-preview" onClick={() => void loadPreview(resource)}>Vista previa</button> : <span className="ent-preview-unavailable">{resource.licenseStatus === "unknown" ? "Sin preview por licencia" : "Preview no disponible"}</span>}
+                    <a className="ent-primary-action" href={resource.href} target="_blank" rel="noreferrer">Abrir original <span aria-hidden="true">↗</span></a>
+                  </footer>
+                </article>
+              ))}
+            </div>
+
+            {(previewLoading || previewError || notebookPreview) ? (
+              <section id="community-preview" className="ent-notebook-preview" aria-busy={previewLoading}>
+                {previewLoading ? <div className="ent-preview-loading" role="status"><span className="ent-spinner" /><p>Cargando una copia segura de lectura…</p></div> : null}
+                {previewError ? <div className="ent-preview-error" role="alert"><strong>No se pudo mostrar la vista previa</strong><p>{previewError} Puedes seguir abriendo el recurso original.</p></div> : null}
+                {notebookPreview ? (
+                  <>
+                    <header>
+                      <div><p className="ent-kicker">Vista de lectura · sin ejecución</p><h3>{notebookPreview.title}</h3></div>
+                      <span>commit {notebookPreview.upstreamRef.slice(0, 7)}</span>
+                    </header>
+                    <p className="ent-preview-path">{notebookPreview.path}</p>
+                    <div className="ent-notebook-cells">
+                      {notebookPreview.cells.map((cell, index) => cell.kind === "markdown" ? (
+                        <article key={index} className="is-markdown"><NotebookMarkdown text={cell.text} /></article>
+                      ) : (
+                        <article key={index} className="is-code">
+                          <div><span>Celda {index + 1}</span><b>{cell.language}</b></div>
+                          <pre tabIndex={0}><code>{cell.text}</code></pre>
+                          {cell.outputs.length ? <div className="ent-notebook-outputs">{cell.outputs.map((output, outputIndex) => output.kind === "text" ? <pre key={outputIndex}><code>{output.text}</code></pre> : <img key={outputIndex} src={output.dataUrl} alt={`Salida gráfica de la celda ${index + 1}`} />)}</div> : null}
+                        </article>
+                      ))}
+                    </div>
+                    {notebookPreview.truncated ? <p className="ent-preview-note">La vista se ha recortado para mantener una lectura segura y rápida. El recurso original contiene más celdas o salidas.</p> : null}
+                  </>
+                ) : null}
+              </section>
+            ) : null}
           </section>
         ) : null}
         <p className="ent-course-status" role="status" aria-live="polite">

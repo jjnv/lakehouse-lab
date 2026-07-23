@@ -19,6 +19,7 @@ import {
   users,
 } from "../../db/schema";
 import { buildExamQuestions, modules, trackMeta, type QuizQuestion } from "../course-data";
+import { recommendationsForModule } from "../curriculum/community-resources";
 import { badgeCatalog } from "../gamification";
 import { CONTENT_VERSION, sanitizeProgress, type ReviewRating } from "../progress";
 import {
@@ -618,19 +619,24 @@ export async function getLearnerDashboard(learner: LearnerContext): Promise<Lear
       },
     },
     revision,
-    modules: modules.map((item) => ({
-      id: item.id,
-      slug: item.slug,
-      number: item.number,
-      title: item.title,
-      short: item.short,
-      description: item.description,
-      phase: trackMeta[item.track].name,
-      phaseId: item.track,
-      level: item.level,
-      minutes: item.minutes,
-      prerequisiteIds: item.prerequisites,
-    })),
+    modules: modules.map((item) => {
+      const resources = recommendationsForModule(item.id);
+      return {
+        id: item.id,
+        slug: item.slug,
+        number: item.number,
+        title: item.title,
+        short: item.short,
+        description: item.description,
+        phase: trackMeta[item.track].name,
+        phaseId: item.track,
+        level: item.level,
+        minutes: item.minutes,
+        prerequisiteIds: item.prerequisites,
+        resourceCount: resources.length,
+        resourceConcepts: [...new Set(resources.flatMap((resource) => resource.concepts))],
+      };
+    }),
     progress,
     reviews: reviews.map((review) => {
       const owner = modules.find((item) => item.lessons.some((lesson) => lesson.id === review.lessonId));

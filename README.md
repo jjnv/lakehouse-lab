@@ -63,6 +63,29 @@ npm test
 npm run test:e2e
 ```
 
+## Desarrollo asistido con Codex
+
+El repositorio incluye instrucciones y agentes especializados para trabajar con
+Codex sin tener que repetir la arquitectura y los criterios de calidad en cada
+tarea:
+
+- `AGENTS.md` define invariantes, propiedad de archivos y comprobaciones.
+- `.codex/agents/` contiene perfiles para producto, frontend, backend, datos,
+  seguridad, currículo, calidad y release.
+- `.codex/config.toml` habilita la coordinación de hasta tres subagentes.
+
+Para cambios pequeños basta con describir el resultado esperado. En cambios de
+riesgo alto puedes pedir explícitamente un propietario y revisores, por ejemplo:
+
+```text
+Implementa esta mutación con backend_domain_api como propietario. Cuando
+termine, haz que security_privacy y quality_engineering revisen el cambio y
+consolida los hallazgos con referencias a archivos y pruebas.
+```
+
+Consulta la [guía de uso de los agentes](.codex/README.md) para ver flujos,
+plantillas y ejemplos completos.
+
 ## Privacidad y contenido
 
 La demo pública no guarda progreso. El espacio personal informa de los datos tratados y permite exportar o eliminar la actividad. El contenido se redacta de forma original y enlaza documentación oficial; no contiene dumps de exámenes ni promete aprobar una certificación.

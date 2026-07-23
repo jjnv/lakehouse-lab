@@ -26,7 +26,6 @@ export type Lesson = {
   kicker: string;
   title: string;
   summary: string;
-  detail: string;
   decisions: string[];
   explanation: [string, string];
   deepDive: LessonDeepDive;
@@ -243,7 +242,6 @@ function makeLessons(seed: ModuleSeed, pack: ModuleContentPack): Lesson[] {
     id: `${seed.id}-l${index + 1}`,
     kicker: lessonKickers[index],
     title: topic,
-    detail: content.explanation.join("\n\n"),
     decisions: content.keyPoints,
     refIds,
     ...content,

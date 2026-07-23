@@ -89,10 +89,45 @@ test("la navegación principal completa una carga de documento fiable", async ({
 test("la tarjeta del catálogo abre el curso completo", async ({ page }) => {
   await page.goto("/catalogo");
   await waitForWorkspace(page);
+  await expect(page.getByRole("heading", { level: 2, name: "Encuentra tu siguiente módulo" })).toBeVisible();
   await page.getByRole("link", { name: "Abrir: Data Intelligence Platform y arquitectura lakehouse" }).click();
   await expect(page).toHaveURL(/\/curso\/data-intelligence-platform-y-arquitectura-lakehouse$/);
   await waitForWorkspace(page);
   await expect(page.getByRole("heading", { level: 2, name: "Data Intelligence Platform y arquitectura lakehouse" })).toBeVisible();
+  await expect(page.locator(".ent-lesson-body > p")).toHaveCount(10);
+});
+
+test("el catálogo descubre notebooks por temática sin duplicar el progreso", async ({ page }) => {
+  await page.goto("/catalogo?view=resources");
+  await waitForWorkspace(page);
+  await expect(page.getByRole("tab", { name: /Notebooks/ })).toHaveAttribute("aria-selected", "true");
+  await expect(page.locator(".ent-resource-card")).toHaveCount(36);
+  await page.getByRole("searchbox", { name: "Buscar", exact: true }).fill("Change Data Feed");
+  await expect(page.locator(".ent-resource-card")).toHaveCount(3);
+  await expect(page.getByRole("heading", { name: "change-data-feed.ipynb" })).toBeVisible();
+  await expectWcag22Aa(page);
+});
+
+test("la pestaña de notebooks admite enlace profundo y no cambia la revisión de progreso", async ({ page }) => {
+  const before = await (await page.request.get("/api/me/dashboard")).json();
+  await page.goto("/curso/delta-lake-acid-esquema-historial-y-dml?section=resources&resource=delta-cdf");
+  await waitForWorkspace(page);
+  await expect(page.getByRole("tab", { name: /Notebooks/ })).toHaveAttribute("aria-selected", "true");
+  await expect(page.getByRole("heading", { name: "change-data-feed.ipynb" })).toBeVisible();
+  const after = await (await page.request.get("/api/me/dashboard")).json();
+  expect(after.revision.value).toBe(before.revision.value);
+  await expectWcag22Aa(page);
+});
+
+test("las cuatro pestañas del curso conservan navegación de teclado", async ({ page }) => {
+  await page.goto("/curso/data-intelligence-platform-y-arquitectura-lakehouse");
+  await waitForWorkspace(page);
+  const lessons = page.getByRole("tab", { name: /Lecciones/ });
+  await lessons.focus();
+  await page.keyboard.press("End");
+  const notebooks = page.getByRole("tab", { name: /Notebooks/ });
+  await expect(notebooks).toBeFocused();
+  await expect(notebooks).toHaveAttribute("aria-selected", "true");
 });
 
 test("la búsqueda global lleva al concepto exacto del temario", async ({ page }) => {
@@ -109,6 +144,20 @@ test("la búsqueda global lleva al concepto exacto del temario", async ({ page }
   await expect(concept).toBeVisible();
   await expect(concept).toBeFocused();
   await expectWcag22Aa(page);
+});
+
+test("la búsqueda global encuentra un notebook y abre su ficha", async ({ page }) => {
+  await page.goto("/inicio");
+  await waitForWorkspace(page);
+  const search = page.getByRole("searchbox", { name: "Buscar conceptos en el temario" });
+  await search.fill("Photon.py");
+  const result = page.locator(".ent-search-result").filter({ hasText: "Photon.py" }).first();
+  await expect(result).toBeVisible();
+  await expect(result).toContainText("Notebook");
+  await result.click();
+  await expect(page).toHaveURL(/\/curso\/photon-data-skipping-y-liquid-clustering\?section=resources&resource=learn-photon/);
+  await waitForWorkspace(page);
+  await expect(page.getByRole("heading", { name: "Photon.py" })).toBeVisible();
 });
 
 test("el diálogo destructivo mantiene una salida segura", async ({ page }) => {

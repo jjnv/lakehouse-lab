@@ -1,8 +1,20 @@
 import { buildExamQuestions, modules, trackMeta, type CurriculumModule, type QuizQuestion } from "../course-data";
 import { CONTENT_VERSION } from "../progress";
+import {
+  moduleResourceRecommendations,
+  recommendationsForModule,
+  usageInstructionsFor,
+  type ExpandedCommunityRecommendation,
+} from "../curriculum/community-resources";
 import { prepareAssessment, type PrivateAssessmentDefinition, type PreparedAssessment } from "./assessment-private";
 import type { AssessmentKind, AssessmentTimingMode } from "./assessment";
-import type { CurriculumSearchResult, ModuleSummary } from "./contracts";
+import type {
+  CommunityResourceCatalogEntry,
+  CommunityResourcePublic,
+  CommunityResourceRecommendationPublic,
+  CurriculumSearchResult,
+  ModuleSummary,
+} from "./contracts";
 import { conceptAnchor } from "./search-anchor";
 
 export const LEARNING_PHASES = [
@@ -28,11 +40,13 @@ export type PublicModule = Omit<CurriculumModule, "quiz" | "lab" | "lessons"> & 
   lessons: PublicLesson[];
   lab: PublicLab;
   quiz: Array<{ id: string; prompt: string; options: string[]; domain: string }>;
+  communityResources: CommunityResourceRecommendationPublic[];
 };
 
 export function moduleSummaries(): ModuleSummary[] {
   return modules.map((module) => {
     const phase = phaseByTrack.get(module.track) ?? LEARNING_PHASES[0];
+    const resources = recommendationsForModule(module.id);
     return {
       id: module.id,
       slug: module.slug,
@@ -45,7 +59,83 @@ export function moduleSummaries(): ModuleSummary[] {
       level: module.level,
       minutes: module.minutes,
       prerequisiteIds: [...module.prerequisites],
+      resourceCount: resources.length,
+      resourceConcepts: [...new Set(resources.flatMap((resource) => resource.concepts))],
     };
+  });
+}
+
+function publicCommunityResource(item: ExpandedCommunityRecommendation): CommunityResourcePublic {
+  const { artifact, repository } = item;
+  return {
+    id: artifact.id,
+    title: artifact.title,
+    summary: artifact.summary,
+    href: artifact.href ?? repository.url,
+    repositoryName: repository.name,
+    repositoryUrl: repository.url,
+    author: repository.author,
+    provenance: repository.provenance,
+    license: repository.license,
+    licenseStatus: repository.licenseStatus,
+    format: artifact.format,
+    languages: [...artifact.languages],
+    clouds: [...artifact.clouds],
+    difficulty: artifact.difficulty,
+    runtimeNotes: artifact.runtimeNotes,
+    freeEdition: artifact.freeEdition,
+    previewAvailable: Boolean(artifact.preview && repository.licenseStatus === "verified"),
+    upstreamRef: artifact.preview?.upstreamRef ?? null,
+    reviewedAt: repository.reviewedAt,
+    usageInstructions: usageInstructionsFor(artifact),
+  };
+}
+
+function publicCommunityRecommendation(item: ExpandedCommunityRecommendation): CommunityResourceRecommendationPublic {
+  return {
+    ...publicCommunityResource(item),
+    rank: item.rank,
+    preferred: item.preferred,
+    coverage: item.coverage,
+    concepts: [...item.concepts],
+    rationale: item.rationale,
+  };
+}
+
+export function communityResourceCatalog(): CommunityResourceCatalogEntry[] {
+  const aggregated = new Map<string, CommunityResourceCatalogEntry>();
+  for (const item of moduleResourceRecommendations) {
+    const curriculumModule = modules.find((candidate) => candidate.id === item.moduleId);
+    if (!curriculumModule) continue;
+    const phase = phaseByTrack.get(curriculumModule.track) ?? LEARNING_PHASES[0];
+    const existing = aggregated.get(item.artifact.id);
+    const relatedModule = {
+      id: curriculumModule.id,
+      number: curriculumModule.number,
+      slug: curriculumModule.slug,
+      title: curriculumModule.title,
+      phase: phase.name,
+      phaseId: phase.id,
+      rank: item.rank,
+      coverage: item.coverage,
+    };
+    if (existing) {
+      existing.relatedModules.push(relatedModule);
+      existing.concepts = [...new Set([...existing.concepts, ...item.concepts])];
+      existing.preferred ||= item.preferred;
+    } else {
+      aggregated.set(item.artifact.id, {
+        ...publicCommunityResource(item),
+        concepts: [...item.concepts],
+        preferred: item.preferred,
+        relatedModules: [relatedModule],
+      });
+    }
+  }
+  return [...aggregated.values()].sort((left, right) => {
+    const leftOrder = Math.min(...left.relatedModules.map((module) => Number(module.number)));
+    const rightOrder = Math.min(...right.relatedModules.map((module) => Number(module.number)));
+    return Number(right.preferred) - Number(left.preferred) || leftOrder - rightOrder || left.title.localeCompare(right.title, "es");
   });
 }
 
@@ -92,7 +182,7 @@ const curriculumSearchIndex: IndexedCurriculumResult[] = modules.flatMap((module
       location: lessonLocation,
       href: `/curso/${module.slug}?lesson=${encodeURIComponent(lesson.id)}#lesson-${lesson.id}`,
       searchableLabel: normalizeSearchText(`${lesson.title} ${lesson.kicker}`),
-      searchableDescription: normalizeSearchText(`${lesson.summary} ${lesson.detail} ${lesson.keyPoints.join(" ")} ${lesson.decisions.join(" ")}`),
+      searchableDescription: normalizeSearchText(`${lesson.summary} ${lesson.explanation.join(" ")} ${lesson.keyPoints.join(" ")} ${lesson.decisions.join(" ")}`),
       searchableLocation: normalizeSearchText(`${lessonLocation} ${module.title}`),
       order: moduleIndex * 100 + lessonIndex * 10 + 1,
     };
@@ -114,13 +204,26 @@ const curriculumSearchIndex: IndexedCurriculumResult[] = modules.flatMap((module
     return [lessonResult, ...conceptResults];
   });
 
-  return [moduleResult, ...lessonResults];
+  const resourceResults = recommendationsForModule(module.id).map((resource): IndexedCurriculumResult => ({
+    id: `resource:${module.id}:${resource.artifact.id}`,
+    kind: "resource",
+    label: resource.artifact.title,
+    description: resource.rationale,
+    location: `${moduleLocation} · Notebook comunitario`,
+    href: `/curso/${module.slug}?section=resources&resource=${encodeURIComponent(resource.artifact.id)}`,
+    searchableLabel: normalizeSearchText(`${resource.artifact.title} ${resource.repository.name} ${resource.repository.author}`),
+    searchableDescription: normalizeSearchText(`${resource.artifact.summary} ${resource.rationale} ${resource.concepts.join(" ")} ${resource.artifact.runtimeNotes}`),
+    searchableLocation: normalizeSearchText(`${moduleLocation} notebook recurso ${module.title}`),
+    order: moduleIndex * 100 + 80 + resource.rank,
+  }));
+
+  return [moduleResult, ...lessonResults, ...resourceResults];
 });
 
 function searchScore(entry: IndexedCurriculumResult, query: string, tokens: string[]) {
   const haystack = `${entry.searchableLabel} ${entry.searchableDescription} ${entry.searchableLocation}`;
   if (!tokens.every((token) => haystack.includes(token))) return -1;
-  let score = entry.kind === "concept" ? 12 : entry.kind === "lesson" ? 6 : 3;
+  let score = entry.kind === "concept" ? 12 : entry.kind === "resource" ? 8 : entry.kind === "lesson" ? 6 : 3;
   if (entry.searchableLabel === query) score += 240;
   else if (entry.searchableLabel.startsWith(query)) score += 150;
   else if (entry.searchableLabel.includes(query)) score += 105;
@@ -178,6 +281,7 @@ export function publicModule(module: CurriculumModule): PublicModule {
     examDomains: [...module.examDomains],
     prerequisites: [...module.prerequisites],
     sources: module.sources.map((source) => ({ ...source })),
+    communityResources: recommendationsForModule(module.id).map(publicCommunityRecommendation),
     lessons: module.lessons.map((lesson) => ({
       ...lesson,
       decisions: [...lesson.decisions],

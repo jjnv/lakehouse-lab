@@ -331,6 +331,18 @@ test("all 32 authored packs contain complete lessons, practice, assessment and o
   assert.equal(quizQuestions.size, 128);
 });
 
+test("lesson explanations have a single visible source of truth", async () => {
+  const [courseWorkspace, catalogWorkspace] = await Promise.all([
+    read("app/components/enterprise/CourseWorkspace.tsx"),
+    read("app/components/enterprise/CatalogWorkspace.tsx"),
+  ]);
+
+  assert.doesNotMatch(courseSource, /detail:\s*content\.explanation\.join/u);
+  assert.doesNotMatch(courseWorkspace, /lesson\.detail/u);
+  assert.match(courseWorkspace, /lesson\.explanation\.map/u);
+  assert.doesNotMatch(catalogWorkspace, /<h2[^>]*>Catálogo<\/h2>/u);
+});
+
 function examBank(source, variableName, expectedCount) {
   const bank = variableInitializer(parse(source, `${variableName}.ts`), variableName);
   assert.ok(ts.isArrayLiteralExpression(bank));

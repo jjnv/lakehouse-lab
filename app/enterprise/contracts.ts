@@ -55,15 +55,87 @@ export type ModuleSummary = {
   level: string;
   minutes: number;
   prerequisiteIds: string[];
+  resourceCount: number;
+  resourceConcepts: string[];
 };
 
 export type CurriculumSearchResult = {
   id: string;
-  kind: "concept" | "lesson" | "module";
+  kind: "concept" | "lesson" | "module" | "resource";
   label: string;
   description: string;
   location: string;
   href: string;
+};
+
+export type CommunityResourceFormat = "ipynb" | "databricks-source" | "dbc" | "bundle" | "repository" | "project";
+export type CommunityResourceCoverage = "direct" | "partial" | "equivalent";
+export type CommunityResourceDifficulty = "beginner" | "intermediate" | "advanced";
+export type CommunityResourceLicenseStatus = "verified" | "unknown" | "restricted";
+
+export type CommunityResourcePublic = {
+  id: string;
+  title: string;
+  summary: string;
+  href: string;
+  repositoryName: string;
+  repositoryUrl: string;
+  author: string;
+  provenance: "official" | "community";
+  license: string;
+  licenseStatus: CommunityResourceLicenseStatus;
+  format: CommunityResourceFormat;
+  languages: string[];
+  clouds: string[];
+  difficulty: CommunityResourceDifficulty;
+  runtimeNotes: string;
+  freeEdition: "supported" | "partial" | "unsupported" | "unknown";
+  previewAvailable: boolean;
+  upstreamRef: string | null;
+  reviewedAt: string;
+  usageInstructions: string[];
+};
+
+export type CommunityResourceRecommendationPublic = CommunityResourcePublic & {
+  rank: 1 | 2 | 3;
+  preferred: boolean;
+  coverage: CommunityResourceCoverage;
+  concepts: string[];
+  rationale: string;
+};
+
+export type CommunityResourceCatalogEntry = CommunityResourcePublic & {
+  concepts: string[];
+  preferred: boolean;
+  relatedModules: Array<{
+    id: string;
+    number: string;
+    slug: string;
+    title: string;
+    phase: string;
+    phaseId: string;
+    rank: 1 | 2 | 3;
+    coverage: CommunityResourceCoverage;
+  }>;
+};
+
+export type NotebookPreviewOutput =
+  | { kind: "text"; text: string }
+  | { kind: "image"; mime: "image/png" | "image/jpeg"; dataUrl: string };
+
+export type NotebookPreviewCell =
+  | { kind: "markdown"; text: string }
+  | { kind: "code"; language: string; text: string; outputs: NotebookPreviewOutput[] };
+
+export type NotebookPreviewPayload = {
+  resourceId: string;
+  title: string;
+  sourceHref: string;
+  upstreamRef: string;
+  path: string;
+  reviewedAt: string;
+  cells: NotebookPreviewCell[];
+  truncated: boolean;
 };
 
 export type ModuleProgressPublic = {
