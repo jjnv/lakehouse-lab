@@ -1,11 +1,29 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" role="img" aria-labelledby="title desc">
   <title>Lakehouse Lab</title>
-  <desc>Capas lakehouse con una ruta ascendente de progreso.</desc>
-  <rect width="128" height="128" rx="24" fill="#F7F4ED"/>
-  <path d="M24 86h67l9 12H33l-9-12Z" fill="#385D7A"/>
-  <path d="M32 64h53l9 12H41l-9-12Z" fill="#2E7D62"/>
-  <path d="M40 42h39l9 12H49l-9-12Z" fill="#B94740"/>
-  <path d="M34 96 84 44" fill="none" stroke="#20242C" stroke-width="8" stroke-linecap="round"/>
-  <path d="M81 44h16v16" fill="none" stroke="#20242C" stroke-width="8" stroke-linecap="round" stroke-linejoin="round"/>
-  <path d="M38 31v33M51 31v22M67 31v18M80 31v18" stroke="#20242C" stroke-width="5" stroke-linecap="round"/>
+  <desc>Marca hexagonal con casa lakehouse, ondas de datos y pixeles ascendentes.</desc>
+  <rect width="128" height="128" rx="18" fill="#07090D"/>
+  <path d="M64 11 111 38v52l-47 27-47-27V38L64 11Z" fill="none" stroke="#F04423" stroke-width="7" stroke-linejoin="round"/>
+  <path d="M39 67V46l25-17 25 17v21" fill="none" stroke="#FF5533" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M50 67V53h28v14" fill="none" stroke="#B9361F" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M27 77h74" stroke="#FF5533" stroke-width="6" stroke-linecap="round"/>
+  <path d="M35 88c8-5 17 5 26 0s17-5 26 0" fill="none" stroke="#F04423" stroke-width="5" stroke-linecap="round"/>
+  <path d="M36 99c8-5 17 5 26 0s17-5 26 0" fill="none" stroke="#F04423" stroke-width="5" stroke-linecap="round" opacity=".9"/>
+  <g fill="#F04423">
+    <rect x="19" y="31" width="7" height="7" rx="1"/>
+    <rect x="31" y="24" width="6" height="6" rx="1"/>
+    <rect x="44" y="18" width="5" height="5" rx="1"/>
+    <rect x="27" y="45" width="5" height="5" rx="1"/>
+    <rect x="42" y="39" width="4" height="4" rx="1"/>
+    <rect x="54" y="24" width="4" height="4" rx="1"/>
+  </g>
+  <g stroke="#F04423" stroke-linecap="round" opacity=".74">
+    <path d="M50 15v26"/>
+    <path d="M60 16v19"/>
+    <path d="M74 22v24"/>
+    <path d="M83 35v25"/>
+  </g>
+  <circle cx="50" cy="41" r="2.4" fill="#FF7A4F"/>
+  <circle cx="60" cy="35" r="2.4" fill="#FF7A4F"/>
+  <circle cx="74" cy="46" r="2.4" fill="#FF7A4F"/>
+  <circle cx="83" cy="60" r="2.4" fill="#FF7A4F"/>
 </svg>

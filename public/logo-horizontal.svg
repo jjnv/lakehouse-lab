@@ -1,15 +1,31 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 420 96" role="img" aria-labelledby="title desc">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 760 180" role="img" aria-labelledby="title desc">
   <title>Lakehouse Lab</title>
-  <desc>Logotipo horizontal de Lakehouse Lab para preparación Databricks Data Engineer.</desc>
-  <rect width="420" height="96" rx="16" fill="#F7F4ED"/>
-  <g transform="translate(18 16) scale(.5)">
-    <rect width="128" height="128" rx="24" fill="#FFFFFF"/>
-    <path d="M24 86h67l9 12H33l-9-12Z" fill="#385D7A"/>
-    <path d="M32 64h53l9 12H41l-9-12Z" fill="#2E7D62"/>
-    <path d="M40 42h39l9 12H49l-9-12Z" fill="#B94740"/>
-    <path d="M34 96 84 44" fill="none" stroke="#20242C" stroke-width="8" stroke-linecap="round"/>
-    <path d="M81 44h16v16" fill="none" stroke="#20242C" stroke-width="8" stroke-linecap="round" stroke-linejoin="round"/>
+  <desc>Logotipo horizontal tecnico de Lakehouse Lab.</desc>
+  <rect width="760" height="180" rx="24" fill="#07090D"/>
+  <g transform="translate(42 24)">
+    <path d="M66 0 126 35v66l-60 35L6 101V35L66 0Z" fill="none" stroke="#F04423" stroke-width="7" stroke-linejoin="round"/>
+    <path d="M36 75V48l30-20 30 20v27" fill="none" stroke="#FF5533" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"/>
+    <path d="M49 75V58h35v17" fill="none" stroke="#B9361F" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
+    <path d="M20 86h92" stroke="#FF5533" stroke-width="6" stroke-linecap="round"/>
+    <path d="M29 99c10-6 21 6 32 0s21-6 32 0M31 112c10-6 21 6 32 0s21-6 32 0" fill="none" stroke="#F04423" stroke-width="5" stroke-linecap="round"/>
+    <g fill="#F04423">
+      <rect x="-18" y="28" width="7" height="7" rx="1"/>
+      <rect x="-4" y="20" width="6" height="6" rx="1"/>
+      <rect x="12" y="13" width="5" height="5" rx="1"/>
+      <rect x="-8" y="44" width="5" height="5" rx="1"/>
+      <rect x="8" y="39" width="4" height="4" rx="1"/>
+      <rect x="22" y="21" width="4" height="4" rx="1"/>
+    </g>
+    <g stroke="#F04423" stroke-linecap="round" opacity=".72">
+      <path d="M24 7v31"/>
+      <path d="M37 3v25"/>
+      <path d="M87 30v31"/>
+      <path d="M101 45v30"/>
+    </g>
   </g>
-  <text x="96" y="43" fill="#20242C" font-family="Inter, Arial, sans-serif" font-size="28" font-weight="800">Lakehouse Lab</text>
-  <text x="98" y="65" fill="#54616D" font-family="Inter, Arial, sans-serif" font-size="13" font-weight="700">Preparación Databricks Data Engineer</text>
+  <text x="210" y="86" fill="#F5F7FA" font-family="Arial, Helvetica, sans-serif" font-size="54" font-weight="900" letter-spacing="2" textLength="350" lengthAdjust="spacingAndGlyphs">LAKEHOUSE</text>
+  <text x="592" y="86" fill="#F04423" font-family="Arial, Helvetica, sans-serif" font-size="42" font-weight="900" letter-spacing="2" textLength="94" lengthAdjust="spacingAndGlyphs">LAB</text>
+  <circle cx="212" cy="113" r="4" fill="#F04423"/>
+  <path d="M216 113h486" stroke="#F04423" stroke-width="3" stroke-linecap="round"/>
+  <text x="210" y="145" fill="#D3D7DF" font-family="Arial, Helvetica, sans-serif" font-size="16" font-weight="700" letter-spacing="4" textLength="490" lengthAdjust="spacingAndGlyphs">DATA ENGINEERING  DATABRICKS  LAKEHOUSE</text>
 </svg>

@@ -1,0 +1,146 @@
+[
+  {
+    "viewport": "desktop",
+    "route": "/",
+    "status": 200,
+    "title": "Lakehouse Lab — Preparación para certificaciones Databricks Data Engineer",
+    "h1": "Prepara Databricks Data Engineer Associate y Professional.",
+    "overflow": null,
+    "consoleMessages": [],
+    "cookieNames": []
+  },
+  {
+    "viewport": "desktop",
+    "route": "/catalogo",
+    "status": 200,
+    "title": "Temario · Lakehouse Lab",
+    "h1": "Temario",
+    "overflow": null,
+    "consoleMessages": [],
+    "cookieNames": []
+  },
+  {
+    "viewport": "desktop",
+    "route": "/associate",
+    "status": 200,
+    "title": "Databricks Data Engineer Associate · Lakehouse Lab",
+    "h1": "Databricks Data Engineer Associate",
+    "overflow": null,
+    "consoleMessages": [],
+    "cookieNames": []
+  },
+  {
+    "viewport": "desktop",
+    "route": "/professional",
+    "status": 200,
+    "title": "Databricks Data Engineer Professional · Lakehouse Lab",
+    "h1": "Databricks Data Engineer Professional",
+    "overflow": null,
+    "consoleMessages": [],
+    "cookieNames": []
+  },
+  {
+    "viewport": "desktop",
+    "route": "/simulacros",
+    "status": 200,
+    "title": "Simulacros Databricks Data Engineer · Lakehouse Lab",
+    "h1": "Simulacros internos Associate y Professional",
+    "overflow": null,
+    "consoleMessages": [],
+    "cookieNames": []
+  },
+  {
+    "viewport": "desktop",
+    "route": "/curso/data-intelligence-platform-y-arquitectura-lakehouse",
+    "status": 200,
+    "title": "Data Intelligence Platform y arquitectura lakehouse · Lakehouse Lab",
+    "h1": "Plataforma",
+    "overflow": null,
+    "consoleMessages": [],
+    "cookieNames": []
+  },
+  {
+    "viewport": "desktop",
+    "route": "/mi-aprendizaje",
+    "status": 200,
+    "title": "Plan · Lakehouse Lab",
+    "h1": "Plan",
+    "overflow": null,
+    "consoleMessages": [],
+    "cookieNames": [
+      "lakehouse_session"
+    ]
+  },
+  {
+    "viewport": "mobile",
+    "route": "/",
+    "status": 200,
+    "title": "Lakehouse Lab — Preparación para certificaciones Databricks Data Engineer",
+    "h1": "Prepara Databricks Data Engineer Associate y Professional.",
+    "overflow": null,
+    "consoleMessages": [],
+    "cookieNames": []
+  },
+  {
+    "viewport": "mobile",
+    "route": "/catalogo",
+    "status": 200,
+    "title": "Temario · Lakehouse Lab",
+    "h1": "Temario",
+    "overflow": null,
+    "consoleMessages": [],
+    "cookieNames": []
+  },
+  {
+    "viewport": "mobile",
+    "route": "/associate",
+    "status": 200,
+    "title": "Databricks Data Engineer Associate · Lakehouse Lab",
+    "h1": "Databricks Data Engineer Associate",
+    "overflow": null,
+    "consoleMessages": [],
+    "cookieNames": []
+  },
+  {
+    "viewport": "mobile",
+    "route": "/professional",
+    "status": 200,
+    "title": "Databricks Data Engineer Professional · Lakehouse Lab",
+    "h1": "Databricks Data Engineer Professional",
+    "overflow": null,
+    "consoleMessages": [],
+    "cookieNames": []
+  },
+  {
+    "viewport": "mobile",
+    "route": "/simulacros",
+    "status": 200,
+    "title": "Simulacros Databricks Data Engineer · Lakehouse Lab",
+    "h1": "Simulacros internos Associate y Professional",
+    "overflow": null,
+    "consoleMessages": [],
+    "cookieNames": []
+  },
+  {
+    "viewport": "mobile",
+    "route": "/curso/data-intelligence-platform-y-arquitectura-lakehouse",
+    "status": 200,
+    "title": "Data Intelligence Platform y arquitectura lakehouse · Lakehouse Lab",
+    "h1": "Plataforma",
+    "overflow": null,
+    "consoleMessages": [],
+    "cookieNames": []
+  },
+  {
+    "viewport": "mobile",
+    "route": "/mi-aprendizaje",
+    "status": 200,
+    "title": "Plan · Lakehouse Lab",
+    "h1": "Plan",
+    "overflow": null,
+    "consoleMessages": [],
+    "cookieNames": [
+      "lakehouse_session"
+    ]
+  }
+]

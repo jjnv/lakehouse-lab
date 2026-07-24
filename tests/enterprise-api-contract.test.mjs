@@ -63,8 +63,8 @@ test("runtime tenant variables are validated server-side and reach the certifica
   for (const key of ["ORG_DISPLAY_NAME", "ORG_LOGO_URL", "ORG_BRAND_COLOR", "ORG_ACCENT_COLOR", "ORG_TIMEZONE", "ORG_SUPPORT_EMAIL"]) {
     assert.match(store, new RegExp(key), `${key} must be resolved from the deployment runtime`);
   }
-  assert.match(brand, /primaryColor:\s*["']#385D7A["']/);
-  assert.match(brand, /accentColor:\s*["']#2E7D62["']/);
+  assert.match(brand, /primaryColor:\s*["']#20242C["']/);
+  assert.match(brand, /accentColor:\s*["']#A93216["']/);
   assert.match(brand, /contrastRatio\(normalized, ["']#FFFFFF["']\) >= 4\.5/);
   assert.match(service, /pdf\.setAuthor\(brand\.organizationName\)/);
   assert.match(service, /pdfColor\(brand\.primaryColor\)/);

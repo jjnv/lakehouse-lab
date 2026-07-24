@@ -31,8 +31,8 @@ export default function PublicShell({
       <a className="public-skip" href="#public-main">Saltar al contenido</a>
       <header className="public-header">
         <Link className="public-brand" href="/" aria-label={`${PROJECT_NAME}, ir a la portada`}>
-          <Image className="public-brand-logo" src="/logo-mark.svg" alt="" aria-hidden="true" width={40} height={40} />
-          <span><strong>{PROJECT_NAME}</strong><small>Ingeniería de datos con Databricks</small></span>
+          <Image className="public-brand-logo public-brand-lockup" src="/logo-horizontal.svg" alt="" aria-hidden="true" width={169} height={40} />
+          <span className="public-brand-copy"><strong>{PROJECT_NAME}</strong><small>Ingeniería de datos con Databricks</small></span>
         </Link>
         <nav aria-label="Navegación pública">
           <Link href="/ruta" aria-current={active === "route" ? "page" : undefined}>Ruta</Link>
@@ -47,8 +47,8 @@ export default function PublicShell({
       <footer className="public-footer">
         <div>
           <Link className="public-brand" href="/">
-            <Image className="public-brand-logo" src="/logo-mark.svg" alt="" aria-hidden="true" width={40} height={40} />
-            <span><strong>{PROJECT_NAME}</strong><small>Proyecto independiente</small></span>
+            <Image className="public-brand-logo public-brand-lockup" src="/logo-horizontal.svg" alt="" aria-hidden="true" width={169} height={40} />
+            <span className="public-brand-copy"><strong>{PROJECT_NAME}</strong><small>Proyecto independiente</small></span>
           </Link>
           <p>Proyecto personal e independiente. No está afiliado, patrocinado ni avalado por Databricks.</p>
         </div>

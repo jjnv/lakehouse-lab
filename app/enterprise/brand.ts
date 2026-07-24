@@ -5,8 +5,8 @@ export const DEFAULT_BRAND_CONFIG: BrandConfig = Object.freeze({
   productName: "Preparación Databricks Data Engineer",
   logoUrl: "/logo-mark.svg",
   logoAlt: "Lakehouse Lab",
-  primaryColor: "#385D7A",
-  accentColor: "#2E7D62",
+  primaryColor: "#20242C",
+  accentColor: "#A93216",
   supportUrl: null,
   privacyUrl: null,
 });
