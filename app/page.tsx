@@ -36,12 +36,19 @@ const capabilities = [
 export default async function RootPage() {
   const user = await getSessionUser();
   const accountHref = user ? "/inicio" : sessionStartPath("/inicio");
-  const accountLabel = user ? "Ir a mi progreso" : "Guardar progreso";
+  const accountLabel = user ? "Mi progreso" : "Guardar progreso";
   const sampleModule = modules[0];
   const sampleLesson = sampleModule.lessons[0];
   const sampleQuestion = sampleModule.quiz[0];
   const sampleLessonHref = `/curso/${sampleModule.slug}/${sampleLesson.id}`;
   const totalHours = Math.round(totalMinutes / 60);
+  const firstLessonMinutes = Math.max(12, Math.round((sampleModule.minutes * 0.5) / sampleModule.lessons.length));
+  const recommendedPath = learningPathProfiles.find((path) => path.id === "databricks-cero") ?? learningPathProfiles[0];
+  const groupedPaths = [
+    { title: "Aprender desde cero", paths: learningPathProfiles.filter((path) => path.id === "databricks-cero") },
+    { title: "Preparar una certificación", paths: learningPathProfiles.filter((path) => path.id === "associate" || path.id === "professional") },
+    { title: "Profundizar en un área concreta", paths: learningPathProfiles.filter((path) => path.id === "streaming-cdc" || path.id === "laboratorios") },
+  ].filter((group) => group.paths.length);
 
   return (
     <PublicShell accountHref={accountHref} accountLabel={accountLabel} active="home">
@@ -49,16 +56,22 @@ export default async function RootPage() {
         <section className="public-hero">
           <div className="public-hero-copy">
             <p className="public-kicker">Ruta práctica en español · independiente de Databricks</p>
-            <h1>Domina la ingeniería de datos <span>con Databricks.</span></h1>
+            <h1>Empieza con fundamentos <span>lakehouse.</span></h1>
             <p className="public-lead">
-              Ruta práctica en español con lecciones, laboratorios, evaluaciones y simulacros alineados con las certificaciones Data Engineer Associate y Professional.
+              Primera sesión: lee una lección breve, entiende el modelo lakehouse y decide después si quieres guardar tu progreso.
             </p>
+            <dl className="public-next-step" aria-label="Datos de la primera lección">
+              <div><dt>Primera lección</dt><dd>{firstLessonMinutes} min aprox.</dd></div>
+              <div><dt>Registro</dt><dd>No obligatorio</dd></div>
+              <div><dt>Nivel</dt><dd>Inicial</dd></div>
+              <div><dt>Resultado</dt><dd>Identificar plataforma, lakehouse y siguiente paso</dd></div>
+            </dl>
             <div className="public-actions">
-              <a className="public-primary" href="/ruta">Empezar la ruta<span aria-hidden="true">→</span></a>
-              <a className="public-secondary" href={sampleLessonHref}>Ver una lección de ejemplo</a>
+              <a className="public-primary" href={sampleLessonHref}>Empezar la primera lección<span aria-hidden="true">→</span></a>
+              <a className="public-secondary" href="/ruta">Explorar rutas</a>
             </div>
             <p className="public-trust">
-              Señal verificable: proyecto público en GitHub, fuentes oficiales enlazadas por módulo, changelog editorial y metodología abierta. Lakehouse Lab no está afiliado ni avalado por Databricks.
+              Puedes leer antes de crear una sesión. Fuentes, revisión editorial y metodología siguen disponibles cuando necesites comprobar el rigor.
             </p>
           </div>
           <div className="public-product-preview" aria-label="Vista resumida del producto">
@@ -67,7 +80,7 @@ export default async function RootPage() {
               <b>{sampleModule.short}</b>
             </div>
             <div className="public-preview-focus">
-              <small>Lección real</small>
+              <small>Lección 1 de {sampleModule.lessons.length}</small>
               <strong>{sampleLesson.title}</strong>
               <span>{sampleLesson.summary}</span>
             </div>
@@ -80,43 +93,58 @@ export default async function RootPage() {
           </div>
         </section>
 
-        <section className="public-proof" aria-label="Alcance verificable del programa">
-          <div><strong>{modules.length}</strong><span>módulos versionados</span></div>
-          <div><strong>{totalLessonCount()}</strong><span>lecciones</span></div>
-          <div><strong>{modules.length}</strong><span>laboratorios guiados</span></div>
-          <div><strong>{totalHours}</strong><span>horas estimadas</span></div>
-        </section>
-
         <section id="objetivos" className="public-section public-goals" aria-labelledby="goals-heading">
           <div className="public-section-heading">
-            <p className="public-kicker">Entrada por perfil</p>
-            <h2 id="goals-heading">¿Cuál es tu objetivo?</h2>
-            <p>Elige una entrada funcional según lo que necesitas aprender ahora. Las duraciones son estimaciones curriculares, no garantías.</p>
+            <p className="public-kicker">Ruta recomendada</p>
+            <h2 id="goals-heading">¿Es tu primera vez con Databricks?</h2>
+            <p>Empieza desde cero. No necesitas comparar todas las rutas para leer la primera lección.</p>
           </div>
-          <div className="public-goal-grid">
-            {learningPathProfiles.map((path) => (
-              <article key={path.id}>
-                <span>{path.shortTitle}</span>
-                <h3>{path.title}</h3>
-                <dl>
-                  <div><dt>Para quién</dt><dd>{path.forWhom}</dd></div>
-                  <div><dt>Previos</dt><dd>{path.prerequisites}</dd></div>
-                  <div><dt>Objetivo</dt><dd>{path.objective}</dd></div>
-                  <div><dt>Incluye</dt><dd>{path.moduleCount} módulos · {path.lessonCount} lecciones · {path.labCount} labs</dd></div>
-                  <div><dt>Duración</dt><dd>{path.durationLabel}</dd></div>
-                  <div><dt>Resultado</dt><dd>{path.expectedOutcome}</dd></div>
-                </dl>
-                <a className="public-secondary" href={path.href}>{path.cta}<span aria-hidden="true">→</span></a>
-              </article>
-            ))}
-          </div>
+          <article className="public-recommended-route">
+            <span>{recommendedPath.shortTitle}</span>
+            <h3>{recommendedPath.title}</h3>
+            <p>{recommendedPath.objective}</p>
+            <dl>
+              <div><dt>Para quién</dt><dd>{recommendedPath.forWhom}</dd></div>
+              <div><dt>Esfuerzo</dt><dd>Primera lección: {firstLessonMinutes} min · ruta completa: {recommendedPath.durationLabel}</dd></div>
+              <div><dt>Resultado</dt><dd>{recommendedPath.expectedOutcome}</dd></div>
+            </dl>
+            <div className="public-actions">
+              <a className="public-primary" href={sampleLessonHref}>Empezar la primera lección<span aria-hidden="true">→</span></a>
+              <a className="public-secondary" href={recommendedPath.href}>Ver ruta desde cero</a>
+            </div>
+          </article>
+          <details className="public-route-disclosure">
+            <summary>Elegir otro objetivo</summary>
+            <div className="public-route-groups">
+              {groupedPaths.map((group) => (
+                <section key={group.title} aria-label={group.title}>
+                  <h3>{group.title}</h3>
+                  <div className="public-goal-grid">
+                    {group.paths.map((path) => (
+                      <article key={path.id}>
+                        <span>{path.shortTitle}</span>
+                        <h4>{path.title}</h4>
+                        <p>{path.objective}</p>
+                        <dl>
+                          <div><dt>Previos</dt><dd>{path.prerequisites}</dd></div>
+                          <div><dt>Duración</dt><dd>{path.durationLabel}</dd></div>
+                          <div><dt>Resultado</dt><dd>{path.expectedOutcome}</dd></div>
+                        </dl>
+                        <a className="public-secondary" href={path.href}>{path.cta}<span aria-hidden="true">→</span></a>
+                      </article>
+                    ))}
+                  </div>
+                </section>
+              ))}
+            </div>
+          </details>
         </section>
 
         <section className="public-section public-demo" aria-labelledby="demo-heading">
           <div className="public-section-heading">
             <p className="public-kicker">Cómo se estudia</p>
-            <h2 id="demo-heading">Del concepto a la práctica y la medición.</h2>
-            <p>Esta demostración usa contenido real del currículo: una lección, un laboratorio, una pregunta de evaluación, progreso y resultado de simulacro.</p>
+            <h2 id="demo-heading">Una lección revela la complejidad paso a paso.</h2>
+            <p>Primero lees el concepto, después ves un ejemplo, respondes una pregunta de recuerdo activo y decides si continúas al laboratorio.</p>
           </div>
           <div className="public-demo-grid">
             <article>
@@ -152,7 +180,7 @@ export default async function RootPage() {
         <section className="public-section public-program" aria-labelledby="program-heading">
           <div className="public-section-heading">
             <p className="public-kicker">Temario estructurado</p>
-            <h2 id="program-heading">Una ruta de ingeniería de datos, no solo un preparador de examen.</h2>
+            <h2 id="program-heading">El alcance completo queda disponible cuando lo necesites.</h2>
             <p>Associate y Professional aparecen como hitos dentro de un recorrido práctico: fundamentos, streaming, orquestación, rendimiento, entrega, gobierno y capstone.</p>
           </div>
           <ol className="public-phase-list">
@@ -163,6 +191,12 @@ export default async function RootPage() {
             <li><span>28-31</span><div><b>Entrega y gobierno</b><p>Proyectos Python, automatización declarativa, privacidad e interoperabilidad.</p></div></li>
             <li><span>32</span><div><b>Convergencia Professional</b><p>Arquitectura, operación, seguridad, FinOps y defensa técnica en un proyecto final.</p></div></li>
           </ol>
+        </section>
+
+        <section className="public-proof" aria-label="Alcance verificable del programa completo">
+          <div><strong>{modules.length}</strong><span>módulos versionados</span></div>
+          <div><strong>{totalLessonCount()}</strong><span>lecciones</span></div>
+          <div><strong>{totalHours}</strong><span>horas estimadas</span></div>
         </section>
 
         <section className="public-section public-capabilities" aria-labelledby="method-heading">
@@ -186,7 +220,7 @@ export default async function RootPage() {
         <section className="public-cta" aria-labelledby="cta-heading">
           <p className="public-kicker">Siguiente acción</p>
           <h2 id="cta-heading">Empieza por una ruta clara y guarda progreso solo cuando lo necesites.</h2>
-          <div className="public-actions"><a className="public-primary" href="/ruta">Empezar la ruta<span aria-hidden="true">→</span></a><a className="public-secondary" href={sampleLessonHref}>Ver una lección de ejemplo</a></div>
+          <div className="public-actions"><a className="public-primary" href={sampleLessonHref}>Empezar la primera lección<span aria-hidden="true">→</span></a><a className="public-secondary" href="/ruta">Explorar rutas</a></div>
         </section>
       </main>
     </PublicShell>

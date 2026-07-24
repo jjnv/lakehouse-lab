@@ -51,7 +51,7 @@ export default async function LessonPage({ params }: { params: Promise<{ slug: s
     },
     citation: editorial.sources.map(sourceStructuredData),
   };
-  return <AppShell active="learning" eyebrow={`Módulo ${courseModule.number} · Lección`} title={courseModule.short} courseMode brand={context.brand} userDisplayName={context.userDisplayName} publicMode={!personalized}>
+  return <AppShell active="learning" eyebrow={`Módulo ${courseModule.number} · Lección`} title={lesson.title} courseMode brand={context.brand} userDisplayName={context.userDisplayName} publicMode={!personalized}>
     <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }} />
     <CourseWorkspace module={publicModule(courseModule)} personalized={personalized} navigation={navigation} initialLessonId={lessonId} singleLessonMode />
   </AppShell>;

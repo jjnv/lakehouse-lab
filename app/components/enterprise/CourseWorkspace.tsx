@@ -574,6 +574,8 @@ export default function CourseWorkspace({
         .map((lesson, index) => ({ lesson, index }))
         .filter((item) => item.lesson.id === initialLessonId)
     : module.lessons.map((lesson, index) => ({ lesson, index }));
+  const focusedLesson = visibleLessons[0] ?? null;
+  const focusedLessonMinutes = Math.max(12, Math.round((module.minutes * 0.5) / module.lessons.length));
 
   if (personalized && state.loading)
     return (
@@ -600,48 +602,6 @@ export default function CourseWorkspace({
 
   return (
     <div className="ent-course-workspace">
-      <aside className="ent-course-index" aria-label="Índice del módulo">
-        <div>
-          <span>Módulo {module.number}</span>
-          <strong>{readOnly ? "ABIERTO" : `${unitPercent}%`}</strong>
-        </div>
-        {!readOnly ? <div
-          className="ent-progress"
-          role="progressbar"
-          aria-label="Progreso del módulo"
-          aria-valuemin={0}
-          aria-valuemax={100}
-          aria-valuenow={unitPercent}
-        >
-          <i style={{ width: `${unitPercent}%` }} />
-        </div> : null}
-        <nav>
-          {module.lessons.map((lesson, index) => (
-            <a
-              key={lesson.id}
-              href={`/curso/${module.slug}/${lesson.id}`}
-              aria-current={initialLessonId === lesson.id ? "page" : undefined}
-            >
-              <span>{completedLessons.has(lesson.id) ? "✓" : index + 1}</span>
-              {lesson.title}
-            </a>
-          ))}
-          <button type="button" onClick={() => changeSection("lab")}>
-            <span>{progress?.labAttested ? "✓" : "L"}</span>Laboratorio
-          </button>
-          <button type="button" onClick={() => changeSection("quiz")}>
-            <span>{progress?.quizBestPercent != null ? "✓" : "T"}</span>
-            Evaluación
-          </button>
-          <button type="button" onClick={() => changeSection("resources")}>
-            <span aria-hidden="true">R</span>Recursos
-          </button>
-        </nav>
-        {previous ? (
-          <a href={`/curso/${previous.slug}`}>← Módulo anterior</a>
-        ) : null}
-      </aside>
-
       <article className="ent-course-reader">
         <nav className="ent-breadcrumbs" aria-label="Migas de pan">
           <a href="/ruta">Ruta</a>
@@ -652,7 +612,7 @@ export default function CourseWorkspace({
         {readOnly ? (
           <div className="ent-preview-notice is-public" role="note">
             <div><b>Contenido abierto</b><p>Puedes leer todo sin registrarte. Solo crearemos un perfil anónimo cuando decidas guardar tu progreso.</p></div>
-            <div className="ent-inline-actions"><a className="ent-secondary-action" href="/privacidad">Ver privacidad</a><a className="ent-primary-action" href={`/entrar?return_to=${encodeURIComponent(currentCoursePath)}`}>Guardar mi progreso</a></div>
+            <div className="ent-inline-actions"><a className="ent-secondary-action" href="/privacidad">Ver privacidad</a><a className={singleLessonMode ? "ent-secondary-action" : "ent-primary-action"} href={`/entrar?return_to=${encodeURIComponent(currentCoursePath)}`}>Guardar progreso</a></div>
           </div>
         ) : null}
         {preview ? (
@@ -667,37 +627,72 @@ export default function CourseWorkspace({
             </p>
           </div>
         ) : null}
-        <header className={`ent-course-header ent-artwork-${module.artwork.tone}`}>
+        {singleLessonMode && focusedLesson ? (
+          <header className="ent-lesson-focus-header">
+            <p className="ent-kicker">Lección {focusedLesson.index + 1} de {module.lessons.length}</p>
+            <h2>{focusedLesson.lesson.title}</h2>
+            <p>{focusedLesson.lesson.summary}</p>
+            <dl>
+              <div><dt>Duración</dt><dd>{focusedLessonMinutes} min aprox.</dd></div>
+              <div><dt>Objetivo</dt><dd>{focusedLesson.lesson.summary}</dd></div>
+              <div><dt>Siguiente paso</dt><dd>{focusedLesson.index < module.lessons.length - 1 ? "Continuar con la siguiente lección" : "Continuar con el laboratorio"}</dd></div>
+            </dl>
+          </header>
+        ) : (
+          <>
+            <header className={`ent-course-header ent-artwork-${module.artwork.tone}`}>
+              <div>
+                <p className="ent-kicker">
+                  {module.level}
+                </p>
+                <h2>{module.title}</h2>
+                <p>{module.description}</p>
+              </div>
+              {personalized ? <SaveState value={state.saveState} onRetry={state.refresh} /> : <span className="ent-open-source-label">Lectura pública</span>}
+            </header>
+            <div className="ent-course-outcomes">
+              <span>Al terminar podrás</span>
+              <ul>
+                {module.outcomes.map((outcome) => (
+                  <li key={outcome}>{outcome}</li>
+                ))}
+              </ul>
+            </div>
+          </>
+        )}
+        {singleLessonMode ? (
+          <details className="ent-module-context">
+            <summary>Ver detalles del módulo</summary>
+            <div>
+              <h3>{module.title}</h3>
+              <p>{module.description}</p>
+              <div className="ent-course-outcomes">
+                <span>Al terminar podrás</span>
+                <ul>
+                  {module.outcomes.map((outcome) => (
+                    <li key={outcome}>{outcome}</li>
+                  ))}
+                </ul>
+              </div>
+            </div>
+          </details>
+        ) : null}
+        <details className="ent-editorial-meta">
+          <summary>Ver fuentes y revisión</summary>
           <div>
-            <p className="ent-kicker">
-              {module.level}
-            </p>
-            <h2>{module.title}</h2>
-            <p>{module.description}</p>
+            <h3>Metadatos editoriales</h3>
+            <dl>
+              <div><dt>Última revisión</dt><dd>{module.sources[0]?.reviewedAt ?? "22 de julio de 2026"}</dd></div>
+              <div><dt>Nivel</dt><dd>{module.level}</dd></div>
+              <div><dt>Ruta relacionada</dt><dd>{module.track}</dd></div>
+              <div><dt>Dominios blueprint</dt><dd>{module.examDomains.join(" · ")}</dd></div>
+              <div><dt>Estado</dt><dd>Revisión editorial interna</dd></div>
+              <div><dt>Fuentes principales</dt><dd>{module.sources.slice(0, 2).map((source) => source.label).join(" · ")}</dd></div>
+            </dl>
+            <a href={`https://github.com/jjnv/lakehouse-lab/issues/new?labels=contenido&title=${encodeURIComponent(`Corrección editorial: ${module.title}`)}`} rel="noreferrer">Reportar un error</a>
           </div>
-          {personalized ? <SaveState value={state.saveState} onRetry={state.refresh} /> : <span className="ent-open-source-label">Lectura pública</span>}
-        </header>
-        <section className="ent-editorial-meta" aria-labelledby="module-editorial-heading">
-          <h3 id="module-editorial-heading">Metadatos editoriales</h3>
-          <dl>
-            <div><dt>Última revisión</dt><dd>{module.sources[0]?.reviewedAt ?? "22 de julio de 2026"}</dd></div>
-            <div><dt>Nivel</dt><dd>{module.level}</dd></div>
-            <div><dt>Ruta relacionada</dt><dd>{module.track}</dd></div>
-            <div><dt>Dominios blueprint</dt><dd>{module.examDomains.join(" · ")}</dd></div>
-            <div><dt>Estado</dt><dd>Revisión editorial interna</dd></div>
-            <div><dt>Fuentes principales</dt><dd>{module.sources.slice(0, 2).map((source) => source.label).join(" · ")}</dd></div>
-          </dl>
-          <a href={`https://github.com/jjnv/lakehouse-lab/issues/new?labels=contenido&title=${encodeURIComponent(`Corrección editorial: ${module.title}`)}`} rel="noreferrer">Reportar un error</a>
-        </section>
-        <div className="ent-course-outcomes">
-          <span>Al terminar podrás</span>
-          <ul>
-            {module.outcomes.map((outcome) => (
-              <li key={outcome}>{outcome}</li>
-            ))}
-          </ul>
-        </div>
-        <div
+        </details>
+        {!singleLessonMode || section !== "lessons" ? <div
           className="ent-course-tabs"
           role="tablist"
           aria-label="Actividades del módulo"
@@ -735,21 +730,23 @@ export default function CourseWorkspace({
               </button>
             ),
           )}
-        </div>
+        </div> : null}
 
         {section === "lessons" ? (
           <section
             id="course-panel-lessons"
             role="tabpanel"
             tabIndex={-1}
-            aria-labelledby="course-tab-lessons"
+            aria-labelledby={!singleLessonMode || section !== "lessons" ? "course-tab-lessons" : undefined}
+            aria-label={singleLessonMode ? "Contenido de la lección" : undefined}
             className="ent-lessons-panel"
           >
             {visibleLessons.map(({ lesson, index }) => (
               <details
                 id={`lesson-${lesson.id}`}
-                className={`ent-lesson ${completedLessons.has(lesson.id) ? "is-complete" : ""}`}
+                className={`ent-lesson ${completedLessons.has(lesson.id) ? "is-complete" : ""} ${singleLessonMode ? "is-single" : ""}`}
                 key={lesson.id}
+                open={singleLessonMode ? true : undefined}
                 onToggle={(event) => {
                   if (event.currentTarget.open) window.localStorage.setItem(`lakehouse-last-lesson:${module.id}`, lesson.id);
                 }}
@@ -768,15 +765,26 @@ export default function CourseWorkspace({
                   <i aria-hidden="true">+</i>
                 </summary>
                 <div className="ent-lesson-body">
-                  <section className="ent-lesson-brief" aria-label={`Ficha editorial de ${lesson.title}`}>
-                    <dl>
-                      <div><dt>Objetivo</dt><dd>{lesson.summary}</dd></div>
-                      <div><dt>Duración estimada</dt><dd>{Math.max(12, Math.round((module.minutes * 0.5) / module.lessons.length))} min aprox.</dd></div>
-                      <div><dt>Dificultad</dt><dd>{module.level}</dd></div>
-                      <div><dt>Prerrequisitos</dt><dd>{module.prerequisites.length ? module.prerequisites.join(", ") : "Ninguno obligatorio"}</dd></div>
-                    </dl>
-                    <a href={`https://github.com/jjnv/lakehouse-lab/issues/new?labels=contenido&title=${encodeURIComponent(`Corrección editorial: ${lesson.id} ${lesson.title}`)}`} rel="noreferrer">Reportar un error en esta lección</a>
-                  </section>
+                  {singleLessonMode ? (
+                    <details className="ent-lesson-brief">
+                      <summary>Mostrar prerrequisitos</summary>
+                      <dl>
+                        <div><dt>Dificultad</dt><dd>{module.level}</dd></div>
+                        <div><dt>Prerrequisitos</dt><dd>{module.prerequisites.length ? module.prerequisites.join(", ") : "Ninguno obligatorio"}</dd></div>
+                      </dl>
+                      <a href={`https://github.com/jjnv/lakehouse-lab/issues/new?labels=contenido&title=${encodeURIComponent(`Corrección editorial: ${lesson.id} ${lesson.title}`)}`} rel="noreferrer">Reportar un error en esta lección</a>
+                    </details>
+                  ) : (
+                    <section className="ent-lesson-brief" aria-label={`Ficha editorial de ${lesson.title}`}>
+                      <dl>
+                        <div><dt>Objetivo</dt><dd>{lesson.summary}</dd></div>
+                        <div><dt>Duración estimada</dt><dd>{focusedLessonMinutes} min aprox.</dd></div>
+                        <div><dt>Dificultad</dt><dd>{module.level}</dd></div>
+                        <div><dt>Prerrequisitos</dt><dd>{module.prerequisites.length ? module.prerequisites.join(", ") : "Ninguno obligatorio"}</dd></div>
+                      </dl>
+                      <a href={`https://github.com/jjnv/lakehouse-lab/issues/new?labels=contenido&title=${encodeURIComponent(`Corrección editorial: ${lesson.id} ${lesson.title}`)}`} rel="noreferrer">Reportar un error en esta lección</a>
+                    </section>
+                  )}
                   {lesson.explanation.map((paragraph) => (
                     <p key={paragraph}>{paragraph}</p>
                   ))}
@@ -890,7 +898,7 @@ export default function CourseWorkspace({
                         ? "Completada"
                         : "Pendiente"}
                     </span>
-                    {readOnly ? <a className="ent-primary-action" href={`/entrar?return_to=${encodeURIComponent(`/curso/${module.slug}/${lesson.id}`)}`}>Guardar esta lección</a> : <button
+                    {readOnly ? <a className="ent-secondary-action" href={`/entrar?return_to=${encodeURIComponent(`/curso/${module.slug}/${lesson.id}`)}`}>Guardar progreso</a> : <button
                         type="button"
                         className="ent-primary-action"
                         disabled={preview || completedLessons.has(lesson.id)}
@@ -1221,6 +1229,47 @@ export default function CourseWorkspace({
           )}
         </footer>
       </article>
+      <aside className="ent-course-index" aria-label="Índice del módulo">
+        <div>
+          <span>Módulo {module.number}</span>
+          <strong>{readOnly ? "ABIERTO" : `${unitPercent}%`}</strong>
+        </div>
+        {!readOnly ? <div
+          className="ent-progress"
+          role="progressbar"
+          aria-label="Progreso del módulo"
+          aria-valuemin={0}
+          aria-valuemax={100}
+          aria-valuenow={unitPercent}
+        >
+          <i style={{ width: `${unitPercent}%` }} />
+        </div> : null}
+        <nav>
+          {module.lessons.map((lesson, index) => (
+            <a
+              key={lesson.id}
+              href={`/curso/${module.slug}/${lesson.id}`}
+              aria-current={initialLessonId === lesson.id ? "page" : undefined}
+            >
+              <span>{completedLessons.has(lesson.id) ? "✓" : index + 1}</span>
+              {lesson.title}
+            </a>
+          ))}
+          <button type="button" onClick={() => changeSection("lab")}>
+            <span>{progress?.labAttested ? "✓" : "L"}</span>Laboratorio
+          </button>
+          <button type="button" onClick={() => changeSection("quiz")}>
+            <span>{progress?.quizBestPercent != null ? "✓" : "T"}</span>
+            Evaluación
+          </button>
+          <button type="button" onClick={() => changeSection("resources")}>
+            <span aria-hidden="true">R</span>Recursos
+          </button>
+        </nav>
+        {previous ? (
+          <a href={`/curso/${previous.slug}`}>← Módulo anterior</a>
+        ) : null}
+      </aside>
     </div>
   );
 }
