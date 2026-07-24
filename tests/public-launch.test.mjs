@@ -11,8 +11,9 @@ test("the root is a public landing page instead of a protected redirect", () => 
   assert.doesNotMatch(rootPage, /redirect\s*\(\s*["']\/inicio/);
   assert.doesNotMatch(rootPage, /requireLearner|requireEnterprisePageContext/);
   assert.match(rootPage, /getSessionUser\(\)/);
-  assert.match(rootPage, /Prepara Databricks Data Engineer/u);
-  assert.match(rootPage, /Ver temario/u);
+  assert.match(rootPage, /Domina la ingeniería de datos/u);
+  assert.match(rootPage, /Empezar la ruta/u);
+  assert.match(rootPage, /Ver una lección de ejemplo/u);
   assert.doesNotMatch(rootPage, /Explorar la demo|Beta pública/);
   assert.match(rootPage, /Lakehouse Lab no está afiliado ni avalado por Databricks|proyecto independiente/i);
 });

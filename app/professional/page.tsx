@@ -16,7 +16,7 @@ export const metadata: Metadata = {
 
 export default function ProfessionalPage() {
   const modules = moduleSummaries();
-  return <PublicShell active="professional">
+  return <PublicShell active="route">
     <main id="public-main" className="public-document-main public-cert-main" tabIndex={-1}>
       <section className="public-cert-hero" aria-labelledby="professional-heading">
         <p className="public-kicker">Certificación objetivo</p>

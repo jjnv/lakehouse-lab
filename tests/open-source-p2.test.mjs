@@ -29,16 +29,17 @@ test("publishes an open-source contribution and governance baseline", async () =
 });
 
 test("keeps curriculum reading and curated notebook previews public", async () => {
-  const [rootPage, catalogPage, coursePage, searchRoute, previewRoute] = await Promise.all([
+  const [rootPage, publicShell, catalogPage, coursePage, searchRoute, previewRoute] = await Promise.all([
     read("app/page.tsx"),
+    read("app/components/public/PublicShell.tsx"),
     read("app/catalogo/page.tsx"),
     read("app/curso/[slug]/page.tsx"),
     read("app/api/search/route.ts"),
     read("app/api/resources/[resourceId]/preview/route.ts"),
   ]);
-  assert.match(rootPage, /const catalogHref = "\/catalogo"/u);
-  assert.match(rootPage, /href="\/associate"/u);
-  assert.match(rootPage, /href="\/simulacros"/u);
+  assert.match(rootPage, /href="\/ruta"/u);
+  assert.match(rootPage, /sampleLessonHref/u);
+  assert.match(publicShell, /href="\/simulacros"/u);
   for (const source of [catalogPage, coursePage]) {
     assert.match(source, /getOptionalEnterprisePageContext/u);
     assert.doesNotMatch(source, /requireEnterprisePageContext/u);

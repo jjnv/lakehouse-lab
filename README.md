@@ -4,13 +4,17 @@ Plataforma educativa open source en español para aprender ingeniería de datos 
 
 > Proyecto comunitario e independiente. No está afiliado, patrocinado ni avalado por Databricks.
 
-[Explorar el código](https://github.com/jjnv/lakehouse-lab) · [Contribuir](CONTRIBUTING.md) · [Roadmap](ROADMAP.md) · [Reportar una incidencia](https://github.com/jjnv/lakehouse-lab/issues)
+[Explorar el código](https://github.com/jjnv/lakehouse-lab) · [Contribuir](CONTRIBUTING.md) · [Roadmap](ROADMAP.md) · [Metodología](/metodologia) · [Changelog](/changelog) · [Reportar una incidencia](https://github.com/jjnv/lakehouse-lab/issues)
 
 ![Vista de presentación de Lakehouse Lab](public/og-public.png)
 
 ## Qué incluye
 
 - Catálogo, lecciones, laboratorios y notebooks públicos sin registro.
+- Rutas de entrada por objetivo: Associate, Professional, Databricks desde cero, streaming/CDC y práctica con laboratorios.
+- URLs estables por lección en `/curso/[modulo]/[leccion]`, con compatibilidad para enlaces antiguos con `?lesson=`.
+- Metadatos editoriales visibles por módulo y lección: revisión, nivel, dominios, fuentes, estado y reporte de errores.
+- Páginas públicas de metodología editorial y changelog de contenido.
 - Espacio personal anónimo, sin pedir nombre ni correo.
 - 160 lecciones, 32 laboratorios y simulacros Associate y Professional.
 - Búsqueda global de módulos, lecciones y conceptos con navegación al punto exacto del temario.
@@ -34,10 +38,10 @@ Las páginas públicas no requieren identidad. La aplicación solo crea un espac
 
 1. Importa `jjnv/lakehouse-lab` desde el panel de Vercel.
 2. Añade **Turso Cloud** desde el Marketplace de Vercel y conéctalo al proyecto. La integración crea `TURSO_DATABASE_URL` y `TURSO_AUTH_TOKEN`.
-3. Opcionalmente define `NEXT_PUBLIC_SITE_URL` con el dominio definitivo para los metadatos sociales.
+3. Opcionalmente define `NEXT_PUBLIC_SITE_URL` con el dominio definitivo para canonical, sitemap y metadatos sociales.
 4. Ejecuta un nuevo despliegue. El proceso aplica las migraciones pendientes y compila la aplicación automáticamente.
 
-La configuración incluida fija el preset de Next.js, la región europea y el flujo de compilación. Los secretos permanecen en Vercel y nunca se guardan en el repositorio.
+La configuración incluida fija el preset de Next.js, la región europea y el flujo de compilación. Los secretos permanecen en Vercel y nunca se guardan en el repositorio. La preparación para dominio propio está documentada en [docs/seo-dominio.md](docs/seo-dominio.md).
 
 ## Desarrollo local
 

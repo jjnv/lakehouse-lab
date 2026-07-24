@@ -16,7 +16,7 @@ export const metadata: Metadata = {
 
 export default function AssociatePage() {
   const modules = moduleSummaries().filter((module) => module.level.includes("Associate"));
-  return <PublicShell active="associate">
+  return <PublicShell active="route">
     <main id="public-main" className="public-document-main public-cert-main" tabIndex={-1}>
       <section className="public-cert-hero" aria-labelledby="associate-heading">
         <p className="public-kicker">Certificación objetivo</p>

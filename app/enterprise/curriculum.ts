@@ -122,7 +122,7 @@ export type PublicLab = Omit<CurriculumModule["lab"], "checks"> & {
   checks: Array<{ id: string; label: string }>;
 };
 
-export type PublicModule = Omit<CurriculumModule, "quiz" | "lab" | "lessons" | "minutes"> & {
+export type PublicModule = Omit<CurriculumModule, "quiz" | "lab" | "lessons"> & {
   artwork: ModuleArtwork;
   lessons: PublicLesson[];
   lab: PublicLab;
@@ -282,7 +282,7 @@ const curriculumSearchIndex: IndexedCurriculumResult[] = modules.flatMap((module
       label: lesson.title,
       description: lesson.summary,
       location: lessonLocation,
-      href: `/curso/${module.slug}?lesson=${encodeURIComponent(lesson.id)}#lesson-${lesson.id}`,
+      href: `/curso/${module.slug}/${lesson.id}`,
       searchableLabel: normalizeSearchText(`${lesson.title} ${lesson.kicker}`),
       searchableDescription: normalizeSearchText(`${lesson.summary} ${lesson.explanation.join(" ")} ${lesson.keyPoints.join(" ")} ${lesson.decisions.join(" ")}`),
       searchableLocation: normalizeSearchText(`${lessonLocation} ${module.title}`),
@@ -296,7 +296,7 @@ const curriculumSearchIndex: IndexedCurriculumResult[] = modules.flatMap((module
         label: concept.term,
         description: concept.definition,
         location: `${lessonLocation} · ${lesson.title}`,
-        href: `/curso/${module.slug}?lesson=${encodeURIComponent(lesson.id)}&concept=${encodeURIComponent(anchor)}#${anchor}`,
+        href: `/curso/${module.slug}/${lesson.id}?concept=${encodeURIComponent(anchor)}#${anchor}`,
         searchableLabel: normalizeSearchText(concept.term),
         searchableDescription: normalizeSearchText(`${concept.definition} ${concept.whyItMatters}`),
         searchableLocation: normalizeSearchText(`${lessonLocation} ${lesson.title} ${module.title}`),
@@ -377,6 +377,7 @@ export function publicModule(module: CurriculumModule): PublicModule {
     kind: module.kind,
     track: module.track,
     level: module.level,
+    minutes: module.minutes,
     description: module.description,
     outcomes: [...module.outcomes],
     examDomains: [...module.examDomains],

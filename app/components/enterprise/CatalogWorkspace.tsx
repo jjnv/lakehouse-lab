@@ -35,9 +35,9 @@ function firstRelevantModule(resource: CommunityResourceCatalogEntry, phase: str
     ?? resource.relatedModules[0];
 }
 
-export default function CatalogWorkspace({ modules, resources, personalized = true }: { modules: ModuleSummary[]; resources: CommunityResourceCatalogEntry[]; personalized?: boolean }) {
+export default function CatalogWorkspace({ modules, resources, personalized = true, initialView = "modules" }: { modules: ModuleSummary[]; resources: CommunityResourceCatalogEntry[]; personalized?: boolean; initialView?: CatalogView }) {
   const state = useDashboard(personalized);
-  const [view, setView] = useState<CatalogView>("modules");
+  const [view, setView] = useState<CatalogView>(initialView);
   const [search, setSearch] = useState("");
   const [phase, setPhase] = useState("all");
   const [level, setLevel] = useState("all");
@@ -52,7 +52,7 @@ export default function CatalogWorkspace({ modules, resources, personalized = tr
   useEffect(() => {
     function restoreLocation() {
       const params = new URLSearchParams(window.location.search);
-      setView(params.get("view") === "resources" ? "resources" : "modules");
+      setView(params.get("view") === "resources" || initialView === "resources" ? "resources" : "modules");
       setSearch(params.get("q") ?? "");
       setPhase(params.get("phase") ?? "all");
       setLevel(params.get("level") ?? "all");
@@ -65,7 +65,7 @@ export default function CatalogWorkspace({ modules, resources, personalized = tr
     restoreLocation();
     window.addEventListener("popstate", restoreLocation);
     return () => window.removeEventListener("popstate", restoreLocation);
-  }, []);
+  }, [initialView]);
 
   const filteredModules = useMemo(() => modules.filter((module) => {
     const progress = progressMap.get(module.id);

@@ -6,7 +6,9 @@ const routes = [
   { path: "/inicio", heading: "Inicio" },
   { path: "/mi-aprendizaje", heading: "Plan" },
   { path: "/catalogo", heading: "Temario" },
+  { path: "/recursos", heading: "Recursos" },
   { path: "/curso/data-intelligence-platform-y-arquitectura-lakehouse", heading: "Plataforma" },
+  { path: "/curso/data-intelligence-platform-y-arquitectura-lakehouse/m01-l1", heading: "Plataforma" },
   { path: "/simulacro/associate", heading: "Simulacro Associate" },
   { path: "/simulacro/professional", heading: "Simulacro Professional" },
   { path: "/expediente", heading: "Resultados" },
@@ -15,7 +17,10 @@ const routes = [
 ] as const;
 
 const publicRoutes = [
-  { path: "/", heading: "Prepara Databricks Data Engineer Associate y Professional." },
+  { path: "/", heading: "Domina la ingeniería de datos con Databricks." },
+  { path: "/ruta", heading: "Elige el punto de entrada que encaja con tu objetivo." },
+  { path: "/metodologia", heading: "Cómo validamos el contenido." },
+  { path: "/changelog", heading: "Qué ha cambiado en el contenido." },
   { path: "/acerca-de", heading: "Preparación independiente para Data Engineers." },
   { path: "/privacidad", heading: "Tu progreso te pertenece." },
   { path: "/recuperar", heading: "Vuelve a tu aprendizaje." },
@@ -370,7 +375,7 @@ test("la búsqueda global lleva al concepto exacto del temario", async ({ page }
   const result = page.locator(".ent-search-result").filter({ hasText: "Watermark" }).first();
   await expect(result).toBeVisible();
   await result.click();
-  await expect(page).toHaveURL(/\/curso\/estado-ventanas-watermarks-y-datos-tardios\?lesson=.*&concept=concept-/);
+  await expect(page).toHaveURL(/\/curso\/estado-ventanas-watermarks-y-datos-tardios\/m14-l2\?concept=concept-.*#concept-/);
   await waitForWorkspace(page);
   const concept = page.locator('.ent-mental-model article[id^="concept-"]').filter({ hasText: "Watermark" }).first();
   await expect(concept).toBeVisible();
@@ -531,7 +536,7 @@ test("un visitante crea un espacio anónimo con una cookie privada", async ({ br
   try {
     const page = await context.newPage();
     await page.goto(`${baseURL}/`);
-    await page.getByRole("link", { name: "Ver temario" }).click();
+    await page.getByRole("link", { name: "Temario" }).first().click();
     await expect(page).toHaveURL(/\/catalogo$/u);
     await expect(page.getByText("Contenido abierto").first()).toBeVisible();
     expect((await context.cookies()).some((item) => item.name === "lakehouse_session")).toBe(false);
@@ -542,7 +547,7 @@ test("un visitante crea un espacio anónimo con una cookie privada", async ({ br
     expect((await context.cookies()).some((item) => item.name === "lakehouse_session")).toBe(false);
 
     await page.goto(`${baseURL}/`);
-    const start = page.getByRole("link", { name: "Crear mi espacio" }).first();
+    const start = page.getByRole("link", { name: "Guardar progreso" }).first();
     await expect(start).toHaveAttribute("href", /\/entrar\?return_to=/);
     await start.click();
     await expect(page).toHaveURL(/\/inicio$/);

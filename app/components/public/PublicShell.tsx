@@ -7,7 +7,17 @@ type PublicShellProps = {
   children: ReactNode;
   accountHref?: string;
   accountLabel?: string;
-  active?: "associate" | "professional" | "simulacros" | "catalog" | "about" | "privacy" | "terms";
+  active?:
+    | "home"
+    | "route"
+    | "simulacros"
+    | "catalog"
+    | "resources"
+    | "about"
+    | "methodology"
+    | "changelog"
+    | "privacy"
+    | "terms";
 };
 
 export default function PublicShell({
@@ -22,14 +32,14 @@ export default function PublicShell({
       <header className="public-header">
         <Link className="public-brand" href="/" aria-label={`${PROJECT_NAME}, ir a la portada`}>
           <Image className="public-brand-logo" src="/logo-mark.svg" alt="" aria-hidden="true" width={40} height={40} />
-          <span><strong>{PROJECT_NAME}</strong><small>Preparación Databricks Data Engineer</small></span>
+          <span><strong>{PROJECT_NAME}</strong><small>Ingeniería de datos con Databricks</small></span>
         </Link>
         <nav aria-label="Navegación pública">
-          <Link href="/associate" aria-current={active === "associate" ? "page" : undefined}>Associate</Link>
-          <Link href="/professional" aria-current={active === "professional" ? "page" : undefined}>Professional</Link>
-          <Link href="/simulacros" aria-current={active === "simulacros" ? "page" : undefined}>Simulacros</Link>
+          <Link href="/ruta" aria-current={active === "route" ? "page" : undefined}>Ruta</Link>
           <Link href="/catalogo" aria-current={active === "catalog" ? "page" : undefined}>Temario</Link>
-          <Link href="/acerca-de" aria-current={active === "about" ? "page" : undefined}>Proyecto</Link>
+          <Link href="/simulacros" aria-current={active === "simulacros" ? "page" : undefined}>Simulacros</Link>
+          <Link href="/recursos" aria-current={active === "resources" ? "page" : undefined}>Recursos</Link>
+          <Link href={accountHref}>Mi progreso</Link>
         </nav>
         <a className="public-header-action" href={accountHref}>{accountLabel}</a>
       </header>
@@ -38,16 +48,20 @@ export default function PublicShell({
         <div>
           <Link className="public-brand" href="/">
             <Image className="public-brand-logo" src="/logo-mark.svg" alt="" aria-hidden="true" width={40} height={40} />
-            <span><strong>{PROJECT_NAME}</strong><small>Preparación independiente</small></span>
+            <span><strong>{PROJECT_NAME}</strong><small>Proyecto independiente</small></span>
           </Link>
           <p>Proyecto personal e independiente. No está afiliado, patrocinado ni avalado por Databricks.</p>
         </div>
         <nav aria-label="Información del proyecto">
+          <Link href="/ruta">Ruta</Link>
+          <Link href="/catalogo">Temario</Link>
+          <Link href="/simulacros">Simulacros</Link>
+          <Link href="/recursos">Recursos</Link>
+          <Link href="/metodologia" aria-current={active === "methodology" ? "page" : undefined}>Metodología</Link>
+          <Link href="/changelog" aria-current={active === "changelog" ? "page" : undefined}>Changelog</Link>
           <Link href="/associate">Associate</Link>
           <Link href="/professional">Professional</Link>
-          <Link href="/simulacros">Simulacros</Link>
-          <Link href="/catalogo">Temario</Link>
-          <Link href="/acerca-de">Acerca del proyecto</Link>
+          <Link href="/acerca-de" aria-current={active === "about" ? "page" : undefined}>Acerca del proyecto</Link>
           <Link href="/recuperar">Recuperar espacio</Link>
           <Link href="/privacidad" aria-current={active === "privacy" ? "page" : undefined}>Privacidad</Link>
           <Link href="/terminos" aria-current={active === "terms" ? "page" : undefined}>Términos</Link>

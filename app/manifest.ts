@@ -4,7 +4,7 @@ export default function manifest(): MetadataRoute.Manifest {
   return {
     name: "Lakehouse Lab",
     short_name: "Lakehouse Lab",
-    description: "Preparación independiente para Databricks Data Engineer Associate y Professional.",
+    description: "Ruta práctica en español para aprender ingeniería de datos con Databricks.",
     start_url: "/",
     display: "standalone",
     background_color: "#F6F3EC",

@@ -7,7 +7,7 @@ import { DEFAULT_BRAND_CONFIG } from "../../enterprise/brand";
 import type { BrandConfig } from "../../enterprise/types";
 import CurriculumSearch from "./CurriculumSearch";
 
-export type EnterpriseArea = "home" | "learning" | "catalog" | "record" | "settings";
+export type EnterpriseArea = "home" | "learning" | "catalog" | "resources" | "record" | "settings";
 
 type AppShellProps = {
   active: EnterpriseArea;
@@ -22,9 +22,10 @@ type AppShellProps = {
 
 const primaryNavigation: Array<{ href: string; label: string; short: string; area: EnterpriseArea }> = [
   { href: "/inicio", label: "Inicio", short: "IN", area: "home" },
-  { href: "/mi-aprendizaje", label: "Plan", short: "PL", area: "learning" },
+  { href: "/mi-aprendizaje", label: "Ruta", short: "RU", area: "learning" },
   { href: "/catalogo", label: "Temario", short: "TE", area: "catalog" },
-  { href: "/expediente", label: "Resultados", short: "RE", area: "record" },
+  { href: "/recursos", label: "Recursos", short: "RC", area: "resources" },
+  { href: "/expediente", label: "Mi progreso", short: "MP", area: "record" },
 ];
 let lastClientPath: string | null = null;
 
@@ -109,10 +110,10 @@ export default function AppShell({ active, title, eyebrow = "Lakehouse Lab", chi
   const brandHref = publicMode ? "/" : "/inicio";
   const navigation = publicMode
     ? [
-        { href: "/associate", label: "Associate", short: "AS", area: "catalog" as const },
-        { href: "/professional", label: "Professional", short: "PR", area: "catalog" as const },
+        { href: "/ruta", label: "Ruta", short: "RU", area: "learning" as const },
         { href: "/catalogo", label: "Temario", short: "TE", area: "catalog" as const },
         { href: "/simulacros", label: "Simulacros", short: "SI", area: "catalog" as const },
+        { href: "/recursos", label: "Recursos", short: "RC", area: "resources" as const },
       ]
     : primaryNavigation;
 
@@ -166,7 +167,7 @@ export default function AppShell({ active, title, eyebrow = "Lakehouse Lab", chi
         <nav className="ent-nav" aria-label="Áreas principales">
           <p>Aprendizaje</p>
           {navigation.map((item) => {
-            const isCurrent = active === item.area && (!publicMode || item.href === "/catalogo");
+            const isCurrent = active === item.area;
             return <a key={item.href} href={item.href} aria-current={isCurrent ? "page" : undefined} onClick={() => closeDrawer(false)}><span aria-hidden="true">{item.short}</span>{item.label}</a>;
           })}
         </nav>

@@ -16,7 +16,7 @@ export function generateMetadata(): Metadata {
     alternates: { canonical: "/" },
     robots: { index: true, follow: true },
     openGraph: {
-      title: `${PROJECT_NAME} · Preparación Databricks Data Engineer`,
+      title: `${PROJECT_NAME} · Ingeniería de datos con Databricks`,
       description: PROJECT_DESCRIPTION,
       type: "website",
       siteName: PROJECT_NAME,

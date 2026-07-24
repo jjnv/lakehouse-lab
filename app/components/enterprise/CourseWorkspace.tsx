@@ -226,7 +226,19 @@ async function mutationResponse(response: Response) {
 
 type CourseNavigationItem = { slug: string; short: string; number: string };
 
-export default function CourseWorkspace({ module, personalized = true, navigation }: { module: PublicModule; personalized?: boolean; navigation?: { previous: CourseNavigationItem | null; next: CourseNavigationItem | null } }) {
+export default function CourseWorkspace({
+  module,
+  personalized = true,
+  navigation,
+  initialLessonId,
+  singleLessonMode = false,
+}: {
+  module: PublicModule;
+  personalized?: boolean;
+  navigation?: { previous: CourseNavigationItem | null; next: CourseNavigationItem | null };
+  initialLessonId?: string;
+  singleLessonMode?: boolean;
+}) {
   const state = useDashboard(personalized);
   const [section, setSection] = useState<CourseSection>("lessons");
   const [recall, setRecall] = useState<Record<string, string>>({});
@@ -314,7 +326,7 @@ export default function CourseWorkspace({ module, personalized = true, navigatio
         setViewerOpen(true);
         void loadNotebookPreview(requestedCommunityResource);
       }
-      const lesson = params.get("lesson");
+      const lesson = params.get("lesson") ?? initialLessonId ?? null;
       const requestedConcept = params.get("concept") ?? (window.location.hash.startsWith("#concept-") ? window.location.hash.slice(1) : null);
       if (lesson && module.lessons.some((item) => item.id === lesson)) {
         setSection("lessons");
@@ -348,7 +360,7 @@ export default function CourseWorkspace({ module, personalized = true, navigatio
       setRecall(saved);
     });
     return () => cancelAnimationFrame(frame);
-  }, [courseReady, loadNotebookPreview, module.communityResources, module.id, module.lessons]);
+  }, [courseReady, initialLessonId, loadNotebookPreview, module.communityResources, module.id, module.lessons]);
 
   useEffect(() => () => previewRequestRef.current?.abort(), []);
 
@@ -377,6 +389,10 @@ export default function CourseWorkspace({ module, personalized = true, navigatio
   }
 
   function openLesson(lessonId: string) {
+    if (singleLessonMode) {
+      window.location.assign(`/curso/${module.slug}/${lessonId}`);
+      return;
+    }
     setSection("lessons");
     const params = new URLSearchParams(window.location.search);
     params.set("lesson", lessonId);
@@ -552,6 +568,12 @@ export default function CourseWorkspace({ module, personalized = true, navigatio
       100,
   );
   const allLessonsDone = completedLessons.size === module.lessons.length;
+  const currentCoursePath = singleLessonMode && initialLessonId ? `/curso/${module.slug}/${initialLessonId}` : `/curso/${module.slug}`;
+  const visibleLessons = singleLessonMode && initialLessonId
+    ? module.lessons
+        .map((lesson, index) => ({ lesson, index }))
+        .filter((item) => item.lesson.id === initialLessonId)
+    : module.lessons.map((lesson, index) => ({ lesson, index }));
 
   if (personalized && state.loading)
     return (
@@ -597,8 +619,8 @@ export default function CourseWorkspace({ module, personalized = true, navigatio
           {module.lessons.map((lesson, index) => (
             <a
               key={lesson.id}
-              href={`#lesson-${lesson.id}`}
-              onClick={() => setSection("lessons")}
+              href={`/curso/${module.slug}/${lesson.id}`}
+              aria-current={initialLessonId === lesson.id ? "page" : undefined}
             >
               <span>{completedLessons.has(lesson.id) ? "✓" : index + 1}</span>
               {lesson.title}
@@ -621,10 +643,16 @@ export default function CourseWorkspace({ module, personalized = true, navigatio
       </aside>
 
       <article className="ent-course-reader">
+        <nav className="ent-breadcrumbs" aria-label="Migas de pan">
+          <a href="/ruta">Ruta</a>
+          <a href="/catalogo">Temario</a>
+          <a href={`/curso/${module.slug}`}>Módulo {module.number}</a>
+          {singleLessonMode && initialLessonId ? <span>Lección {module.lessons.findIndex((lesson) => lesson.id === initialLessonId) + 1}</span> : null}
+        </nav>
         {readOnly ? (
           <div className="ent-preview-notice is-public" role="note">
-            <div><b>Contenido abierto</b><p>Puedes leer todas las lecciones, el laboratorio y los recursos sin registrarte. Crea un espacio privado únicamente si quieres guardar actividad.</p></div>
-            <a className="ent-primary-action" href={`/entrar?return_to=${encodeURIComponent(`/curso/${module.slug}`)}`}>Guardar mi progreso</a>
+            <div><b>Contenido abierto</b><p>Puedes leer todo sin registrarte. Solo crearemos un perfil anónimo cuando decidas guardar tu progreso.</p></div>
+            <div className="ent-inline-actions"><a className="ent-secondary-action" href="/privacidad">Ver privacidad</a><a className="ent-primary-action" href={`/entrar?return_to=${encodeURIComponent(currentCoursePath)}`}>Guardar mi progreso</a></div>
           </div>
         ) : null}
         {preview ? (
@@ -649,6 +677,18 @@ export default function CourseWorkspace({ module, personalized = true, navigatio
           </div>
           {personalized ? <SaveState value={state.saveState} onRetry={state.refresh} /> : <span className="ent-open-source-label">Lectura pública</span>}
         </header>
+        <section className="ent-editorial-meta" aria-labelledby="module-editorial-heading">
+          <h3 id="module-editorial-heading">Metadatos editoriales</h3>
+          <dl>
+            <div><dt>Última revisión</dt><dd>{module.sources[0]?.reviewedAt ?? "22 de julio de 2026"}</dd></div>
+            <div><dt>Nivel</dt><dd>{module.level}</dd></div>
+            <div><dt>Ruta relacionada</dt><dd>{module.track}</dd></div>
+            <div><dt>Dominios blueprint</dt><dd>{module.examDomains.join(" · ")}</dd></div>
+            <div><dt>Estado</dt><dd>Revisión editorial interna</dd></div>
+            <div><dt>Fuentes principales</dt><dd>{module.sources.slice(0, 2).map((source) => source.label).join(" · ")}</dd></div>
+          </dl>
+          <a href={`https://github.com/jjnv/lakehouse-lab/issues/new?labels=contenido&title=${encodeURIComponent(`Corrección editorial: ${module.title}`)}`} rel="noreferrer">Reportar un error</a>
+        </section>
         <div className="ent-course-outcomes">
           <span>Al terminar podrás</span>
           <ul>
@@ -705,7 +745,7 @@ export default function CourseWorkspace({ module, personalized = true, navigatio
             aria-labelledby="course-tab-lessons"
             className="ent-lessons-panel"
           >
-            {module.lessons.map((lesson, index) => (
+            {visibleLessons.map(({ lesson, index }) => (
               <details
                 id={`lesson-${lesson.id}`}
                 className={`ent-lesson ${completedLessons.has(lesson.id) ? "is-complete" : ""}`}
@@ -728,6 +768,15 @@ export default function CourseWorkspace({ module, personalized = true, navigatio
                   <i aria-hidden="true">+</i>
                 </summary>
                 <div className="ent-lesson-body">
+                  <section className="ent-lesson-brief" aria-label={`Ficha editorial de ${lesson.title}`}>
+                    <dl>
+                      <div><dt>Objetivo</dt><dd>{lesson.summary}</dd></div>
+                      <div><dt>Duración estimada</dt><dd>{Math.max(12, Math.round((module.minutes * 0.5) / module.lessons.length))} min aprox.</dd></div>
+                      <div><dt>Dificultad</dt><dd>{module.level}</dd></div>
+                      <div><dt>Prerrequisitos</dt><dd>{module.prerequisites.length ? module.prerequisites.join(", ") : "Ninguno obligatorio"}</dd></div>
+                    </dl>
+                    <a href={`https://github.com/jjnv/lakehouse-lab/issues/new?labels=contenido&title=${encodeURIComponent(`Corrección editorial: ${lesson.id} ${lesson.title}`)}`} rel="noreferrer">Reportar un error en esta lección</a>
+                  </section>
                   {lesson.explanation.map((paragraph) => (
                     <p key={paragraph}>{paragraph}</p>
                   ))}
@@ -841,7 +890,7 @@ export default function CourseWorkspace({ module, personalized = true, navigatio
                         ? "Completada"
                         : "Pendiente"}
                     </span>
-                    {readOnly ? <a className="ent-primary-action" href={`/entrar?return_to=${encodeURIComponent(`/curso/${module.slug}?lesson=${lesson.id}`)}`}>Guardar esta lección</a> : <button
+                    {readOnly ? <a className="ent-primary-action" href={`/entrar?return_to=${encodeURIComponent(`/curso/${module.slug}/${lesson.id}`)}`}>Guardar esta lección</a> : <button
                         type="button"
                         className="ent-primary-action"
                         disabled={preview || completedLessons.has(lesson.id)}

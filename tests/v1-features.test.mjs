@@ -77,7 +77,8 @@ test("declares the enterprise release as version 2.0.0 everywhere that identifie
   assert.match(sources["app/editorial-data.ts"], /SITE_VERSION = "2\.0\.0"/u);
   assert.match(sources["app/progress.ts"], /CONTENT_VERSION = "lakehouse-lab-v2\.0\.0"/u);
   assert.match(sources["app/page.tsx"], /getSessionUser\(\)/u);
-  assert.match(sources["app/page.tsx"], /const catalogHref = "\/catalogo"/u);
+  assert.match(sources["app/page.tsx"], /href="\/ruta"/u);
+  assert.match(sources["app/page.tsx"], /sampleLessonHref/u);
   assert.doesNotMatch(sources["app/page.tsx"], /href=["']\/demo/u);
   assert.match(sources["app/layout.tsx"], /PROJECT_NAME/u);
   assert.match(sources["app/layout.tsx"], /robots:\s*\{\s*index:\s*true,\s*follow:\s*true\s*\}/u);

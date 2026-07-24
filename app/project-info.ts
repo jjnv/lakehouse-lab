@@ -1,9 +1,11 @@
 export const PROJECT_NAME = "Lakehouse Lab";
-export const PROJECT_TAGLINE = "Preparación para certificaciones Databricks Data Engineer";
+export const PROJECT_TAGLINE = "Ingeniería de datos con Databricks";
 export const PROJECT_DESCRIPTION =
-  "Plataforma independiente en español para preparar Databricks Certified Data Engineer Associate y Professional con lecciones, laboratorios y simulacros internos.";
+  "Ruta práctica e independiente en español para aprender ingeniería de datos con Databricks, con lecciones, laboratorios, evaluaciones y simulacros alineados con Data Engineer Associate y Professional.";
 export const CONTENT_VERSION_LABEL = "2026.07";
 export const CONTENT_REVIEW_DATE = "22 de julio de 2026";
+export const RECOMMENDED_CUSTOM_DOMAIN = "lakehouselab.es";
+export const RECOMMENDED_CONTACT_EMAIL = "hola@lakehouselab.es";
 function optionalHttpsUrl(value: string | undefined) {
   const candidate = value?.trim();
   if (!candidate) return null;
