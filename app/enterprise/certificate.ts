@@ -13,7 +13,7 @@ import {
 } from "./assessment-private";
 
 export const CERTIFICATE_SCHEMA_VERSION = "1.0" as const;
-export const INTERNAL_CERTIFICATE_DISCLAIMER = "Credencial de finalización de Lakehouse Lab; no constituye una certificación oficial de Databricks ni una evaluación proctorizada";
+export const INTERNAL_CERTIFICATE_DISCLAIMER = "Constancia interna de finalización de Lakehouse Lab; no constituye una certificación oficial de Databricks ni una evaluación proctorizada";
 
 export type CertificateSpecification = Readonly<{
   schemaVersion: typeof CERTIFICATE_SCHEMA_VERSION;
@@ -140,7 +140,7 @@ export function buildCertificateSpecification(
   const roundedScore = input.qualifyingResult.scorePercent.toLocaleString(locale, {
     maximumFractionDigits: 2,
   });
-  const heading = "Certificado de finalización";
+  const heading = "Constancia interna de finalización";
   const achievementStatement = `${input.learner.displayName} ha completado ${input.credential.title}.`;
   const scoreStatement = `Resultado: ${roundedScore} %, con un umbral de ${decision.thresholdPercent} %.`;
 
@@ -182,7 +182,7 @@ export function buildCertificateSpecification(
       awardedToLabel: "Otorgado a",
       achievementStatement,
       scoreStatement,
-      verificationLabel: "Verificación del certificado",
+      verificationLabel: "Verificación de constancia interna",
       disclaimer: INTERNAL_CERTIFICATE_DISCLAIMER,
     },
     accessibility: {

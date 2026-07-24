@@ -4,19 +4,19 @@ import { createHash } from "node:crypto";
 
 const routes = [
   { path: "/inicio", heading: "Inicio" },
-  { path: "/mi-aprendizaje", heading: "Mi aprendizaje" },
-  { path: "/catalogo", heading: "Catálogo" },
+  { path: "/mi-aprendizaje", heading: "Plan" },
+  { path: "/catalogo", heading: "Temario" },
   { path: "/curso/data-intelligence-platform-y-arquitectura-lakehouse", heading: "Plataforma" },
   { path: "/simulacro/associate", heading: "Simulacro Associate" },
   { path: "/simulacro/professional", heading: "Simulacro Professional" },
-  { path: "/expediente", heading: "Expediente" },
-  { path: "/ajustes", heading: "Ajustes" },
-  { path: "/certificados/credencial-inexistente", heading: "Verificar certificado" },
+  { path: "/expediente", heading: "Resultados" },
+  { path: "/ajustes", heading: "Mi cuenta" },
+  { path: "/certificados/credencial-inexistente", heading: "Verificar constancia" },
 ] as const;
 
 const publicRoutes = [
-  { path: "/", heading: "Ingeniería de datos que se practica." },
-  { path: "/acerca-de", heading: "Una academia abierta construida como producto real." },
+  { path: "/", heading: "Prepara Databricks Data Engineer Associate y Professional." },
+  { path: "/acerca-de", heading: "Preparación independiente para Data Engineers." },
   { path: "/privacidad", heading: "Tu progreso te pertenece." },
   { path: "/recuperar", heading: "Vuelve a tu aprendizaje." },
   { path: "/terminos", heading: "Aprendizaje independiente, sin promesas engañosas." },
@@ -152,7 +152,7 @@ test("el drawer móvil atrapa y restaura el foco", async ({ page }) => {
   const menu = page.getByRole("button", { name: "Menú" });
   await expect(menu).toBeVisible();
   await menu.click();
-  const drawer = page.getByRole("dialog", { name: "Navegación de la plataforma" });
+  const drawer = page.getByRole("dialog", { name: "Navegación principal" });
   await expect(drawer).toBeVisible();
   await expectWcag22Aa(page);
   await page.keyboard.press("Escape");
@@ -164,10 +164,10 @@ test("la navegación principal completa una carga de documento fiable", async ({
   await page.setViewportSize({ width: 1440, height: 1000 });
   await page.goto("/inicio");
   await waitForWorkspace(page);
-  await page.getByRole("link", { name: "Catálogo", exact: true }).click();
+  await page.getByRole("link", { name: "Temario", exact: true }).click();
   await expect(page).toHaveURL(/\/catalogo$/);
   await waitForWorkspace(page);
-  await expect(page.getByRole("heading", { level: 1, name: "Catálogo" })).toBeVisible();
+  await expect(page.getByRole("heading", { level: 1, name: "Temario" })).toBeVisible();
 });
 
 test("la tarjeta del catálogo abre el curso completo", async ({ page }) => {
@@ -184,7 +184,7 @@ test("la tarjeta del catálogo abre el curso completo", async ({ page }) => {
 test("el catálogo descubre notebooks por temática sin duplicar el progreso", async ({ page }) => {
   await page.goto("/catalogo?view=resources");
   await waitForWorkspace(page);
-  await expect(page.getByRole("tab", { name: /Notebooks/ })).toHaveAttribute("aria-selected", "true");
+  await expect(page.getByRole("tab", { name: /Recursos/ })).toHaveAttribute("aria-selected", "true");
   const resourceCards = page.locator(".ent-resource-card");
   await expect(resourceCards).toHaveCount(36);
   await expect(resourceCards.locator(".ent-resource-card-topline b").filter({ hasText: "Vista interna" })).toHaveCount(19);
@@ -211,13 +211,13 @@ test("el catálogo abre el notebook en el visor lateral mediante un enlace profu
   const before = await (await page.request.get("/api/me/dashboard")).json();
   await page.goto("/catalogo?view=resources");
   await waitForWorkspace(page);
-  await expect(page.getByRole("tab", { name: /Notebooks/ })).toHaveAttribute("aria-selected", "true");
+  await expect(page.getByRole("tab", { name: /Recursos/ })).toHaveAttribute("aria-selected", "true");
   await page.getByRole("searchbox", { name: "Buscar", exact: true }).fill("change-data-feed.ipynb");
   const resourceCard = page.locator(".ent-resource-card").filter({ has: page.getByRole("heading", { name: "change-data-feed.ipynb", exact: true }) });
   await resourceCard.getByRole("link", { name: /Ver notebook/ }).click();
   await expect(page).toHaveURL(/\/curso\/change-data-feed-cdc-auto-cdc-y-scd\?section=resources&resource=delta-cdf/);
   await waitForWorkspace(page);
-  await expect(page.getByRole("tab", { name: /Notebooks/ })).toHaveAttribute("aria-selected", "true");
+  await expect(page.getByRole("tab", { name: /Recursos/ })).toHaveAttribute("aria-selected", "true");
   const viewer = page.locator("dialog#community-preview");
   await expect(viewer).toBeVisible();
   await expect(viewer).toHaveAttribute("open", "");
@@ -357,9 +357,9 @@ test("las cuatro pestañas del curso conservan navegación de teclado", async ({
   const lessons = page.getByRole("tab", { name: /Lecciones/ });
   await lessons.focus();
   await page.keyboard.press("End");
-  const notebooks = page.getByRole("tab", { name: /Notebooks/ });
-  await expect(notebooks).toBeFocused();
-  await expect(notebooks).toHaveAttribute("aria-selected", "true");
+  const resources = page.getByRole("tab", { name: /Recursos/ });
+  await expect(resources).toBeFocused();
+  await expect(resources).toHaveAttribute("aria-selected", "true");
 });
 
 test("la búsqueda global lleva al concepto exacto del temario", async ({ page }) => {
@@ -481,12 +481,57 @@ test("dos identidades autenticadas conservan progreso aislado", async ({ browser
   }
 });
 
+test("el dashboard no expone preferencias de nube ni planificación retirada", async ({ page, baseURL }) => {
+  const response = await page.request.get(`${baseURL}/api/me/dashboard`);
+  expect(response.ok()).toBeTruthy();
+  const dashboard = await response.json();
+  const serialized = JSON.stringify(dashboard);
+  for (const retiredField of [
+    "cloud",
+    "clouds",
+    "weeklyTargetMinutes",
+    "weeklyMinutes",
+    "dueAt",
+    "durationDays",
+    "minutes",
+  ]) {
+    expect(serialized).not.toContain(`"${retiredField}"`);
+  }
+  expect(dashboard).toHaveProperty("preferences.goal");
+  expect(dashboard.preferences).toHaveProperty("onboardingCompleted");
+});
+
+test("las nuevas páginas de certificación y simulacro son públicas sin crear sesión", async ({ browser, baseURL }) => {
+  const context = await browser.newContext({ extraHTTPHeaders: {} });
+  try {
+    const page = await context.newPage();
+    const anonymousRoutes = [
+      { path: "/associate", heading: "Databricks Data Engineer Associate" },
+      { path: "/professional", heading: "Databricks Data Engineer Professional" },
+      { path: "/simulacros", heading: "Simulacros internos Associate y Professional" },
+      { path: "/simulacro/associate", heading: "Databricks Data Engineer Associate" },
+      { path: "/simulacro/professional", heading: "Databricks Data Engineer Professional" },
+    ] as const;
+    for (const route of anonymousRoutes) {
+      const response = await page.goto(`${baseURL}${route.path}`);
+      expect(response?.status()).toBeLessThan(400);
+      await expect(page.locator("main#public-main")).toBeVisible();
+      await expect(page.getByRole("heading", { level: 1, name: route.heading })).toBeVisible();
+      await expect(page.locator("main#main-content")).toHaveCount(0);
+      await expect(page.getByText(/No está afiliado|no equivale al examen oficial/i).first()).toBeVisible();
+      expect((await context.cookies()).some((item) => item.name === "lakehouse_session")).toBe(false);
+    }
+  } finally {
+    await context.close();
+  }
+});
+
 test("un visitante crea un espacio anónimo con una cookie privada", async ({ browser, baseURL }) => {
   const context = await browser.newContext({ extraHTTPHeaders: {} });
   try {
     const page = await context.newPage();
     await page.goto(`${baseURL}/`);
-    await page.getByRole("link", { name: "Explorar el catálogo" }).click();
+    await page.getByRole("link", { name: "Ver temario" }).click();
     await expect(page).toHaveURL(/\/catalogo$/u);
     await expect(page.getByText("Contenido abierto").first()).toBeVisible();
     expect((await context.cookies()).some((item) => item.name === "lakehouse_session")).toBe(false);

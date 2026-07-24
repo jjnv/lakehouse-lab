@@ -759,7 +759,7 @@ test("the public UI exposes resources without adding them to completion math", (
   assert.match(course, /completedLessons\.size\s*\+\s*Number\(progress\?\.labAttested\)/);
   assert.doesNotMatch(course, /Number\([^)]*communityResources/);
   assert.match(catalog, /Módulos/);
-  assert.match(catalog, /Notebooks/);
+  assert.match(catalog, /Recursos/);
   assert.match(catalog, /previewOnly/);
 });
 

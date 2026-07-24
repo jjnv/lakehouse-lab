@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" role="img" aria-labelledby="title">
+  <title>Lakehouse Lab</title>
+  <rect width="128" height="128" rx="24" fill="#20242C"/>
+  <path d="M24 86h67l9 12H33l-9-12Z" fill="#8DB3D1"/>
+  <path d="M32 64h53l9 12H41l-9-12Z" fill="#75B99E"/>
+  <path d="M40 42h39l9 12H49l-9-12Z" fill="#E18880"/>
+  <path d="M34 96 84 44" fill="none" stroke="#FFFFFF" stroke-width="8" stroke-linecap="round"/>
+  <path d="M81 44h16v16" fill="none" stroke="#FFFFFF" stroke-width="8" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>

@@ -13,17 +13,19 @@ export function generateMetadata(): Metadata {
     title: { default: `${PROJECT_NAME} — ${PROJECT_TAGLINE}`, template: `%s · ${PROJECT_NAME}` },
     description: PROJECT_DESCRIPTION,
     applicationName: PROJECT_NAME,
+    alternates: { canonical: "/" },
     robots: { index: true, follow: true },
     openGraph: {
-      title: PROJECT_NAME,
-      description: PROJECT_TAGLINE,
+      title: `${PROJECT_NAME} · Preparación Databricks Data Engineer`,
+      description: PROJECT_DESCRIPTION,
       type: "website",
       siteName: PROJECT_NAME,
       locale: "es_ES",
       images: [{ url: "/og-public.png", width: 1734, height: 907, alt: `${PROJECT_NAME}: ${PROJECT_TAGLINE}` }],
     },
-    twitter: { card: "summary_large_image", title: PROJECT_NAME, description: PROJECT_TAGLINE, images: ["/og-public.png"] },
-    icons: { icon: "/favicon.svg", shortcut: "/favicon.svg" },
+    twitter: { card: "summary_large_image", title: PROJECT_NAME, description: PROJECT_DESCRIPTION, images: ["/og-public.png"] },
+    icons: { icon: "/favicon.svg", shortcut: "/favicon.svg", apple: "/logo-mark.svg" },
+    manifest: "/manifest.webmanifest",
   };
 }
 

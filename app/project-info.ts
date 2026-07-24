@@ -1,7 +1,7 @@
 export const PROJECT_NAME = "Lakehouse Lab";
-export const PROJECT_TAGLINE = "Ruta práctica de ingeniería de datos";
+export const PROJECT_TAGLINE = "Preparación para certificaciones Databricks Data Engineer";
 export const PROJECT_DESCRIPTION =
-  "Proyecto educativo independiente en español con 32 módulos, laboratorios guiados, evaluaciones y progreso persistente.";
+  "Plataforma independiente en español para preparar Databricks Certified Data Engineer Associate y Professional con lecciones, laboratorios y simulacros internos.";
 export const CONTENT_VERSION_LABEL = "2026.07";
 export const CONTENT_REVIEW_DATE = "22 de julio de 2026";
 function optionalHttpsUrl(value: string | undefined) {
@@ -24,7 +24,7 @@ export const PROJECT_PUBLIC_URL = optionalHttpsUrl(
   process.env.NEXT_PUBLIC_SITE_URL,
 ) ?? vercelUrl(process.env.VERCEL_PROJECT_PRODUCTION_URL)
   ?? vercelUrl(process.env.VERCEL_URL)
-  ?? "http://localhost:3000";
+  ?? "https://lakehouse-lab.vercel.app";
 
 export const PROJECT_REPOSITORY_URL = optionalHttpsUrl(
   process.env.NEXT_PUBLIC_PROJECT_REPOSITORY_URL,

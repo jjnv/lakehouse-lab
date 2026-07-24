@@ -37,7 +37,8 @@ test("keeps curriculum reading and curated notebook previews public", async () =
     read("app/api/resources/[resourceId]/preview/route.ts"),
   ]);
   assert.match(rootPage, /const catalogHref = "\/catalogo"/u);
-  assert.match(rootPage, /const notebooksHref = "\/catalogo\?view=resources"/u);
+  assert.match(rootPage, /href="\/associate"/u);
+  assert.match(rootPage, /href="\/simulacros"/u);
   for (const source of [catalogPage, coursePage]) {
     assert.match(source, /getOptionalEnterprisePageContext/u);
     assert.doesNotMatch(source, /requireEnterprisePageContext/u);
@@ -48,7 +49,7 @@ test("keeps curriculum reading and curated notebook previews public", async () =
   }
 });
 
-test("persists onboarding preferences and turns them into a weekly plan", async () => {
+test("persists onboarding preferences without exposing cloud or weekly planning", async () => {
   const [schema, route, service, dashboard, migration] = await Promise.all([
     read("db/schema.ts"),
     read("app/api/me/preferences/route.ts"),
@@ -59,11 +60,16 @@ test("persists onboarding preferences and turns them into a weekly plan", async 
   assert.match(schema, /learnerPreferences/u);
   assert.match(migration, /CREATE TABLE `learner_preferences`/u);
   assert.match(route, /updateLearnerPreferences/u);
-  assert.match(service, /weeklyTargetMinutes/u);
+  assert.match(service, /preferences\.updated/u);
+  assert.match(service, /existing\?\.cloud/u);
+  assert.match(service, /existing\?\.weeklyTargetMinutes/u);
   assert.match(service, /preferences\.updated/u);
   assert.match(dashboard, /PreferencesForm/u);
-  for (const prompt of ["Objetivo", "tiempo tienes por semana", "Entorno principal"]) {
+  for (const prompt of ["objetivo", "Associate", "Professional"]) {
     assert.match(dashboard, new RegExp(prompt, "u"));
+  }
+  for (const retired of ["tiempo tienes por semana", "Entorno principal", "weeklyTargetMinutes", "cloud:"]) {
+    assert.doesNotMatch(dashboard, new RegExp(retired, "u"));
   }
 });
 
@@ -91,7 +97,7 @@ test("exposes public certificate verification without exposing private progress"
   ]);
   assert.match(page, /getPublicCredentialVerification/u);
   assert.doesNotMatch(page, /requireEnterprisePageContext/u);
-  assert.match(view, /Credencial revocada/u);
+  assert.match(view, /Constancia interna revocada/u);
   assert.match(view, /No se pudo verificar/u);
   assert.match(service, /verificationHref: `\/certificados\/\$\{encodeURIComponent\(row\.id\)\}\?code=/u);
   assert.match(service, /eq\(credentials\.verificationCode, verificationCode\)/u);

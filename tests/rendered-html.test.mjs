@@ -29,7 +29,7 @@ test("the compiled v2 client contains the real-route enterprise shell", () => {
   for (const route of ["/inicio", "/mi-aprendizaje", "/catalogo", "/expediente", "/ajustes"]) {
     assert.ok(clientJavaScript.includes(route), `compiled navigation is missing ${route}`);
   }
-  for (const contract of ["Proyecto educativo", "Saltar al contenido", "main-content", "aria-current", "aria-modal"]) {
+  for (const contract of ["Preparación Databricks Data Engineer", "Saltar al contenido", "main-content", "aria-current", "aria-modal"]) {
     assert.ok(clientJavaScript.includes(contract), `compiled shell is missing ${contract}`);
   }
   assert.doesNotMatch(clientJavaScript, /codex-preview/iu);
@@ -69,11 +69,12 @@ test("the compiled UI retains keyboard, announcement and high-contrast affordanc
 
 test("the server bundle contains the complete public launch surface", () => {
   for (const contract of [
-    "Código abierto",
-    "Explorar el catálogo",
-    "Aprende con el proyecto",
+    "Prepara Databricks Data Engineer",
+    "Associate",
+    "Professional",
+    "Simulacros",
     "Condiciones de uso",
-    "Proyecto educativo independiente",
+    "Preparación independiente",
     "og-public.png",
   ]) {
     assert.ok(serverJavaScript.includes(contract), `public launch surface is missing ${contract}`);

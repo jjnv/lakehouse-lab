@@ -1,0 +1,31 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 675" role="img">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#fff6f1"/>
+      <stop offset="1" stop-color="#f2edf8"/>
+    </linearGradient>
+    <linearGradient id="accent" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#f5685d"/>
+      <stop offset="1" stop-color="#7358bd"/>
+    </linearGradient>
+  </defs>
+  <rect width="1200" height="675" rx="42" fill="url(#bg)"/>
+  <path d="M150 504h900" stroke="#ded9d2" stroke-width="6" stroke-linecap="round"/>
+  <path d="M232 458h736" stroke="#ded9d2" stroke-width="5" stroke-linecap="round"/>
+  <g fill="#ffffff" stroke="#2a2431" stroke-width="6">
+    <path d="M230 228h235v232H230z"/>
+    <path d="M482 164h236v296H482z"/>
+    <path d="M735 244h235v216H735z"/>
+  </g>
+  <g stroke-linecap="round" stroke-linejoin="round">
+    <path d="M277 277h140M277 324h112M277 371h148" stroke="#f5685d" stroke-width="12"/>
+    <path d="M533 226h134M533 274h112M533 322h148M533 370h86" stroke="#7358bd" stroke-width="12"/>
+    <path d="M785 296h136M785 344h100M785 392h122" stroke="#3478b7" stroke-width="12"/>
+  </g>
+  <path d="M258 170c96-74 206-78 331-20 108 50 205 48 324-23" fill="none" stroke="url(#accent)" stroke-width="16" stroke-linecap="round"/>
+  <g fill="#2a2431">
+    <rect x="178" y="542" width="210" height="28" rx="14"/>
+    <rect x="428" y="542" width="344" height="28" rx="14" opacity=".78"/>
+    <rect x="812" y="542" width="210" height="28" rx="14" opacity=".62"/>
+  </g>
+</svg>

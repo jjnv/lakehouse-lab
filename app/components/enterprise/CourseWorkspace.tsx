@@ -23,7 +23,7 @@ const sectionLabel: Record<CourseSection, string> = {
   lessons: "Lecciones",
   lab: "Laboratorio",
   quiz: "Evaluación",
-  resources: "Notebooks",
+  resources: "Recursos",
 };
 
 const resourceCoverageLabel: Record<CommunityResourceRecommendationPublic["coverage"], string> = {
@@ -612,7 +612,7 @@ export default function CourseWorkspace({ module, personalized = true, navigatio
             Evaluación
           </button>
           <button type="button" onClick={() => changeSection("resources")}>
-            <span aria-hidden="true">N</span>Notebooks
+            <span aria-hidden="true">R</span>Recursos
           </button>
         </nav>
         {previous ? (
@@ -623,7 +623,7 @@ export default function CourseWorkspace({ module, personalized = true, navigatio
       <article className="ent-course-reader">
         {readOnly ? (
           <div className="ent-preview-notice is-public" role="note">
-            <div><b>Contenido abierto</b><p>Puedes leer todas las lecciones, el laboratorio y los notebooks sin registrarte. Crea un espacio privado únicamente si quieres guardar actividad.</p></div>
+            <div><b>Contenido abierto</b><p>Puedes leer todas las lecciones, el laboratorio y los recursos sin registrarte. Crea un espacio privado únicamente si quieres guardar actividad.</p></div>
             <a className="ent-primary-action" href={`/entrar?return_to=${encodeURIComponent(`/curso/${module.slug}`)}`}>Guardar mi progreso</a>
           </div>
         ) : null}
@@ -639,10 +639,10 @@ export default function CourseWorkspace({ module, personalized = true, navigatio
             </p>
           </div>
         ) : null}
-        <header className="ent-course-header">
+        <header className={`ent-course-header ent-artwork-${module.artwork.tone}`}>
           <div>
             <p className="ent-kicker">
-              {module.level} · {module.minutes} min
+              {module.level}
             </p>
             <h2>{module.title}</h2>
             <p>{module.description}</p>
@@ -724,7 +724,6 @@ export default function CourseWorkspace({ module, personalized = true, navigatio
                     <small>{lesson.kicker}</small>
                     <h3>{lesson.title}</h3>
                     <p>{lesson.summary}</p>
-                    <small>{Math.max(10, Math.round(module.minutes * 0.65 / module.lessons.length / 5) * 5)} min de lectura y práctica</small>
                   </div>
                   <i aria-hidden="true">+</i>
                 </summary>
@@ -1017,10 +1016,10 @@ export default function CourseWorkspace({ module, personalized = true, navigatio
             <header className="ent-community-intro">
               <div>
                 <p className="ent-kicker">Práctica complementaria · fuentes externas</p>
-                <h2>Notebooks para este módulo</h2>
-                <p>Estas recomendaciones amplían el laboratorio propio. Consultarlas no modifica el progreso, la evaluación ni el certificado.</p>
+                <h2>Recursos para este módulo</h2>
+                <p>Estas recomendaciones amplían el laboratorio propio. Consultarlas no modifica el progreso ni la evaluación interna.</p>
               </div>
-              <a href="/catalogo?view=resources">Explorar todas las temáticas →</a>
+              <a href="/catalogo?view=resources">Explorar recursos →</a>
             </header>
 
             <div className="ent-community-list">
@@ -1044,7 +1043,6 @@ export default function CourseWorkspace({ module, personalized = true, navigatio
                     <span>{resourceDifficultyLabel[resource.difficulty]}</span>
                     <span>{resource.format}</span>
                     <span>{resource.languages.join(" · ")}</span>
-                    <span>{resource.clouds.join(" · ")}</span>
                     <span className={resource.licenseStatus === "unknown" ? "is-warning" : ""}>{resource.licenseEvidenceHref ? <a href={resource.licenseEvidenceHref} target="_blank" rel="noreferrer">{resource.license}</a> : resource.licenseStatus === "unknown" ? "Licencia no verificada" : resource.license}</span>
                   </div>
                   <div className="ent-community-concepts">{resource.concepts.map((concept) => <span key={concept}>{concept}</span>)}</div>

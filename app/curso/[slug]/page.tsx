@@ -1,8 +1,25 @@
 import { notFound } from "next/navigation";
+import type { Metadata } from "next";
 import AppShell from "../../components/enterprise/AppShell";
 import CourseWorkspace from "../../components/enterprise/CourseWorkspace";
 import { getOptionalEnterprisePageContext } from "../../components/enterprise/getShellContext";
 import { findModuleBySlug, moduleSummaries, publicModule } from "../../enterprise/curriculum";
+
+export async function generateMetadata({ params }: { params: Promise<{ slug: string }> }): Promise<Metadata> {
+  const { slug } = await params;
+  const courseModule = findModuleBySlug(slug);
+  if (!courseModule) return {};
+  return {
+    title: courseModule.title,
+    description: courseModule.description,
+    alternates: { canonical: `/curso/${courseModule.slug}` },
+    openGraph: {
+      title: `${courseModule.title} · Lakehouse Lab`,
+      description: courseModule.description,
+      url: `/curso/${courseModule.slug}`,
+    },
+  };
+}
 
 export default async function CursoPage({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params;

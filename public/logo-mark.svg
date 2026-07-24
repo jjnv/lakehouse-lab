@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" role="img" aria-labelledby="title desc">
+  <title>Lakehouse Lab</title>
+  <desc>Capas lakehouse con una ruta ascendente de progreso.</desc>
+  <rect width="128" height="128" rx="24" fill="#F7F4ED"/>
+  <path d="M24 86h67l9 12H33l-9-12Z" fill="#385D7A"/>
+  <path d="M32 64h53l9 12H41l-9-12Z" fill="#2E7D62"/>
+  <path d="M40 42h39l9 12H49l-9-12Z" fill="#B94740"/>
+  <path d="M34 96 84 44" fill="none" stroke="#20242C" stroke-width="8" stroke-linecap="round"/>
+  <path d="M81 44h16v16" fill="none" stroke="#20242C" stroke-width="8" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M38 31v33M51 31v22M67 31v18M80 31v18" stroke="#20242C" stroke-width="5" stroke-linecap="round"/>
+</svg>

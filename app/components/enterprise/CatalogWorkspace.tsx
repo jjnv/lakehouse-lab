@@ -43,7 +43,6 @@ export default function CatalogWorkspace({ modules, resources, personalized = tr
   const [level, setLevel] = useState("all");
   const [status, setStatus] = useState<StatusFilter>("all");
   const [difficulty, setDifficulty] = useState("all");
-  const [cloud, setCloud] = useState("all");
   const [format, setFormat] = useState("all");
   const [previewOnly, setPreviewOnly] = useState(false);
   const [locationReady, setLocationReady] = useState(false);
@@ -59,7 +58,6 @@ export default function CatalogWorkspace({ modules, resources, personalized = tr
       setLevel(params.get("level") ?? "all");
       setStatus((params.get("status") as StatusFilter | null) ?? "all");
       setDifficulty(params.get("difficulty") ?? "all");
-      setCloud(params.get("cloud") ?? "all");
       setFormat(params.get("format") ?? "all");
       setPreviewOnly(params.get("preview") === "1");
       setLocationReady(true);
@@ -84,10 +82,9 @@ export default function CatalogWorkspace({ modules, resources, personalized = tr
     return (!normalized || searchable.includes(normalized))
       && (phase === "all" || resource.relatedModules.some((module) => module.phaseId === phase))
       && (difficulty === "all" || resource.difficulty === difficulty)
-      && (cloud === "all" || resource.clouds.includes(cloud))
       && (format === "all" || resource.format === format)
       && (!previewOnly || resource.previewAvailable);
-  }), [cloud, difficulty, format, normalized, phase, previewOnly, resources]);
+  }), [difficulty, format, normalized, phase, previewOnly, resources]);
 
   function updateLocation(next: Partial<{
     view: CatalogView;
@@ -96,18 +93,16 @@ export default function CatalogWorkspace({ modules, resources, personalized = tr
     level: string;
     status: StatusFilter;
     difficulty: string;
-    cloud: string;
     format: string;
     previewOnly: boolean;
   }>, push = true) {
-    const snapshot = { view, search, phase, level, status, difficulty, cloud, format, previewOnly, ...next };
+    const snapshot = { view, search, phase, level, status, difficulty, format, previewOnly, ...next };
     if (next.view !== undefined) setView(next.view);
     if (next.search !== undefined) setSearch(next.search);
     if (next.phase !== undefined) setPhase(next.phase);
     if (next.level !== undefined) setLevel(next.level);
     if (next.status !== undefined) setStatus(next.status);
     if (next.difficulty !== undefined) setDifficulty(next.difficulty);
-    if (next.cloud !== undefined) setCloud(next.cloud);
     if (next.format !== undefined) setFormat(next.format);
     if (next.previewOnly !== undefined) setPreviewOnly(next.previewOnly);
     const params = new URLSearchParams(window.location.search);
@@ -119,7 +114,6 @@ export default function CatalogWorkspace({ modules, resources, personalized = tr
       ["level", snapshot.level === "all" ? "" : snapshot.level],
       ["status", snapshot.status === "all" ? "" : snapshot.status],
       ["difficulty", snapshot.difficulty === "all" ? "" : snapshot.difficulty],
-      ["cloud", snapshot.cloud === "all" ? "" : snapshot.cloud],
       ["format", snapshot.format === "all" ? "" : snapshot.format],
       ["preview", snapshot.previewOnly ? "1" : ""],
     ] as const;
@@ -131,26 +125,25 @@ export default function CatalogWorkspace({ modules, resources, personalized = tr
   }
 
   function clearFilters() {
-    updateLocation({ search: "", phase: "all", level: "all", status: "all", difficulty: "all", cloud: "all", format: "all", previewOnly: false });
+    updateLocation({ search: "", phase: "all", level: "all", status: "all", difficulty: "all", format: "all", previewOnly: false });
   }
 
   const phases = [...new Map(modules.map((module) => [module.phaseId, module.phase])).entries()];
-  const clouds = [...new Set(resources.flatMap((resource) => resource.clouds))].sort((left, right) => left.localeCompare(right, "es"));
 
   return (
     <div className="ent-page-stack">
       <section className="ent-page-intro" aria-labelledby="catalog-heading">
         <div>
-          <p className="ent-kicker">32 módulos · 96 recomendaciones curadas</p>
+          <p className="ent-kicker">Temario de preparación</p>
           <h2 id="catalog-heading">{view === "modules" ? "Encuentra tu siguiente módulo" : "Explora recursos para practicar"}</h2>
-          <p>{view === "modules" ? "Busca por tema o fase. Cada módulo incluye tres recursos comunitarios para ampliar la práctica." : "Explora notebooks y proyectos por temática. Los recursos son complementarios y no modifican tu progreso."}</p>
+          <p>{view === "modules" ? "Busca por nivel, dominio o fase. Cada módulo conecta con objetivos Associate o Professional." : "Explora notebooks y proyectos por temática. Los recursos son complementarios y no modifican tu progreso."}</p>
         </div>
         {personalized && state.dashboard ? <SaveState value={state.saveState} onRetry={state.refresh} /> : <a className="ent-primary-action" href="/entrar?return_to=%2Fcatalogo">Crear espacio para guardar</a>}
       </section>
 
       <div className="ent-catalog-switch" role="tablist" aria-label="Vista del catálogo" aria-busy={!locationReady} inert={!locationReady ? true : undefined}>
         <button type="button" role="tab" aria-selected={view === "modules"} onClick={() => updateLocation({ view: "modules" })}>Módulos <span>32</span></button>
-        <button type="button" role="tab" aria-selected={view === "resources"} onClick={() => updateLocation({ view: "resources" })}>Notebooks <span>{resources.length}</span></button>
+        <button type="button" role="tab" aria-selected={view === "resources"} onClick={() => updateLocation({ view: "resources" })}>Recursos <span>{resources.length}</span></button>
       </div>
 
       <section className={`ent-catalog-filters ${view === "resources" ? "is-resources" : ""}`} aria-label={`Filtros de ${view === "modules" ? "módulos" : "notebooks"}`} aria-busy={!locationReady} inert={!locationReady ? true : undefined}>
@@ -164,7 +157,6 @@ export default function CatalogWorkspace({ modules, resources, personalized = tr
         ) : (
           <>
             <label><span>Dificultad</span><select value={difficulty} onChange={(event) => updateLocation({ difficulty: event.target.value })}><option value="all">Todas</option><option value="beginner">Inicial</option><option value="intermediate">Intermedio</option><option value="advanced">Avanzado</option></select></label>
-            <label><span>Cloud</span><select value={cloud} onChange={(event) => updateLocation({ cloud: event.target.value })}><option value="all">Todos</option>{clouds.map((item) => <option key={item} value={item}>{item}</option>)}</select></label>
             <label><span>Formato</span><select value={format} onChange={(event) => updateLocation({ format: event.target.value })}><option value="all">Todos</option>{Object.entries(formatLabel).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label>
             <label className="ent-preview-filter"><input type="checkbox" checked={previewOnly} onChange={(event) => updateLocation({ previewOnly: event.target.checked })} /><span>Con vista interna</span></label>
           </>
@@ -178,7 +170,7 @@ export default function CatalogWorkspace({ modules, resources, personalized = tr
           const units = (progress?.completedLessonIds.length ?? 0) + Number(Boolean(progress?.labAttested)) + Number(progress?.quizBestPercent !== null && progress?.quizBestPercent !== undefined);
           const percent = Math.round(units / 7 * 100);
           const action = !personalized ? "Leer" : progress?.unlocked === false ? "Previsualizar" : percent ? "Continuar" : "Abrir";
-          return <article key={module.id} className={`ent-catalog-card ${progress?.completed ? "is-complete" : ""}`}><div className="ent-card-topline"><span>{module.number} · {module.phase}</span><small>{module.minutes} min</small></div><p>{module.level}</p><h2><a className="ent-card-title-link" href={`/curso/${module.slug}`} aria-label={`${action}: ${module.title}`}>{module.title}</a></h2><p>{module.description}</p><div className="ent-card-tags"><span>5 lecciones</span><span>Laboratorio</span><span>{module.resourceCount} notebooks</span></div><div className="ent-catalog-card-footer"><div><span>{!personalized ? "Contenido abierto" : progress?.unlocked === false ? "Vista previa" : progress?.completed ? "Superado" : `${percent}% completado`}</span>{personalized ? <div className="ent-progress" role="progressbar" aria-label={`Progreso de ${module.title}`} aria-valuemin={0} aria-valuemax={100} aria-valuenow={percent}><i style={{ width: `${percent}%` }} /></div> : null}</div><span className="ent-catalog-card-action">{action}<span aria-hidden="true">→</span></span></div></article>;
+          return <article key={module.id} className={`ent-catalog-card ent-artwork-${module.artwork.tone} ${progress?.completed ? "is-complete" : ""}`}><div className="ent-card-topline"><span>{module.number} · {module.phase}</span><small>{module.level}</small></div><h2><a className="ent-card-title-link" href={`/curso/${module.slug}`} aria-label={`${action}: ${module.title}`}>{module.title}</a></h2><p>{module.description}</p><div className="ent-card-tags"><span>5 lecciones</span><span>Laboratorio</span><span>{module.resourceCount} recursos</span></div><div className="ent-catalog-card-footer"><div><span>{!personalized ? "Contenido abierto" : progress?.unlocked === false ? "Vista previa" : progress?.completed ? "Superado" : `${percent}% completado`}</span>{personalized ? <div className="ent-progress" role="progressbar" aria-label={`Progreso de ${module.title}`} aria-valuemin={0} aria-valuemax={100} aria-valuenow={percent}><i style={{ width: `${percent}%` }} /></div> : null}</div><span className="ent-catalog-card-action">{action}<span aria-hidden="true">→</span></span></div></article>;
         })}</div> : <EmptyState onClear={clearFilters} />
       ) : (
         filteredResources.length ? <div className="ent-resource-grid">{filteredResources.map((resource) => {
@@ -194,7 +186,6 @@ export default function CatalogWorkspace({ modules, resources, personalized = tr
               <div className="ent-resource-badges">
                 <span>{difficultyLabel[resource.difficulty]}</span>
                 <span>{formatLabel[resource.format]}</span>
-                <span>{resource.clouds.join(" · ")}</span>
                 <span className={resource.licenseStatus === "unknown" ? "is-warning" : ""}>{resource.licenseEvidenceHref ? <a href={resource.licenseEvidenceHref} target="_blank" rel="noreferrer">{resource.license}</a> : resource.licenseStatus === "unknown" ? "Licencia no verificada" : resource.license}</span>
               </div>
               <div className="ent-resource-concepts">{resource.concepts.slice(0, 4).map((concept) => <span key={concept}>{concept}</span>)}</div>
@@ -218,5 +209,5 @@ export default function CatalogWorkspace({ modules, resources, personalized = tr
 }
 
 function EmptyState({ onClear }: { onClear: () => void }) {
-  return <div className="ent-empty"><strong>No hay coincidencias</strong><p>Prueba con menos filtros o un término más general.</p><button type="button" className="ent-secondary-action" onClick={onClear}>Limpiar filtros</button></div>;
+  return <div className="ent-empty"><strong>No hay coincidencias</strong><p>Amplía nivel, dominio o formato para ver más resultados.</p><button type="button" className="ent-secondary-action" onClick={onClear}>Limpiar filtros</button></div>;
 }

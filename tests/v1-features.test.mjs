@@ -51,10 +51,10 @@ const protectedRouteContracts = [
   ["app/mi-aprendizaje/page.tsx", "/mi-aprendizaje"],
   ["app/expediente/page.tsx", "/expediente"],
   ["app/ajustes/page.tsx", "/ajustes"],
-  ["app/simulacro/[mode]/page.tsx", "/simulacro/"],
 ];
 const routeContracts = [
   ...protectedRouteContracts,
+  ["app/simulacro/[mode]/page.tsx", "/simulacro/"],
   ["app/catalogo/page.tsx", "/catalogo"],
   ["app/curso/[slug]/page.tsx", "/curso/"],
   ["app/certificados/[id]/page.tsx", "/certificados/"],
@@ -101,6 +101,9 @@ test("protects private pages while exposing hybrid learning and public credentia
   }
   assert.match(routeSources["app/certificados/[id]/page.tsx"], /getPublicCredentialVerification\(/u);
   assert.match(routeSources["app/certificados/[id]/page.tsx"], /publicMode/u);
+  assert.match(routeSources["app/simulacro/[mode]/page.tsx"], /getOptionalEnterprisePageContext\(/u);
+  assert.match(routeSources["app/simulacro/[mode]/page.tsx"], /<PublicShell\b/u);
+  assert.match(routeSources["app/simulacro/[mode]/page.tsx"], /<SimulatorWorkspace mode=\{mode\}/u);
 
   const shellContext = sources["app/components/enterprise/getShellContext.ts"];
   assert.ok(shellContext.indexOf("await requireLearner(returnTo)") < shellContext.indexOf("await getOrganizationBranding"));

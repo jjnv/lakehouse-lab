@@ -22,9 +22,9 @@ type AppShellProps = {
 
 const primaryNavigation: Array<{ href: string; label: string; short: string; area: EnterpriseArea }> = [
   { href: "/inicio", label: "Inicio", short: "IN", area: "home" },
-  { href: "/mi-aprendizaje", label: "Mi aprendizaje", short: "AP", area: "learning" },
-  { href: "/catalogo", label: "Catálogo", short: "CA", area: "catalog" },
-  { href: "/expediente", label: "Expediente", short: "EX", area: "record" },
+  { href: "/mi-aprendizaje", label: "Plan", short: "PL", area: "learning" },
+  { href: "/catalogo", label: "Temario", short: "TE", area: "catalog" },
+  { href: "/expediente", label: "Resultados", short: "RE", area: "record" },
 ];
 let lastClientPath: string | null = null;
 
@@ -109,8 +109,10 @@ export default function AppShell({ active, title, eyebrow = "Lakehouse Lab", chi
   const brandHref = publicMode ? "/" : "/inicio";
   const navigation = publicMode
     ? [
-        { href: "/catalogo", label: "Módulos", short: "MO", area: "catalog" as const },
-        { href: "/catalogo?view=resources", label: "Notebooks", short: "NB", area: "catalog" as const },
+        { href: "/associate", label: "Associate", short: "AS", area: "catalog" as const },
+        { href: "/professional", label: "Professional", short: "PR", area: "catalog" as const },
+        { href: "/catalogo", label: "Temario", short: "TE", area: "catalog" as const },
+        { href: "/simulacros", label: "Simulacros", short: "SI", area: "catalog" as const },
       ]
     : primaryNavigation;
 
@@ -135,7 +137,7 @@ export default function AppShell({ active, title, eyebrow = "Lakehouse Lab", chi
         ref={drawerRef}
         id="enterprise-navigation"
         className={`ent-rail ${drawerOpen ? "is-open" : ""}`}
-        aria-label="Navegación de la plataforma"
+        aria-label="Navegación principal"
         aria-hidden={mobileNavigation && !drawerOpen ? true : undefined}
         aria-modal={drawerOpen && mobileNavigation ? true : undefined}
         inert={mobileNavigation && !drawerOpen ? true : undefined}
@@ -157,7 +159,7 @@ export default function AppShell({ active, title, eyebrow = "Lakehouse Lab", chi
         ) : (
           <div className="ent-tenant">
             <span aria-hidden="true">{organizationInitials}</span>
-            <div><small>Organización</small><b>{brand.organizationName}</b></div>
+            <div><small>Mi preparación</small><b>{brand.organizationName}</b></div>
           </div>
         )}
 
@@ -174,7 +176,7 @@ export default function AppShell({ active, title, eyebrow = "Lakehouse Lab", chi
           {publicMode ? (
             <a href="/entrar?return_to=%2Finicio" onClick={() => closeDrawer(false)}><span aria-hidden="true">＋</span>Crear espacio personal</a>
           ) : (
-            <a href="/ajustes" aria-current={active === "settings" ? "page" : undefined} onClick={() => closeDrawer(false)}><span aria-hidden="true">AJ</span>Ajustes</a>
+            <a href="/ajustes" aria-current={active === "settings" ? "page" : undefined} onClick={() => closeDrawer(false)}><span aria-hidden="true">CU</span>Mi cuenta</a>
           )}
           {/* A document navigation intentionally resets the private workspace state. */}
           {/* eslint-disable-next-line @next/next/no-html-link-for-pages */}
@@ -194,7 +196,7 @@ export default function AppShell({ active, title, eyebrow = "Lakehouse Lab", chi
         <header className="ent-topbar">
           <div className="ent-topbar-title"><span>{eyebrow}</span><h1>{title}</h1></div>
           <CurriculumSearch />
-          <a href={publicMode ? "/entrar?return_to=%2Finicio" : "/ajustes"} className="ent-topbar-account" aria-label={publicMode ? "Crear un espacio personal" : "Abrir ajustes del espacio"}><span aria-hidden="true">{publicMode ? "＋" : accountLabel.slice(0, 2).toLocaleUpperCase("es")}</span><b>{publicMode ? "Guardar progreso" : accountLabel}</b></a>
+          <a href={publicMode ? "/entrar?return_to=%2Finicio" : "/ajustes"} className="ent-topbar-account" aria-label={publicMode ? "Crear un espacio personal" : "Abrir mi cuenta"}><span aria-hidden="true">{publicMode ? "＋" : accountLabel.slice(0, 2).toLocaleUpperCase("es")}</span><b>{publicMode ? "Guardar progreso" : accountLabel}</b></a>
         </header>
         <main id="main-content" className="ent-main" tabIndex={-1}>{children}</main>
       </div>

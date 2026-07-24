@@ -21,11 +21,7 @@ export type ProgramEnrollment = {
   programId: "professional-v1";
   contentVersion: string;
   startedAt: string;
-  dueAt: string;
-  durationDays: 140;
-  weeklyTargetMinutes: number;
   status: "not_started" | "in_progress" | "completed";
-  overdue: boolean;
   completionPolicy: {
     requiredModules: 32;
     lessonsPerModule: 5;
@@ -53,16 +49,56 @@ export type ModuleSummary = {
   phase: string;
   phaseId: string;
   level: string;
-  minutes: number;
   prerequisiteIds: string[];
   resourceCount: number;
   resourceConcepts: string[];
+  artwork: ModuleArtwork;
 };
+
+export type ModuleArtwork = {
+  src: string;
+  alt: string;
+  tone: "coral" | "blue" | "purple" | "gold" | "green" | "ink";
+  motif: ModuleArtworkMotif;
+  label: string;
+};
+
+export type ModuleArtworkMotif =
+  | "platform"
+  | "compute"
+  | "notebooks"
+  | "dataframes"
+  | "spark"
+  | "delta"
+  | "medallion"
+  | "batch-ingest"
+  | "auto-loader"
+  | "jobs"
+  | "unity-cicd"
+  | "associate-project"
+  | "streaming"
+  | "stateful"
+  | "kafka"
+  | "cdc"
+  | "streaming-project"
+  | "declarative-pipelines"
+  | "expectations"
+  | "repairs"
+  | "alerts"
+  | "pipeline-project"
+  | "spark-tuning"
+  | "delta-tuning"
+  | "finops"
+  | "observability"
+  | "reliability"
+  | "python-tests"
+  | "bundles"
+  | "privacy"
+  | "sharing"
+  | "professional-capstone";
 
 export type LearnerPreferences = {
   goal: "associate" | "professional" | "topics";
-  weeklyTargetMinutes: number;
-  cloud: "multicloud" | "azure" | "aws" | "gcp" | "free-edition";
   onboardingCompleted: boolean;
   updatedAt: string | null;
 };
@@ -99,7 +135,6 @@ export type CommunityResourcePublic = {
   licenseEvidenceHref: string | null;
   format: CommunityResourceFormat;
   languages: string[];
-  clouds: string[];
   difficulty: CommunityResourceDifficulty;
   runtimeNotes: string;
   freeEdition: "supported" | "partial" | "unsupported" | "unknown";
@@ -269,7 +304,6 @@ export type LearnerDashboard = {
   reviews: ReviewSchedulePublic[];
   motivation: PersonalMotivation;
   bestSimulatorScores: { associate: number | null; professional: number | null };
-  weeklyMinutes: number;
   nextActivity: {
     kind: "lesson" | "review" | "lab" | "quiz" | "associate_simulator" | "professional_simulator" | "certificate";
     moduleId: string | null;

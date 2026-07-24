@@ -2,11 +2,11 @@ import type { BrandConfig, BrandValidationIssue, BrandValidationResult } from ".
 
 export const DEFAULT_BRAND_CONFIG: BrandConfig = Object.freeze({
   organizationName: "Lakehouse Lab",
-  productName: "Proyecto educativo",
-  logoUrl: null,
-  logoAlt: null,
-  primaryColor: "#694BB5",
-  accentColor: "#B94740",
+  productName: "Preparación Databricks Data Engineer",
+  logoUrl: "/logo-mark.svg",
+  logoAlt: "Lakehouse Lab",
+  primaryColor: "#385D7A",
+  accentColor: "#2E7D62",
   supportUrl: null,
   privacyUrl: null,
 });

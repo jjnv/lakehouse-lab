@@ -48,6 +48,7 @@ Los perfiles ejecutables están en `.codex/agents/`.
 | `data_persistence` | Drizzle, Turso, consultas y migraciones |
 | `security_privacy` | Sesiones, autorización, exposición y privacidad |
 | `curriculum_assessments` | Lecciones, laboratorios, preguntas y versión editorial |
+| `graphic_design` | Logos, miniaturas, imágenes de curso y assets visuales |
 | `quality_engineering` | Estrategia de pruebas y regresiones |
 | `release_performance` | Build, Vercel, rendimiento y rollback |
 
@@ -81,6 +82,8 @@ no reescriben el trabajo del propietario.
   `security_privacy`.
 - Lección, laboratorio, banco de preguntas o versión editorial:
   `curriculum_assessments`.
+- Logo, miniatura, imagen de curso, iconografía o asset visual:
+  `graphic_design`.
 - Pruebas o regresiones: `quality_engineering`.
 - Build, despliegue, variables, latencia o rollback:
   `release_performance`.

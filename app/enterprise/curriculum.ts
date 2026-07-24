@@ -13,6 +13,8 @@ import type {
   CommunityResourcePublic,
   CommunityResourceRecommendationPublic,
   CurriculumSearchResult,
+  ModuleArtwork,
+  ModuleArtworkMotif,
   ModuleSummary,
 } from "./contracts";
 import { conceptAnchor } from "./search-anchor";
@@ -28,6 +30,90 @@ export const LEARNING_PHASES = [
 
 const phaseByTrack = new Map(LEARNING_PHASES.map((phase) => [phase.track, phase]));
 
+const artworkByTrack: Record<CurriculumModule["track"], Omit<ModuleArtwork, "alt" | "motif" | "label"> & { concept: string }> = {
+  core: {
+    src: "/module-artwork/fundamentos-lakehouse.svg",
+    tone: "coral",
+    concept: "arquitectura lakehouse, almacenamiento y compute",
+  },
+  streaming: {
+    src: "/module-artwork/streaming-cdc.svg",
+    tone: "blue",
+    concept: "flujos streaming, CDC y estado",
+  },
+  pipelines: {
+    src: "/module-artwork/pipelines-orquestacion.svg",
+    tone: "purple",
+    concept: "pipelines, orquestacion y calidad",
+  },
+  performance: {
+    src: "/module-artwork/rendimiento-finops.svg",
+    tone: "gold",
+    concept: "rendimiento, observabilidad y costes",
+  },
+  delivery: {
+    src: "/module-artwork/entrega-gobierno.svg",
+    tone: "green",
+    concept: "gobierno, seguridad y entrega",
+  },
+  final: {
+    src: "/module-artwork/capstone-professional.svg",
+    tone: "ink",
+    concept: "capstone Professional y convergencia",
+  },
+};
+
+const artworkByModule: Record<string, { motif: ModuleArtworkMotif; label: string; concept: string }> = {
+  m01: { motif: "platform", label: "Arquitectura", concept: "plataforma lakehouse, almacenamiento y compute" },
+  m02: { motif: "compute", label: "Compute", concept: "compute clasico, serverless y SQL warehouses" },
+  m03: { motif: "notebooks", label: "Notebooks", concept: "notebooks, SQL, Python y PySpark" },
+  m04: { motif: "dataframes", label: "DataFrames", concept: "DataFrames, transformaciones y datos complejos" },
+  m05: { motif: "spark", label: "Spark", concept: "Catalyst, particiones, joins y shuffles" },
+  m06: { motif: "delta", label: "Delta Lake", concept: "Delta Lake, ACID, historial y DML" },
+  m07: { motif: "medallion", label: "Medallion", concept: "arquitectura medallion, calidad y modelado" },
+  m08: { motif: "batch-ingest", label: "Batch", concept: "ingesta batch, formatos, COPY INTO, JDBC y REST" },
+  m09: { motif: "auto-loader", label: "Auto Loader", concept: "Auto Loader y Lakeflow Connect" },
+  m10: { motif: "jobs", label: "Jobs", concept: "Lakeflow Jobs, DAG, tareas y triggers" },
+  m11: { motif: "unity-cicd", label: "Gobierno", concept: "Unity Catalog, Git folders y CI/CD esencial" },
+  m12: { motif: "associate-project", label: "Hito Associate", concept: "proyecto Associate y simulacro interno" },
+  m13: { motif: "streaming", label: "Streaming", concept: "Structured Streaming, triggers y checkpoints" },
+  m14: { motif: "stateful", label: "Estado", concept: "estado, ventanas, watermarks y datos tardios" },
+  m15: { motif: "kafka", label: "Eventos", concept: "Kafka, buses de eventos y garantias de entrega" },
+  m16: { motif: "cdc", label: "CDC", concept: "Change Data Feed, CDC, AUTO CDC y SCD" },
+  m17: { motif: "streaming-project", label: "SLA streaming", concept: "proyecto de streaming con SLA" },
+  m18: { motif: "declarative-pipelines", label: "Declarativo", concept: "Spark Declarative Pipelines en Lakeflow" },
+  m19: { motif: "expectations", label: "Calidad", concept: "expectations, cuarentena y event logs" },
+  m20: { motif: "repairs", label: "Repairs", concept: "Lakeflow Jobs avanzado, control flow y repairs" },
+  m21: { motif: "alerts", label: "Operacion", concept: "triggers, alertas, backfills y operacion" },
+  m22: { motif: "pipeline-project", label: "Proyecto pipelines", concept: "proyecto de pipeline declarativo" },
+  m23: { motif: "spark-tuning", label: "Tuning Spark", concept: "tuning avanzado de Spark" },
+  m24: { motif: "delta-tuning", label: "Tuning Delta", concept: "Photon, data skipping y liquid clustering" },
+  m25: { motif: "finops", label: "FinOps", concept: "compute, politicas, etiquetas y costes" },
+  m26: { motif: "observability", label: "Observabilidad", concept: "Spark UI, Query Profile y system tables" },
+  m27: { motif: "reliability", label: "Fiabilidad", concept: "proyecto de fiabilidad y coste" },
+  m28: { motif: "python-tests", label: "Pruebas", concept: "proyectos Python, dependencias y pruebas" },
+  m29: { motif: "bundles", label: "Bundles", concept: "Declarative Automation Bundles y CI/CD" },
+  m30: { motif: "privacy", label: "Privacidad", concept: "Unity Catalog avanzado y privacidad" },
+  m31: { motif: "sharing", label: "Federation", concept: "OpenSharing y Federation" },
+  m32: { motif: "professional-capstone", label: "Hito Professional", concept: "proyecto Professional y simulacro interno" },
+};
+
+export function artworkForModule(module: Pick<CurriculumModule, "id" | "track" | "title" | "number">): ModuleArtwork {
+  const artwork = artworkByTrack[module.track];
+  const moduleArtwork = artworkByModule[module.id] ?? {
+    motif: artwork.tone === "ink" ? "professional-capstone" : "platform",
+    label: module.title,
+    concept: artwork.concept,
+  };
+  return {
+    src: artwork.src,
+    tone: artwork.tone,
+    motif: moduleArtwork.motif,
+    label: moduleArtwork.label,
+    alt: `Ilustracion editorial sobre ${moduleArtwork.concept} para el modulo ${module.number}: ${module.title}.`,
+  };
+}
+
 export type PublicLesson = Omit<CurriculumModule["lessons"][number], "checkpoint"> & {
   checkpoint: { question: string; answer: string };
 };
@@ -36,7 +122,8 @@ export type PublicLab = Omit<CurriculumModule["lab"], "checks"> & {
   checks: Array<{ id: string; label: string }>;
 };
 
-export type PublicModule = Omit<CurriculumModule, "quiz" | "lab" | "lessons"> & {
+export type PublicModule = Omit<CurriculumModule, "quiz" | "lab" | "lessons" | "minutes"> & {
+  artwork: ModuleArtwork;
   lessons: PublicLesson[];
   lab: PublicLab;
   quiz: Array<{ id: string; prompt: string; options: string[]; domain: string }>;
@@ -57,10 +144,10 @@ export function moduleSummaries(): ModuleSummary[] {
       phase: phase.name,
       phaseId: phase.id,
       level: module.level,
-      minutes: module.minutes,
       prerequisiteIds: [...module.prerequisites],
       resourceCount: resources.length,
       resourceConcepts: [...new Set(resources.flatMap((resource) => resource.concepts))],
+      artwork: artworkForModule(module),
     };
   });
 }
@@ -87,7 +174,6 @@ function publicCommunityResource(item: ExpandedCommunityRecommendation): Communi
       : null,
     format: artifact.format,
     languages: [...artifact.languages],
-    clouds: [...artifact.clouds],
     difficulty: artifact.difficulty,
     runtimeNotes: artifact.runtimeNotes,
     freeEdition: artifact.freeEdition,
@@ -291,11 +377,11 @@ export function publicModule(module: CurriculumModule): PublicModule {
     kind: module.kind,
     track: module.track,
     level: module.level,
-    minutes: module.minutes,
     description: module.description,
     outcomes: [...module.outcomes],
     examDomains: [...module.examDomains],
     prerequisites: [...module.prerequisites],
+    artwork: artworkForModule(module),
     sources: module.sources.map((source) => ({ ...source })),
     communityResources: recommendationsForModule(module.id).map(publicCommunityRecommendation),
     lessons: module.lessons.map((lesson) => ({

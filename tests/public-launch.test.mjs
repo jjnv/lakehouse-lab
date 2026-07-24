@@ -11,9 +11,10 @@ test("the root is a public landing page instead of a protected redirect", () => 
   assert.doesNotMatch(rootPage, /redirect\s*\(\s*["']\/inicio/);
   assert.doesNotMatch(rootPage, /requireLearner|requireEnterprisePageContext/);
   assert.match(rootPage, /getSessionUser\(\)/);
-  assert.match(rootPage, /Explorar el catálogo/);
+  assert.match(rootPage, /Prepara Databricks Data Engineer/u);
+  assert.match(rootPage, /Ver temario/u);
   assert.doesNotMatch(rootPage, /Explorar la demo|Beta pública/);
-  assert.match(rootPage, /Código abierto|proyecto independiente/i);
+  assert.match(rootPage, /Lakehouse Lab no está afiliado ni avalado por Databricks|proyecto independiente/i);
 });
 
 test("the legacy demo redirects while public, recovery and legal pages remain anonymous-compatible", () => {

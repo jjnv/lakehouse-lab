@@ -1,4 +1,4 @@
-import { and, count, desc, eq, gte, inArray, sql } from "drizzle-orm";
+import { and, count, desc, eq, inArray, sql } from "drizzle-orm";
 import { PDFDocument, StandardFonts, rgb, type PDFFont } from "pdf-lib";
 import { getDb } from "../../db";
 import {
@@ -23,6 +23,7 @@ import { buildExamQuestions, modules, trackMeta, type QuizQuestion } from "../co
 import { recommendationsForModule } from "../curriculum/community-resources";
 import { badgeCatalog } from "../gamification";
 import { CONTENT_VERSION, sanitizeProgress, type ReviewRating } from "../progress";
+import { artworkForModule } from "./curriculum";
 import {
   createAssessmentAttempt,
   type AssessmentAttempt,
@@ -493,7 +494,6 @@ function publicCredential(row: typeof credentials.$inferSelect): Credential {
 
 export async function getLearnerDashboard(learner: LearnerContext): Promise<LearnerDashboard> {
   const db = getDb();
-  const weekStart = new Date(Date.now() - 7 * 86_400_000).toISOString();
   const [brand, dashboardRows] = await Promise.all([
     getOrganizationBranding(learner.organization.id),
     db.batch([
@@ -508,11 +508,10 @@ export async function getLearnerDashboard(learner: LearnerContext): Promise<Lear
       db.select().from(earnedRewards).where(and(eq(earnedRewards.userId, learner.user.id), eq(earnedRewards.curriculumVersionId, PROFESSIONAL_CURRICULUM_VERSION_ID), eq(earnedRewards.rewardType, "badge"))),
       db.select().from(legacyImports).where(and(eq(legacyImports.userId, learner.user.id), eq(legacyImports.curriculumVersionId, PROFESSIONAL_CURRICULUM_VERSION_ID))).limit(1),
       db.select({ occurredAt: learningEvents.occurredAt }).from(learningEvents).where(eq(learningEvents.userId, learner.user.id)).orderBy(desc(learningEvents.occurredAt)).limit(1),
-      db.select({ type: learningEvents.type, objectId: learningEvents.objectId, metadataJson: learningEvents.metadataJson }).from(learningEvents).where(and(eq(learningEvents.userId, learner.user.id), gte(learningEvents.occurredAt, weekStart))),
       db.select().from(learnerPreferences).where(eq(learnerPreferences.userId, learner.user.id)).limit(1),
     ] as const),
   ]);
-  const [revisionRows, lessonRows, labRows, allAttempts, reviews, credentialRows, snapshot, motivationRows, rewardRows, legacyRows, latestEvent, weeklyEvents, preferenceRows] = dashboardRows;
+  const [revisionRows, lessonRows, labRows, allAttempts, reviews, credentialRows, snapshot, motivationRows, rewardRows, legacyRows, latestEvent, preferenceRows] = dashboardRows;
   const revisionRow = revisionRows[0];
   if (!revisionRow) throw new LearningApiError(403, "ENROLLMENT_REQUIRED", "No existe una matrícula activa para esta cuenta.");
   const revision: ProgressRevision = { value: revisionRow.value, updatedAt: revisionRow.updatedAt };
@@ -552,9 +551,9 @@ export async function getLearnerDashboard(learner: LearnerContext): Promise<Lear
     nextActivity = { kind: "associate_simulator", moduleId: null, lessonId: null, label: "Realizar simulacro Associate", reason: score === null ? "Has completado el tramo Associate; el simulacro mide qué dominios conviene reforzar." : `Tu mejor resultado es ${score} % y el objetivo es 80 %.`, href: "/simulacro/associate" };
   } else if (!passed("professional_exam") || requiresProfessionalRevalidation) {
     const score = best("professional_exam");
-    nextActivity = { kind: "professional_simulator", moduleId: null, lessonId: null, label: "Realizar simulacro Professional", reason: requiresProfessionalRevalidation ? "La importación se conserva, pero una credencial requiere un intento Professional corregido por este servidor." : score === null ? "La ruta está completa; el simulacro final comprueba la preparación transversal." : `Tu mejor resultado es ${score} % y el objetivo es 80 %.`, href: "/simulacro/professional" };
+    nextActivity = { kind: "professional_simulator", moduleId: null, lessonId: null, label: "Realizar simulacro Professional", reason: requiresProfessionalRevalidation ? "La importación se conserva, pero una constancia interna requiere un intento Professional corregido por este servidor." : score === null ? "La ruta está completa; el simulacro final comprueba la preparación transversal." : `Tu mejor resultado es ${score} % y el objetivo es 80 %.`, href: "/simulacro/professional" };
   } else {
-    nextActivity = { kind: "certificate", moduleId: null, lessonId: null, label: "Consultar expediente y certificado", reason: "Todos los requisitos están completos; revisa la evidencia y comparte el enlace público si lo deseas.", href: "/expediente" };
+    nextActivity = { kind: "certificate", moduleId: null, lessonId: null, label: "Consultar resultados y constancia interna", reason: "Todos los requisitos están completos; revisa la evidencia y comparte el enlace público si lo deseas.", href: "/expediente" };
   }
 
   let snapshotPayload: Record<string, unknown> = {};
@@ -576,25 +575,9 @@ export async function getLearnerDashboard(learner: LearnerContext): Promise<Lear
     supportEmail,
   };
   const startedAt = learner.professionalAssignment.assignedAt;
-  const dueAt = learner.professionalAssignment.dueAt;
   const allModulesComplete = completed.size === modules.length;
   const routeComplete = allModulesComplete && passed("associate_exam") && passed("professional_exam");
-  const weeklyMinutes = Math.round(weeklyEvents.reduce((total, event) => {
-    let metadata: Record<string, unknown> = {};
-    try { metadata = JSON.parse(event.metadataJson) as Record<string, unknown>; } catch { metadata = {}; }
-    if (event.type === "lesson.reviewed" && metadata.action === "complete") {
-      const owner = modules.find((item) => item.id === metadata.moduleId);
-      return total + (owner ? owner.minutes * 0.5 / owner.lessons.length : 20);
-    }
-    if (event.type === "lab.attested") {
-      const owner = modules.find((item) => item.id === metadata.moduleId);
-      return total + (owner ? owner.minutes * 0.35 : 45);
-    }
-    if (event.type === "assessment.submitted") return total + (metadata.kind === "module_quiz" ? 20 : metadata.kind === "associate_exam" ? 90 : 120);
-    return total;
-  }, 0));
   const preferences = preferenceRows[0];
-  const weeklyTargetMinutes = preferences?.weeklyTargetMinutes ?? 300;
 
   return {
     brand: tenantBrand,
@@ -609,11 +592,7 @@ export async function getLearnerDashboard(learner: LearnerContext): Promise<Lear
       programId: "professional-v1",
       contentVersion: learner.professionalAssignment.contentVersion,
       startedAt,
-      dueAt,
-      durationDays: 140,
-      weeklyTargetMinutes,
       status: routeComplete ? "completed" : activity ? "in_progress" : "not_started",
-      overdue: !routeComplete && Date.parse(dueAt) < Date.now(),
       completionPolicy: {
         requiredModules: 32,
         lessonsPerModule: 5,
@@ -638,10 +617,10 @@ export async function getLearnerDashboard(learner: LearnerContext): Promise<Lear
         phase: trackMeta[item.track].name,
         phaseId: item.track,
         level: item.level,
-        minutes: item.minutes,
         prerequisiteIds: item.prerequisites,
         resourceCount: resources.length,
         resourceConcepts: [...new Set(resources.flatMap((resource) => resource.concepts))],
+        artwork: artworkForModule(item),
       };
     }),
     progress,
@@ -651,13 +630,10 @@ export async function getLearnerDashboard(learner: LearnerContext): Promise<Lear
     }).filter((review) => Boolean(review.moduleId)),
     motivation: { xp: motivationRows[0]?.xp ?? snapshot[0]?.xp ?? 0, streakDays: motivationRows[0]?.streakDays ?? snapshot[0]?.streak ?? 0, badges },
     bestSimulatorScores: { associate: best("associate_exam"), professional: best("professional_exam") },
-    weeklyMinutes,
     nextActivity,
     credential: credentialRows[0] ? publicCredential(credentialRows[0]) : null,
     preferences: {
       goal: preferences?.goal ?? "professional",
-      weeklyTargetMinutes,
-      cloud: preferences?.cloud ?? "multicloud",
       onboardingCompleted: Boolean(preferences?.onboardingCompletedAt),
       updatedAt: preferences?.updatedAt ?? null,
     },
@@ -674,34 +650,29 @@ export async function updateLearnerPreferences(learner: LearnerContext, body: un
   if (!isRecord(body)) throw new LearningApiError(422, "INVALID_BODY", "Las preferencias no tienen un formato válido.");
   assertMutationInput(body);
   const goal = body.goal;
-  const cloud = body.cloud;
-  const weeklyTargetMinutes = body.weeklyTargetMinutes;
   if (goal !== "associate" && goal !== "professional" && goal !== "topics") {
     throw new LearningApiError(422, "INVALID_GOAL", "El objetivo de aprendizaje no es válido.");
   }
-  if (cloud !== "multicloud" && cloud !== "azure" && cloud !== "aws" && cloud !== "gcp" && cloud !== "free-edition") {
-    throw new LearningApiError(422, "INVALID_CLOUD", "El entorno de práctica no es válido.");
-  }
-  if (!Number.isInteger(weeklyTargetMinutes) || Number(weeklyTargetMinutes) < 60 || Number(weeklyTargetMinutes) > 840 || Number(weeklyTargetMinutes) % 30 !== 0) {
-    throw new LearningApiError(422, "INVALID_WEEKLY_TARGET", "El objetivo semanal debe estar entre 60 y 840 minutos, en bloques de 30.");
-  }
-  const canonical: {
-    goal: "associate" | "professional" | "topics";
-    cloud: "multicloud" | "azure" | "aws" | "gcp" | "free-edition";
-    weeklyTargetMinutes: number;
-  } = { goal, cloud, weeklyTargetMinutes: Number(weeklyTargetMinutes) };
+  const preferenceGoal: "associate" | "professional" | "topics" = goal;
+  const canonical = { goal: preferenceGoal };
   const guard = await guardMutation(learner, body, "preferences.updated", canonical);
   if (guard.replayed) return envelope((await getLearnerDashboard(learner)).preferences, guard.revision, true);
   const changedAt = nowIso();
   const db = getDb();
+  const [existing] = await db.select().from(learnerPreferences).where(eq(learnerPreferences.userId, learner.user.id)).limit(1);
+  const persistenceValues = {
+    goal: preferenceGoal,
+    cloud: existing?.cloud ?? "multicloud",
+    weeklyTargetMinutes: existing?.weeklyTargetMinutes ?? 300,
+  };
   await db.insert(learnerPreferences).values({
     userId: learner.user.id,
-    ...canonical,
+    ...persistenceValues,
     onboardingCompletedAt: changedAt,
     updatedAt: changedAt,
   }).onConflictDoUpdate({
     target: learnerPreferences.userId,
-    set: { ...canonical, onboardingCompletedAt: changedAt, updatedAt: changedAt },
+    set: { ...persistenceValues, onboardingCompletedAt: changedAt, updatedAt: changedAt },
   });
   const revision = await recordMutation(learner, guard, "preferences.updated", "user", learner.user.id, canonical);
   return envelope((await getLearnerDashboard(learner)).preferences, revision, false);
@@ -1338,7 +1309,7 @@ function assessmentResultPublic(row: typeof assessmentAttempts.$inferSelect) {
 export async function getCredentialForLearner(learner: LearnerContext, credentialId: string) {
   const db = getDb();
   const [row] = await db.select().from(credentials).where(and(eq(credentials.id, credentialId), eq(credentials.userId, learner.user.id), eq(credentials.organizationId, learner.organization.id))).limit(1);
-  if (!row) throw new LearningApiError(404, "CREDENTIAL_NOT_FOUND", "No se ha encontrado ese certificado.");
+  if (!row) throw new LearningApiError(404, "CREDENTIAL_NOT_FOUND", "No se ha encontrado esa constancia interna.");
   return row;
 }
 
@@ -1378,12 +1349,12 @@ function pdfColor(hex: string) {
 export async function renderCredentialPdf(learner: LearnerContext, row: typeof credentials.$inferSelect) {
   const brand = await getOrganizationBranding(learner.organization.id);
   const pdf = await PDFDocument.create();
-  pdf.setTitle(`Credencial de finalización · ${learner.user.displayName}`);
+  pdf.setTitle(`Constancia interna de finalización · ${learner.user.displayName}`);
   pdf.setSubject(`${row.title}. ${CERTIFICATE_DISCLAIMER}`);
   pdf.setAuthor(brand.organizationName);
   pdf.setCreator("Lakehouse Lab Enterprise");
   pdf.setProducer("Lakehouse Lab Enterprise · pdf-lib");
-  pdf.setKeywords(["formación interna", "Databricks", "Lakehouse Lab", row.contentVersion]);
+  pdf.setKeywords(["preparación interna", "Databricks", "Lakehouse Lab", row.contentVersion]);
 
   const page = pdf.addPage([841.89, 595.28]);
   const regular = await pdf.embedFont(StandardFonts.Helvetica);

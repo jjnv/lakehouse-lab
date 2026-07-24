@@ -1,14 +1,21 @@
 import PublicShell from "../components/public/PublicShell";
 import { CONTENT_REVIEW_DATE, CONTENT_VERSION_LABEL, PROJECT_ISSUES_URL, PROJECT_REPOSITORY_URL } from "../project-info";
+import type { Metadata } from "next";
+
+export const metadata: Metadata = {
+  title: "Acerca del proyecto",
+  description: "Lakehouse Lab es una plataforma independiente en español para preparar certificaciones Databricks Data Engineer.",
+  alternates: { canonical: "/acerca-de" },
+};
 
 export default function AboutPage() {
   return <PublicShell active="about">
     <main id="public-main" className="public-document-main" tabIndex={-1}>
       <article className="public-document">
         <p className="public-kicker">Acerca del proyecto</p>
-        <h1>Una academia abierta construida como producto real.</h1>
-        <p className="public-document-lead">Lakehouse Lab es un proyecto personal, independiente y de código abierto creado para ofrecer una ruta técnica rigurosa: clara, práctica, accesible y con control real sobre el progreso.</p>
-        <section><h2>Qué reúne</h2><p>El proyecto combina diseño de producto, desarrollo full-stack, sesiones privadas, persistencia, accesibilidad, evaluación y modelado de un currículo técnico. La experiencia se ejecuta con Next.js, TypeScript, Vercel y Turso.</p></section>
+        <h1>Preparación independiente para Data Engineers.</h1>
+        <p className="public-document-lead">Lakehouse Lab es un proyecto personal, independiente y de código abierto creado para preparar las certificaciones Databricks Data Engineer Associate y Professional con una experiencia rigurosa, práctica y accesible.</p>
+        <section><h2>Qué reúne</h2><p>El proyecto combina diseño de producto, desarrollo full-stack, sesiones privadas, persistencia, accesibilidad, evaluación y modelado de un currículo técnico centrado en Databricks Data Engineering. La experiencia se ejecuta con Next.js, TypeScript, Vercel y Turso.</p></section>
         <section><h2>Criterio editorial</h2><p>El contenido se redacta de forma original y se contrasta con documentación pública. Cada módulo enlaza fuentes oficiales. No se utilizan dumps de exámenes ni se presentan las notas internas como umbrales oficiales.</p><dl className="public-facts"><div><dt>Versión</dt><dd>{CONTENT_VERSION_LABEL}</dd></div><div><dt>Revisado</dt><dd>{CONTENT_REVIEW_DATE}</dd></div><div><dt>Idioma</dt><dd>Español</dd></div></dl></section>
         <section><h2>Independencia</h2><p>Lakehouse Lab no está afiliado, patrocinado ni avalado por Databricks. Databricks, Apache Spark y los nombres de producto citados pertenecen a sus respectivos titulares.</p></section>
         <section><h2>Código, contenido y colaboración</h2><p>El código fuente y la documentación técnica están disponibles en <a href={PROJECT_REPOSITORY_URL} rel="noreferrer">el repositorio público del proyecto</a>. El código y el contenido conservan sus licencias publicadas por separado. Puedes revisar cómo funciona la plataforma, proponer mejoras o <a href={PROJECT_ISSUES_URL} rel="noreferrer">avisar de contenido desactualizado</a> mediante GitHub Issues.</p></section>
