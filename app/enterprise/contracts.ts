@@ -139,9 +139,57 @@ export type NotebookPreviewOutput =
   | { kind: "text"; text: string }
   | { kind: "image"; mime: "image/png" | "image/jpeg"; dataUrl: string };
 
+export type NotebookGuideReference = {
+  id: string;
+  title: string;
+  publisher: string;
+  href: string;
+  reviewedAt: string;
+};
+
+export type NotebookGuidePoint = {
+  title: string;
+  what: string;
+  why: string;
+  bestPractices: string[];
+  warnings: string[];
+  status: "current" | "demo-only" | "legacy" | "risky";
+  referenceIds: string[];
+};
+
+export type NotebookCellGuide = {
+  points: NotebookGuidePoint[];
+  prerequisites: string[];
+  expectedEvidence: string[];
+};
+
 export type NotebookPreviewCell =
-  | { kind: "markdown"; text: string }
-  | { kind: "code"; language: string; text: string; outputs: NotebookPreviewOutput[] };
+  | {
+      id: string;
+      sourceIndex: number;
+      sourceDigest: string;
+      kind: "markdown";
+      text: string;
+      guide: NotebookCellGuide | null;
+    }
+  | {
+      id: string;
+      sourceIndex: number;
+      sourceDigest: string;
+      kind: "code";
+      language: string;
+      text: string;
+      outputs: NotebookPreviewOutput[];
+      guide: NotebookCellGuide | null;
+    };
+
+export type NotebookGuideCoverage = {
+  status: "complete" | "partial";
+  annotatedCells: number;
+  totalCells: number;
+  reviewedAt: string | null;
+  references: NotebookGuideReference[];
+};
 
 export type NotebookPreviewPayload = {
   resourceId: string;
@@ -152,6 +200,7 @@ export type NotebookPreviewPayload = {
   reviewedAt: string;
   cells: NotebookPreviewCell[];
   truncated: boolean;
+  guideCoverage: NotebookGuideCoverage;
 };
 
 export type ModuleProgressPublic = {

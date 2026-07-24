@@ -1,9 +1,18 @@
+import { createHash } from "node:crypto";
 import {
   findCommunityArtifact,
   type CommunityArtifact,
   type CommunityRepository,
 } from "../curriculum/community-resources";
-import type { NotebookPreviewCell, NotebookPreviewOutput, NotebookPreviewPayload } from "./contracts";
+import { findNotebookGuide } from "../curriculum/notebook-guides";
+import type {
+  NotebookCellGuide,
+  NotebookGuideCoverage,
+  NotebookGuideReference,
+  NotebookPreviewCell,
+  NotebookPreviewOutput,
+  NotebookPreviewPayload,
+} from "./contracts";
 
 const MAX_BYTES = 2_000_000;
 const MAX_CELLS = 160;
@@ -46,6 +55,44 @@ function sourceText(value: unknown) {
 
 function limited(value: string, maximum: number) {
   return value.length > maximum ? `${value.slice(0, maximum)}\n\n[Contenido recortado]` : value;
+}
+
+function normalizedSource(value: string) {
+  return value.replace(/\r\n?/g, "\n");
+}
+
+export function notebookCellDigest(kind: NotebookPreviewCell["kind"], language: string, source: string) {
+  return createHash("sha256")
+    .update(`${kind}\0${language.trim().toLocaleLowerCase("en")}\0${normalizedSource(source)}`, "utf8")
+    .digest("hex");
+}
+
+type ParsedNotebookCell =
+  | {
+      sourceIndex: number;
+      sourceDigest: string;
+      kind: "markdown";
+      text: string;
+    }
+  | {
+      sourceIndex: number;
+      sourceDigest: string;
+      kind: "code";
+      language: string;
+      text: string;
+      outputs: NotebookPreviewOutput[];
+    };
+
+function parsedCellIdentity(
+  sourceIndex: number,
+  kind: NotebookPreviewCell["kind"],
+  language: string,
+  completeSource: string,
+) {
+  return {
+    sourceIndex,
+    sourceDigest: notebookCellDigest(kind, language, completeSource),
+  };
 }
 
 function curatedRawUrl(
@@ -172,19 +219,29 @@ export function parseNotebookDocument(value: unknown, fallbackLanguage: string) 
     : typeof languageInfo?.name === "string"
       ? languageInfo.name
       : fallbackLanguage;
-  const cells: NotebookPreviewCell[] = [];
+  const cells: ParsedNotebookCell[] = [];
   let truncated = document.cells.length > MAX_CELLS;
-  for (const candidate of document.cells.slice(0, MAX_CELLS)) {
+  for (const [sourceIndex, candidate] of document.cells.slice(0, MAX_CELLS).entries()) {
     const cell = record(candidate);
     if (!cell) continue;
-    const original = sourceText(cell.source);
+    const original = normalizedSource(sourceText(cell.source));
     if (!original.trim()) continue;
     const text = limited(original, MAX_CELL_CHARACTERS);
     truncated ||= text.length !== original.length;
     if (cell.cell_type === "markdown") {
-      cells.push({ kind: "markdown", text });
+      cells.push({
+        ...parsedCellIdentity(sourceIndex, "markdown", "markdown", original),
+        kind: "markdown",
+        text,
+      });
     } else if (cell.cell_type === "code") {
-      cells.push({ kind: "code", language, text, outputs: notebookOutputs(cell.outputs) });
+      cells.push({
+        ...parsedCellIdentity(sourceIndex, "code", language, original),
+        kind: "code",
+        language,
+        text,
+        outputs: notebookOutputs(cell.outputs),
+      });
     }
   }
   if (!cells.length) throw new NotebookPreviewError(502, "EMPTY_NOTEBOOK", "El notebook remoto no contiene celdas de lectura compatibles.");
@@ -209,20 +266,32 @@ export function parseDatabricksSource(value: string, language: string) {
   const headerPattern = new RegExp(`^\\s*${escapedPrefix}\\s+Databricks notebook source\\s*$`);
   const magicPattern = new RegExp(`^\\s*${escapedPrefix}\\s*MAGIC\\b`);
   const stripMagicPattern = new RegExp(`^\\s*${escapedPrefix}\\s*MAGIC\\s?`);
-  const blocks = value.replace(/\r/g, "").split(commandPattern);
-  const cells: NotebookPreviewCell[] = [];
+  const blocks = normalizedSource(value).split(commandPattern);
+  const cells: ParsedNotebookCell[] = [];
   let truncated = blocks.length > MAX_CELLS;
-  for (const block of blocks.slice(0, MAX_CELLS)) {
+  for (const [sourceIndex, block] of blocks.slice(0, MAX_CELLS).entries()) {
     const lines = block.split("\n");
     const meaningful = lines.filter((line) => line.trim() && !headerPattern.test(line));
     if (!meaningful.length) continue;
     const magic = meaningful.every((line) => magicPattern.test(line));
     if (magic) {
-      const text = meaningful.map((line) => line.replace(stripMagicPattern, "")).join("\n").replace(/^\s*%md\s*/, "");
-      if (text.trim()) cells.push({ kind: "markdown", text: limited(text, MAX_CELL_CHARACTERS) });
+      const original = meaningful.map((line) => line.replace(stripMagicPattern, "")).join("\n").replace(/^\s*%md\s*/, "");
+      if (original.trim()) {
+        cells.push({
+          ...parsedCellIdentity(sourceIndex, "markdown", "markdown", original),
+          kind: "markdown",
+          text: limited(original, MAX_CELL_CHARACTERS),
+        });
+      }
     } else {
-      const text = limited(meaningful.join("\n"), MAX_CELL_CHARACTERS);
-      cells.push({ kind: "code", language, text, outputs: [] });
+      const original = meaningful.join("\n");
+      cells.push({
+        ...parsedCellIdentity(sourceIndex, "code", language, original),
+        kind: "code",
+        language,
+        text: limited(original, MAX_CELL_CHARACTERS),
+        outputs: [],
+      });
     }
     truncated ||= meaningful.join("\n").length > MAX_CELL_CHARACTERS;
   }
@@ -231,15 +300,75 @@ export function parseDatabricksSource(value: string, language: string) {
 }
 
 export function parseMarkdownDocument(value: string) {
-  const original = value.replace(/\r/g, "");
+  const original = normalizedSource(value);
   if (!original.trim()) {
     throw new NotebookPreviewError(502, "EMPTY_NOTEBOOK", "El documento remoto no contiene texto compatible.");
   }
   const text = limited(original, MAX_CELL_CHARACTERS);
   return {
-    cells: [{ kind: "markdown" as const, text }],
+    cells: [{
+      ...parsedCellIdentity(0, "markdown", "markdown", original),
+      kind: "markdown" as const,
+      text,
+    }],
     truncated: text.length !== original.length,
   };
+}
+
+type NotebookGuideManifest = {
+  resourceId: string;
+  upstreamRef: string;
+  path: string;
+  reviewedAt: string;
+  references: NotebookGuideReference[];
+  cells: Array<{
+    sourceIndex: number;
+    sourceDigest: string;
+    guide: NotebookCellGuide;
+  }>;
+};
+
+function guideCoverage(
+  resourceId: string,
+  upstreamRef: string,
+  path: string,
+  cells: ParsedNotebookCell[],
+) {
+  const manifest = findNotebookGuide(resourceId) as NotebookGuideManifest | undefined;
+  const manifestMatches = manifest?.resourceId === resourceId
+    && manifest.upstreamRef === upstreamRef
+    && manifest.path === path;
+  const guidesByIndex = manifestMatches
+    ? new Map(manifest.cells.map((cell) => [cell.sourceIndex, cell]))
+    : new Map<number, NotebookGuideManifest["cells"][number]>();
+  const usedReferenceIds = new Set<string>();
+  let annotatedCells = 0;
+  const publicCells: NotebookPreviewCell[] = cells.map((cell) => {
+    const candidate = guidesByIndex.get(cell.sourceIndex);
+    const guide = candidate?.sourceDigest === cell.sourceDigest ? candidate.guide : null;
+    if (guide) {
+      annotatedCells += 1;
+      for (const point of guide.points) {
+        for (const referenceId of point.referenceIds) usedReferenceIds.add(referenceId);
+      }
+    }
+    return {
+      ...cell,
+      id: `${resourceId}:${cell.sourceIndex}:${cell.sourceDigest.slice(0, 12)}`,
+      guide,
+    } as NotebookPreviewCell;
+  });
+  const references = manifestMatches
+    ? manifest.references.filter((reference) => usedReferenceIds.has(reference.id))
+    : [];
+  const coverage: NotebookGuideCoverage = {
+    status: publicCells.length > 0 && annotatedCells === publicCells.length ? "complete" : "partial",
+    annotatedCells,
+    totalCells: publicCells.length,
+    reviewedAt: manifestMatches ? manifest.reviewedAt : null,
+    references,
+  };
+  return { cells: publicCells, coverage };
 }
 
 async function readLimitedBody(response: Response) {
@@ -313,7 +442,7 @@ export async function loadCommunityNotebookPreview(resourceId: string): Promise<
   }
 
   const fallbackLanguage = artifact.languages[0]?.toLocaleLowerCase("es") ?? "text";
-  let parsed: { cells: NotebookPreviewCell[]; truncated: boolean };
+  let parsed: { cells: ParsedNotebookCell[]; truncated: boolean };
   if (artifact.preview.kind === "ipynb") {
     let document: unknown;
     try {
@@ -335,6 +464,12 @@ export async function loadCommunityNotebookPreview(resourceId: string): Promise<
     parsed = parseDatabricksSource(text, language);
   }
 
+  const guided = guideCoverage(
+    artifact.id,
+    artifact.preview.upstreamRef,
+    artifact.preview.path,
+    parsed.cells,
+  );
   return {
     resourceId: artifact.id,
     title: artifact.title,
@@ -342,7 +477,8 @@ export async function loadCommunityNotebookPreview(resourceId: string): Promise<
     upstreamRef: artifact.preview.upstreamRef,
     path: artifact.preview.path,
     reviewedAt: repository.reviewedAt,
-    cells: parsed.cells,
+    cells: guided.cells,
     truncated: parsed.truncated,
+    guideCoverage: guided.coverage,
   };
 }

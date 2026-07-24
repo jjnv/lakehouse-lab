@@ -1,0 +1,8 @@
+import type { GuideCellSeed } from "../../builder";
+
+export const deltaCreateTableNotebookGuidePart8 = [
+  {"sourceIndex":40,"sourceDigest":"5314dbf5fab8b9e519f4da94d8351c921eb56ca0b516d664bbdc47421d07c6cd","points":[{"title":"Opera sobre Delta: DeltaTable.convertToDelta(spark, \"parquet. tmp/lake1 \")","what":"La celda modifica o consulta estado transaccional Delta mediante `DeltaTable.convertToDelta`. El foco observable es \u00abDeltaTable.convertToDelta(spark, \"parquet. tmp/lake1 \")\u00bb; verifica su efecto y conserva la evidencia indicada.","topic":"delta","status":"current"}]},
+  {"sourceIndex":41,"sourceDigest":"0af27507c930083016dd45617c95eaf930edc03c1146abb103458001e8f54ae7","points":[{"title":"Transforma el DataFrame: !tree tmp/lake1","what":"La celda compone transformaciones declarativas. El foco observable es \u00ab!tree tmp/lake1\u00bb; verifica su efecto y conserva la evidencia indicada.","topic":"dataframe","status":"current"}]},
+  {"sourceIndex":42,"sourceDigest":"4faabc3491fae2f89015abbf97d5f3125a07fb4244a0dd870f23bcd8bc41b1af","points":[{"title":"Limpia el laboratorio: Cleanup","what":"La celda retira artefactos persistentes del ejercicio. El foco observable es \u00abCleanup\u00bb; verifica su efecto y conserva la evidencia indicada.","topic":"cleanup","status":"current"}]},
+  {"sourceIndex":43,"sourceDigest":"62ff812add954c68a0b7a3ac58b5d17c947fc48992c42bf85718632c29bcb890","points":[{"title":"Transforma el DataFrame: !rm -rf spark-warehouse","what":"La celda compone transformaciones declarativas. El foco observable es \u00ab!rm -rf spark-warehouse\u00bb; verifica su efecto y conserva la evidencia indicada.","topic":"dataframe","status":"current"}]},
+] as const satisfies readonly GuideCellSeed[];

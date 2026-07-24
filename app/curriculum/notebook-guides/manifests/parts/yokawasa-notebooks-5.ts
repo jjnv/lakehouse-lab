@@ -1,0 +1,6 @@
+import type { GuideCellSeed } from "../../builder";
+
+export const yokawasaNotebooksNotebookGuidePart5 = [
+  {"sourceIndex":25,"sourceDigest":"8910acb0eb5f1b9bf2e4d40587d51e7733f25efb55db87d0f2a67f643eb2a678","points":[{"title":"Orienta la lectura: Read CSV file in the Spark CSV datasource with options specifying","what":"La celda delimita el objetivo y la secuencia descrita. El foco observable es \u00abRead CSV file in the Spark CSV datasource with options specifying\u00bb; verifica su efecto y conserva la evidencia indicada.","topic":"orientation","status":"current"}]},
+  {"sourceIndex":26,"sourceDigest":"b1aca82e6e62e98d24c461b2feb0aa36bf339502daa70a0a03a60ab7b130f390","points":[{"title":"Inspecciona la salida: Use the Spark CSV datasource with options specifying","what":"La celda muestra una vista acotada del resultado mediante `spark.csv`, `data`. El foco observable es \u00abUse the Spark CSV datasource with options specifying\u00bb; verifica su efecto y conserva la evidencia indicada. Se mantiene como demostraci\u00f3n: sus datos, escala o salidas no constituyen una receta de producci\u00f3n.","topic":"visualization","status":"demo-only"}]},
+] as const satisfies readonly GuideCellSeed[];

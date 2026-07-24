@@ -39,13 +39,74 @@ function notebookPreviewPayload(resourceId: string, title: string) {
     resourceId,
     title,
     sourceHref: `https://example.invalid/${resourceId}`,
-    upstreamRef: "a".repeat(40),
-    path: `notebooks/${resourceId}.ipynb`,
+    upstreamRef: "82ed21472bcd9801f0919b98a5afe9f40b3fcd74",
+    path: "notebooks/pyspark/change-data-feed.ipynb",
     reviewedAt: "23 jul 2026",
     cells: [
-      { kind: "markdown", text: `# ${title}\n\nContenido seguro interceptado para la prueba.` },
-      { kind: "code", language: "python", text: "print('preview segura')", outputs: [{ kind: "text", text: "preview segura\n" }] },
+      {
+        id: "cell-markdown-0",
+        sourceIndex: 0,
+        sourceDigest: "b".repeat(64),
+        kind: "markdown",
+        text: `# ${title}\n\nContenido seguro interceptado para la prueba.`,
+        guide: {
+          points: [
+            {
+              title: "Contexto de la demostración",
+              what: "Presenta el objetivo antes de ejecutar código.",
+              why: "Permite relacionar la celda con el resultado esperado.",
+              bestPractices: ["Documentar el propósito y los supuestos de entrada."],
+              warnings: [],
+              status: "current",
+              referenceIds: ["notebook-docs"],
+            },
+            {
+              title: "Ejemplo no productivo",
+              what: "Acota una variante pensada solo para aprendizaje.",
+              why: "Evita trasladar el atajo a una carga real.",
+              bestPractices: ["Sustituir valores de ejemplo por parámetros validados."],
+              warnings: ["No reutilices credenciales ni rutas de una demostración."],
+              status: "risky",
+              referenceIds: ["security-docs"],
+            },
+          ],
+          prerequisites: ["Comprender la estructura básica de un notebook."],
+          expectedEvidence: ["Una explicación verificable del resultado de la celda."],
+        },
+      },
+      {
+        id: "cell-code-3",
+        sourceIndex: 3,
+        sourceDigest: "c".repeat(64),
+        kind: "code",
+        language: "python",
+        text: "print('preview segura')",
+        outputs: [{ kind: "text", text: "preview segura\n" }],
+        guide: null,
+      },
     ],
+    guideCoverage: {
+      status: "partial",
+      annotatedCells: 1,
+      totalCells: 2,
+      reviewedAt: "2026-07-23",
+      references: [
+        {
+          id: "notebook-docs",
+          title: "Documentación oficial de notebooks",
+          publisher: "Databricks",
+          href: "https://docs.databricks.com/aws/en/notebooks/",
+          reviewedAt: "2026-07-23",
+        },
+        {
+          id: "security-docs",
+          title: "Buenas prácticas de seguridad",
+          publisher: "Databricks",
+          href: "https://docs.databricks.com/aws/en/security/",
+          reviewedAt: "2026-07-23",
+        },
+      ],
+    },
     truncated: false,
   };
 }
@@ -162,6 +223,44 @@ test("el catálogo abre el notebook en el visor lateral mediante un enlace profu
   await expect(viewer).toHaveAttribute("open", "");
   await expect(viewer.locator("#community-preview-title")).toHaveText("change-data-feed.ipynb");
   await expect(viewer.locator(".ent-notebook-cells > article")).toHaveCount(2);
+  await expect(viewer.getByRole("status")).toContainText("Cobertura editorial parcial: 1 de 2");
+  const guides = viewer.locator(".ent-notebook-guide");
+  await expect(guides).toHaveCount(2);
+  const firstGuide = guides.first();
+  const firstGuideSummary = firstGuide.getByText("Guía editorial de la celda 1", { exact: true });
+  await expect(firstGuide).not.toHaveAttribute("open", "");
+  await expect(firstGuide.getByRole("heading", { name: "Contexto de la demostración" })).toBeHidden();
+  expect(await firstGuideSummary.evaluate((summary) => (summary as HTMLElement).tabIndex)).toBeGreaterThanOrEqual(0);
+  await firstGuideSummary.focus();
+  await expect(firstGuideSummary).toBeFocused();
+  await expect(firstGuideSummary).toHaveCSS("outline-style", "solid");
+  expect(await firstGuideSummary.evaluate((summary) => summary.getBoundingClientRect().height)).toBeGreaterThanOrEqual(44);
+  await page.keyboard.press("Enter");
+  await expect(firstGuide).toHaveAttribute("open", "");
+  await expect(firstGuide.getByText("Actual", { exact: true })).toBeVisible();
+  await expect(firstGuide.getByText("Riesgo", { exact: true })).toBeVisible();
+  await expect(firstGuide.getByText("Qué hace", { exact: true }).first()).toBeVisible();
+  await expect(firstGuide.getByText("Por qué", { exact: true }).first()).toBeVisible();
+  await expect(firstGuide.getByRole("heading", { name: "Buenas prácticas" }).first()).toBeVisible();
+  await expect(firstGuide.getByRole("heading", { name: "Requisitos previos" })).toBeVisible();
+  await expect(firstGuide.getByRole("heading", { name: "Evidencia esperada" })).toBeVisible();
+  const officialLink = firstGuide.getByRole("link", { name: /Documentación oficial de notebooks/ });
+  await expect(officialLink).toHaveAttribute("target", "_blank");
+  await expect(officialLink).toHaveAttribute("rel", "noreferrer");
+  await expect(officialLink).toHaveAttribute("href", "https://docs.databricks.com/aws/en/notebooks/");
+  await page.setViewportSize({ width: 320, height: 800 });
+  const viewerWidth = await viewer.evaluate((dialog) => ({
+    clientWidth: dialog.clientWidth,
+    scrollWidth: dialog.scrollWidth,
+  }));
+  expect(viewerWidth.scrollWidth).toBeLessThanOrEqual(viewerWidth.clientWidth);
+  await page.keyboard.press("Space");
+  await expect(firstGuide).not.toHaveAttribute("open", "");
+  const pendingGuide = guides.nth(1);
+  await expect(pendingGuide.getByText("Guía editorial de la celda 4", { exact: true })).toBeVisible();
+  await pendingGuide.getByText("Guía editorial de la celda 4", { exact: true }).click();
+  await expect(pendingGuide.getByText("Anotación pendiente de revisión", { exact: true })).toBeVisible();
+  await expect(viewer.locator(".is-code").getByText("Celda 4", { exact: true })).toBeVisible();
   const after = await (await page.request.get("/api/me/dashboard")).json();
   expect(after.revision.value).toBe(before.revision.value);
   await expectWcag22Aa(page);
@@ -203,6 +302,33 @@ test("el visor interno renderiza celdas y Escape restaura el foco al botón que 
   await expect(viewer).toBeHidden();
   await expect(opener).toBeFocused();
 });
+
+const previewIdentityMismatches = [
+  { field: "resourceId", patch: { resourceId: "otro-recurso" } },
+  { field: "upstreamRef", patch: { upstreamRef: "f".repeat(40) } },
+  { field: "path", patch: { path: "notebooks/pyspark/otro-notebook.ipynb" } },
+] as const;
+
+for (const mismatch of previewIdentityMismatches) {
+  test(`el visor rechaza una vista previa con ${mismatch.field} divergente`, async ({ page }) => {
+    await page.route("**/api/resources/delta-cdf/preview", async (route) => {
+      const payload = notebookPreviewPayload("delta-cdf", "change-data-feed.ipynb");
+      Object.assign(payload, mismatch.patch);
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify(payload),
+      });
+    });
+    await page.goto("/curso/delta-lake-acid-esquema-historial-y-dml?section=resources");
+    await waitForWorkspace(page);
+    await page.locator("#community-resource-delta-cdf").getByRole("button", { name: /Ver notebook/ }).click();
+    const viewer = page.locator("dialog#community-preview");
+    await expect(viewer.getByRole("alert")).toContainText("La vista previa recibida no corresponde al recurso solicitado.");
+    await expect(viewer.locator(".ent-notebook-cells")).toHaveCount(0);
+    await expectWcag22Aa(page);
+  });
+}
 
 test("el recurso externo usa el mismo visor y ofrece GitHub sin solicitar la API interna", async ({ page }) => {
   let previewRequests = 0;

@@ -1,0 +1,6 @@
+import type { GuideCellSeed } from "../../builder";
+
+export const deltaExamplesNotebookGuidePart14 = [
+  {"sourceIndex":80,"sourceDigest":"010cae370f78bca80387e0173b682256dcd9cfd581ad5586dc99596500478105","points":[{"title":"Orienta la lectura: read in all new data","what":"La celda delimita el objetivo y la secuencia descrita mediante `df_new`, `chunk_size`, `chunks`, `num_chunks`. El foco observable es \u00abread in all new data\u00bb; verifica su efecto y conserva la evidencia indicada. Se mantiene como demostraci\u00f3n: sus datos, escala o salidas no constituyen una receta de producci\u00f3n.","topic":"orientation","status":"demo-only"}]},
+  {"sourceIndex":81,"sourceDigest":"927ce350459d56ff1864de6b61280aa4c74db1cdfa0811847422113e68313c9d","points":[{"title":"Opera sobre Delta: write chunks","what":"La celda modifica o consulta estado transaccional Delta mediante `spark.createDataFrame`, `df.write.format`, `pandas_df`. El foco observable es \u00abwrite chunks\u00bb; verifica su efecto y conserva la evidencia indicada. Se mantiene como demostraci\u00f3n: sus datos, escala o salidas no constituyen una receta de producci\u00f3n.","topic":"delta","status":"demo-only"}]},
+] as const satisfies readonly GuideCellSeed[];

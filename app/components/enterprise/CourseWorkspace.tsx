@@ -3,6 +3,7 @@
 /* eslint-disable @next/next/no-img-element -- Notebook previews only allow size-limited PNG/JPEG data URLs. */
 
 import {
+  Fragment,
   useCallback,
   useEffect,
   useRef,
@@ -41,6 +42,16 @@ const previewUnavailableLabel: Record<Exclude<CommunityResourceRecommendationPub
   license_unverified: "Vista externa · licencia no verificada",
   restricted_license: "Vista externa · licencia restringida",
   no_compatible_file: "Vista externa · archivo no compatible",
+};
+
+const editorialStatusLabel: Record<
+  NonNullable<NotebookPreviewPayload["cells"][number]["guide"]>["points"][number]["status"],
+  string
+> = {
+  current: "Actual",
+  "demo-only": "Solo demostración",
+  legacy: "Histórico",
+  risky: "Riesgo",
 };
 
 function NotebookInline({ text }: { text: string }) {
@@ -107,6 +118,103 @@ function NotebookMarkdown({ text }: { text: string }) {
   })}{markdown.truncated ? <p className="ent-markdown-truncated">Contenido Markdown recortado para mantener el visor fluido.</p> : null}</div>;
 }
 
+function NotebookEditorialGuide({
+  cellNumber,
+  guide,
+  references,
+}: {
+  cellNumber: number;
+  guide: NotebookPreviewPayload["cells"][number]["guide"];
+  references: NotebookPreviewPayload["guideCoverage"]["references"];
+}) {
+  const guideReferences = guide
+    ? references.filter((reference) =>
+      guide.points.some((point) => point.referenceIds.includes(reference.id)),
+    )
+    : [];
+
+  return (
+    <details className="ent-notebook-guide">
+      <summary>Guía editorial de la celda {cellNumber}</summary>
+      <div className="ent-notebook-guide-body">
+        {!guide ? (
+          <p className="ent-notebook-guide-pending">Anotación pendiente de revisión</p>
+        ) : (
+          <>
+            <div className="ent-notebook-guide-points">
+              {guide.points.map((point, pointIndex) => (
+                <article key={`${point.title}-${pointIndex}`}>
+                  <header>
+                    <h4>{point.title}</h4>
+                    <span className={`ent-guide-status is-${point.status}`}>
+                      {editorialStatusLabel[point.status]}
+                    </span>
+                  </header>
+                  <dl>
+                    <div>
+                      <dt>Qué hace</dt>
+                      <dd>{point.what}</dd>
+                    </div>
+                    <div>
+                      <dt>Por qué</dt>
+                      <dd>{point.why}</dd>
+                    </div>
+                  </dl>
+                  <section>
+                    <h5>Buenas prácticas</h5>
+                    <ul>
+                      {point.bestPractices.map((practice) => <li key={practice}>{practice}</li>)}
+                    </ul>
+                  </section>
+                  {point.warnings.length ? (
+                    <aside className="ent-notebook-guide-warnings" aria-label={`Advertencias sobre ${point.title}`}>
+                      <strong>Advertencias</strong>
+                      <ul>
+                        {point.warnings.map((warning) => <li key={warning}>{warning}</li>)}
+                      </ul>
+                    </aside>
+                  ) : null}
+                </article>
+              ))}
+            </div>
+            {guide.prerequisites.length || guide.expectedEvidence.length || guideReferences.length ? (
+              <div className="ent-notebook-guide-support">
+                {guide.prerequisites.length ? (
+                  <section>
+                    <h4>Requisitos previos</h4>
+                    <ul>{guide.prerequisites.map((item) => <li key={item}>{item}</li>)}</ul>
+                  </section>
+                ) : null}
+                {guide.expectedEvidence.length ? (
+                  <section>
+                    <h4>Evidencia esperada</h4>
+                    <ul>{guide.expectedEvidence.map((item) => <li key={item}>{item}</li>)}</ul>
+                  </section>
+                ) : null}
+                {guideReferences.length ? (
+                  <section className="ent-notebook-guide-reference-section">
+                    <h4>Referencias oficiales</h4>
+                    <ul className="ent-notebook-guide-references">
+                      {guideReferences.map((reference) => (
+                        <li key={reference.id}>
+                          <a href={reference.href} target="_blank" rel="noreferrer">
+                            {reference.title} <span aria-hidden="true">↗</span>
+                          </a>
+                          <span>{reference.publisher} · revisado {reference.reviewedAt}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  </section>
+                ) : null}
+              </div>
+            ) : null}
+          </>
+        )}
+      </div>
+    </details>
+  );
+}
+
 async function mutationResponse(response: Response) {
   const body = (await response.json().catch(() => ({}))) as {
     message?: string;
@@ -165,7 +273,13 @@ export default function CourseWorkspace({ module, personalized = true, navigatio
       });
       const body = await response.json().catch(() => ({})) as NotebookPreviewPayload & { message?: string };
       if (!response.ok) throw new Error(body.message || "No se pudo cargar la vista previa.");
-      if (body.resourceId !== resource.id) throw new Error("La vista previa recibida no corresponde al recurso solicitado.");
+      if (
+        body.resourceId !== resource.id ||
+        body.upstreamRef !== resource.upstreamRef ||
+        body.path !== resource.sourcePath
+      ) {
+        throw new Error("La vista previa recibida no corresponde al recurso solicitado.");
+      }
       setNotebookPreview(body);
     } catch (caught) {
       if (controller.signal.aborted) return;
@@ -996,16 +1110,33 @@ export default function CourseWorkspace({ module, personalized = true, navigatio
                 {previewError ? <div className="ent-preview-error" role="alert"><strong>No se pudo mostrar el notebook</strong><p>{previewError} La fuente revisada sigue disponible.</p><a className="ent-primary-action" href={selectedResource.href} target="_blank" rel="noreferrer">Abrir fuente <span aria-hidden="true">↗</span></a></div> : null}
                 {!previewLoading && !previewError && notebookPreview ? (
                   <>
+                    {notebookPreview.guideCoverage.status === "partial" ? (
+                      <p className="ent-notebook-guide-coverage" role="status">
+                        Cobertura editorial parcial: {notebookPreview.guideCoverage.annotatedCells} de {notebookPreview.guideCoverage.totalCells} celdas tienen una guía revisada.
+                      </p>
+                    ) : null}
                     <div className="ent-notebook-cells">
-                      {notebookPreview.cells.map((cell, index) => cell.kind === "markdown" ? (
-                        <article key={index} className="is-markdown"><NotebookMarkdown text={cell.text} /></article>
-                      ) : (
-                        <article key={index} className="is-code">
-                          <div><span>Celda {index + 1}</span><b>{cell.language}</b></div>
-                          <pre tabIndex={0}><code>{cell.text}</code></pre>
-                          {cell.outputs.length ? <div className="ent-notebook-outputs">{cell.outputs.map((output, outputIndex) => output.kind === "text" ? <pre key={outputIndex}><code>{output.text}</code></pre> : <img key={outputIndex} src={output.dataUrl} alt={`Salida gráfica de la celda ${index + 1}`} />)}</div> : null}
-                        </article>
-                      ))}
+                      {notebookPreview.cells.map((cell) => {
+                        const cellNumber = cell.sourceIndex + 1;
+                        return (
+                          <Fragment key={cell.id}>
+                            {cell.kind === "markdown" ? (
+                              <article className="is-markdown"><NotebookMarkdown text={cell.text} /></article>
+                            ) : (
+                              <article className="is-code">
+                                <div><span>Celda {cellNumber}</span><b>{cell.language}</b></div>
+                                <pre tabIndex={0}><code>{cell.text}</code></pre>
+                                {cell.outputs.length ? <div className="ent-notebook-outputs">{cell.outputs.map((output, outputIndex) => output.kind === "text" ? <pre key={outputIndex}><code>{output.text}</code></pre> : <img key={outputIndex} src={output.dataUrl} alt={`Salida gráfica de la celda ${cellNumber}`} />)}</div> : null}
+                              </article>
+                            )}
+                            <NotebookEditorialGuide
+                              cellNumber={cellNumber}
+                              guide={cell.guide}
+                              references={notebookPreview.guideCoverage.references}
+                            />
+                          </Fragment>
+                        );
+                      })}
                     </div>
                     {notebookPreview.truncated ? <p className="ent-preview-note">La vista se ha recortado para mantener una lectura segura y rápida. La fuente contiene más celdas o salidas.</p> : null}
                   </>

@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import test from "node:test";
@@ -183,7 +184,7 @@ test("the public catalog exposes the exact reviewed file URL, view mode and sour
   }
 });
 
-function loadPreviewModule(resolved, fetchImpl) {
+function loadPreviewModule(resolved, fetchImpl, guideManifest) {
   const code = transpile("app/enterprise/notebook-preview.ts");
   const commonJsModule = { exports: {} };
   const context = {
@@ -191,7 +192,9 @@ function loadPreviewModule(resolved, fetchImpl) {
     exports: commonJsModule.exports,
     require(specifier) {
       if (specifier === "../curriculum/community-resources") return { findCommunityArtifact: () => resolved };
+      if (specifier === "../curriculum/notebook-guides") return { findNotebookGuide: () => guideManifest };
       if (specifier === "./contracts") return {};
+      if (specifier === "node:crypto") return { createHash };
       throw new Error(`Unexpected test import: ${specifier}`);
     },
     fetch: fetchImpl,
@@ -210,6 +213,38 @@ function loadPreviewModule(resolved, fetchImpl) {
   };
   vm.runInNewContext(code, context, { filename: "transpiled-notebook-preview.cjs" });
   return commonJsModule.exports;
+}
+
+function loadPreviewRoute(loadCommunityNotebookPreview) {
+  class TestNotebookPreviewError extends Error {
+    constructor(status, code, message) {
+      super(message);
+      this.status = status;
+      this.code = code;
+    }
+  }
+  const route = evaluateCommonJs(
+    transpile("app/api/resources/[resourceId]/preview/route.ts"),
+    {
+      "../../../_shared": {
+        json: (body, init = {}) => ({
+          body,
+          status: init.status ?? 200,
+          headers: init.headers ?? {},
+        }),
+      },
+      "../../../../enterprise/notebook-preview": {
+        loadCommunityNotebookPreview,
+        NotebookPreviewError: TestNotebookPreviewError,
+      },
+    },
+  );
+  return { route, TestNotebookPreviewError };
+}
+
+function cellDigest(kind, language, source) {
+  const normalized = source.replace(/\r\n?/g, "\n");
+  return createHash("sha256").update(`${kind}\0${language.toLowerCase()}\0${normalized}`, "utf8").digest("hex");
 }
 
 const resolvedPreview = {
@@ -263,6 +298,31 @@ test("the notebook parser keeps safe cells and discards executable HTML outputs"
   assert.doesNotMatch(JSON.stringify(parsed.cells[1].outputs), /script|javascript|alert/);
 });
 
+test("the ipynb parser preserves original indexes and hashes normalized complete sources before truncation", () => {
+  const preview = loadPreviewModule(resolvedPreview, async () => new Response());
+  const completeSource = `first\r\n${"x".repeat(60_100)}`;
+  const parsed = preview.parseNotebookDocument({
+    metadata: { language_info: { name: "Python" } },
+    cells: [
+      { cell_type: "markdown", source: [" \n"] },
+      { cell_type: "raw", source: ["ignored"] },
+      { cell_type: "code", source: completeSource, outputs: [{ output_type: "stream", text: "not hashed" }] },
+    ],
+  }, "text");
+
+  assert.equal(parsed.cells.length, 1);
+  assert.equal(parsed.cells[0].sourceIndex, 2);
+  assert.equal(parsed.cells[0].sourceDigest, cellDigest("code", "python", completeSource));
+  assert.equal(parsed.cells[0].text.endsWith("[Contenido recortado]"), true);
+  assert.equal(parsed.truncated, true);
+
+  const changedOutputs = preview.parseNotebookDocument({
+    metadata: { language_info: { name: "Python" } },
+    cells: [{ cell_type: "code", source: completeSource, outputs: [] }],
+  }, "text");
+  assert.equal(changedOutputs.cells[0].sourceDigest, parsed.cells[0].sourceDigest);
+});
+
 test("the Markdown parser returns one inert text cell without interpreting embedded HTML", () => {
   const preview = loadPreviewModule(resolvedPreview, async () => new Response());
   const source = "# Guide\n\n<script>globalThis.executed = true</script>\n\n```js\nalert('still text')\n```";
@@ -271,8 +331,19 @@ test("the Markdown parser returns one inert text cell without interpreting embed
   assert.equal(parsed.cells.length, 1);
   assert.equal(parsed.cells[0].kind, "markdown");
   assert.equal(parsed.cells[0].text, source);
+  assert.equal(parsed.cells[0].sourceIndex, 0);
+  assert.equal(parsed.cells[0].sourceDigest, cellDigest("markdown", "markdown", source));
   assert.equal("outputs" in parsed.cells[0], false);
   assert.equal(parsed.truncated, false);
+});
+
+test("the Markdown digest normalizes line endings and uses the complete source before truncation", () => {
+  const preview = loadPreviewModule(resolvedPreview, async () => new Response());
+  const source = `# Guide\r\n\r${"contenido".repeat(8_000)}`;
+  const parsed = preview.parseMarkdownDocument(source);
+  assert.equal(parsed.cells[0].sourceDigest, cellDigest("markdown", "markdown", source));
+  assert.equal(parsed.cells[0].text.endsWith("[Contenido recortado]"), true);
+  assert.equal(parsed.truncated, true);
 });
 
 test("the Databricks source parser recognizes Scala COMMAND boundaries and MAGIC Markdown", () => {
@@ -288,18 +359,18 @@ test("the Databricks source parser recognizes Scala COMMAND boundaries and MAGIC
   ].join("\n"), "scala");
 
   assert.equal(parsed.cells.length, 2);
-  assert.deepEqual(
-    JSON.parse(JSON.stringify(parsed.cells)),
-    [
-      { kind: "markdown", text: "# Delta metrics\nThis is documentation." },
-      {
-        kind: "code",
-        language: "scala",
-        text: "val tableName = \"main.default.events\"\nspark.table(tableName).count()",
-        outputs: [],
-      },
-    ],
+  assert.equal(parsed.cells[0].sourceIndex, 0);
+  assert.equal(parsed.cells[0].sourceDigest, cellDigest("markdown", "markdown", "# Delta metrics\nThis is documentation."));
+  assert.equal(parsed.cells[0].kind, "markdown");
+  assert.equal(parsed.cells[0].text, "# Delta metrics\nThis is documentation.");
+  assert.equal(parsed.cells[1].sourceIndex, 1);
+  assert.equal(
+    parsed.cells[1].sourceDigest,
+    cellDigest("code", "scala", "val tableName = \"main.default.events\"\nspark.table(tableName).count()"),
   );
+  assert.equal(parsed.cells[1].kind, "code");
+  assert.equal(parsed.cells[1].language, "scala");
+  assert.equal(parsed.cells[1].outputs.length, 0);
 });
 
 test("the Databricks source parser only recognizes markers for the declared language", () => {
@@ -390,8 +461,172 @@ test("the preview loader returns a normalized payload for an allowlisted noteboo
   assert.equal(payload.resourceId, "safe-notebook");
   assert.equal(payload.upstreamRef, resolvedPreview.artifact.preview.upstreamRef);
   assert.equal(payload.cells.length, 2);
+  assert.equal(payload.cells[0].id, `safe-notebook:0:${cellDigest("markdown", "markdown", "# Safe preview").slice(0, 12)}`);
+  assert.equal(payload.cells[0].guide, null);
   assert.equal(payload.cells[1].outputs[0].text, "ok\n");
   assert.equal(payload.truncated, false);
+  assert.deepEqual(JSON.parse(JSON.stringify(payload.guideCoverage)), {
+    status: "partial",
+    annotatedCells: 0,
+    totalCells: 2,
+    reviewedAt: null,
+    references: [],
+  });
+});
+
+const sampleGuide = {
+  points: [{
+    title: "Lectura guiada",
+    what: "Explica la intención de la celda.",
+    why: "Permite relacionarla con el objetivo.",
+    bestPractices: ["Validar antes de ejecutar."],
+    warnings: [],
+    status: "current",
+    referenceIds: ["ref-used"],
+  }],
+  prerequisites: ["SQL básico"],
+  expectedEvidence: ["Resultado reproducible"],
+};
+
+function guideManifestFor(cells, overrides = {}) {
+  return {
+    resourceId: resolvedPreview.artifact.id,
+    upstreamRef: resolvedPreview.artifact.preview.upstreamRef,
+    path: resolvedPreview.artifact.preview.path,
+    reviewedAt: "2026-07-23",
+    references: [
+      { id: "ref-used", title: "Used", publisher: "Publisher", href: "https://example.com/used", reviewedAt: "2026-07-23" },
+      { id: "ref-unused", title: "Unused", publisher: "Publisher", href: "https://example.com/unused", reviewedAt: "2026-07-23" },
+    ],
+    cells,
+    ...overrides,
+  };
+}
+
+test("the preview loader attaches guides only on exact identity and returns only used references", async () => {
+  const source = "print('guided')";
+  const document = {
+    metadata: { kernelspec: { language: "python" } },
+    cells: [
+      { cell_type: "markdown", source: " " },
+      { cell_type: "code", source, outputs: [{ output_type: "stream", text: "safe output" }] },
+    ],
+  };
+  const manifest = guideManifestFor([{
+    sourceIndex: 1,
+    sourceDigest: cellDigest("code", "python", source),
+    guide: sampleGuide,
+  }]);
+  const preview = loadPreviewModule(
+    resolvedPreview,
+    async () => new Response(JSON.stringify(document), { headers: { "content-type": "application/json" } }),
+    manifest,
+  );
+  const payload = await preview.loadCommunityNotebookPreview("safe-notebook");
+
+  assert.equal(payload.cells.length, 1);
+  assert.equal(payload.cells[0].sourceIndex, 1);
+  assert.equal(payload.cells[0].guide.points[0].title, "Lectura guiada");
+  assert.equal(payload.cells[0].id, `safe-notebook:1:${manifest.cells[0].sourceDigest.slice(0, 12)}`);
+  assert.equal(payload.cells[0].outputs[0].text, "safe output");
+  assert.deepEqual(JSON.parse(JSON.stringify(payload.guideCoverage)), {
+    status: "complete",
+    annotatedCells: 1,
+    totalCells: 1,
+    reviewedAt: "2026-07-23",
+    references: [manifest.references[0]],
+  });
+});
+
+test("guide metadata, index or digest mismatches degrade to partial without reassignment", async () => {
+  const source = "print('guided')";
+  const digest = cellDigest("code", "python", source);
+  const document = {
+    metadata: { kernelspec: { language: "python" } },
+    cells: [{ cell_type: "code", source, outputs: [] }],
+  };
+  const mismatches = [
+    guideManifestFor([{ sourceIndex: 0, sourceDigest: digest, guide: sampleGuide }], { resourceId: "other-resource" }),
+    guideManifestFor([{ sourceIndex: 0, sourceDigest: digest, guide: sampleGuide }], { upstreamRef: "0".repeat(40) }),
+    guideManifestFor([{ sourceIndex: 0, sourceDigest: digest, guide: sampleGuide }], { path: "other.ipynb" }),
+    guideManifestFor([{ sourceIndex: 1, sourceDigest: digest, guide: sampleGuide }]),
+    guideManifestFor([{ sourceIndex: 0, sourceDigest: "f".repeat(64), guide: sampleGuide }]),
+  ];
+
+  for (const manifest of mismatches) {
+    const preview = loadPreviewModule(
+      resolvedPreview,
+      async () => new Response(JSON.stringify(document), { headers: { "content-type": "application/json" } }),
+      manifest,
+    );
+    const payload = await preview.loadCommunityNotebookPreview("safe-notebook");
+    assert.equal(payload.cells[0].guide, null);
+    assert.equal(payload.guideCoverage.status, "partial");
+    assert.equal(payload.guideCoverage.annotatedCells, 0);
+    assert.deepEqual(JSON.parse(JSON.stringify(payload.guideCoverage.references)), []);
+  }
+});
+
+test("the preview Route Handler preserves guided payloads, cache headers and stable error mapping", async () => {
+  const guidedPayload = {
+    resourceId: "safe-notebook",
+    cells: [{
+      id: "safe-notebook:0:abcdef012345",
+      sourceIndex: 0,
+      sourceDigest: "abcdef012345".padEnd(64, "0"),
+      kind: "markdown",
+      text: "# Safe",
+      guide: sampleGuide,
+    }],
+    guideCoverage: {
+      status: "complete",
+      annotatedCells: 1,
+      totalCells: 1,
+      reviewedAt: "2026-07-23",
+      references: [],
+    },
+  };
+  const successful = loadPreviewRoute(async (resourceId) => {
+    assert.equal(resourceId, "safe-notebook");
+    return guidedPayload;
+  });
+  const success = await successful.route.GET(
+    new Request("https://example.test/api/resources/safe-notebook/preview"),
+    { params: Promise.resolve({ resourceId: "safe-notebook" }) },
+  );
+  assert.equal(success.status, 200);
+  assert.equal(success.body, guidedPayload);
+  assert.equal(success.headers["cache-control"], "public, max-age=3600, stale-while-revalidate=86400");
+  assert.equal(success.headers.vary, "Accept-Encoding");
+
+  for (const [status, expectedRetryable] of [[404, false], [503, true]]) {
+    let DomainError;
+    const failing = loadPreviewRoute(async () => {
+      throw new DomainError(status, status === 404 ? "RESOURCE_NOT_FOUND" : "UPSTREAM_UNAVAILABLE", "Fallo controlado");
+    });
+    DomainError = failing.TestNotebookPreviewError;
+    const response = await failing.route.GET(new Request("https://example.test"), {
+      params: Promise.resolve({ resourceId: "safe-notebook" }),
+    });
+    assert.equal(response.status, status);
+    assert.equal(response.body.code, status === 404 ? "RESOURCE_NOT_FOUND" : "UPSTREAM_UNAVAILABLE");
+    assert.equal(response.body.message, "Fallo controlado");
+    assert.equal(response.body.retryable, expectedRetryable);
+  }
+
+  const unexpected = loadPreviewRoute(async () => {
+    throw new Error("detalle privado");
+  });
+  const failure = await unexpected.route.GET(new Request("https://example.test"), {
+    params: Promise.resolve({ resourceId: "safe-notebook" }),
+  });
+  assert.equal(failure.status, 500);
+  assert.deepEqual(JSON.parse(JSON.stringify(failure.body)), {
+    code: "PREVIEW_FAILED",
+    message: "No se pudo preparar la vista de lectura.",
+    retryable: true,
+  });
+  assert.doesNotMatch(JSON.stringify(failure.body), /detalle privado/);
 });
 
 test("the preview loader rejects oversized, unsupported and timed-out upstream responses", async () => {
@@ -526,4 +761,19 @@ test("the public UI exposes resources without adding them to completion math", (
   assert.match(catalog, /Módulos/);
   assert.match(catalog, /Notebooks/);
   assert.match(catalog, /previewOnly/);
+});
+
+test("the online verifier resolves TypeScript files before directories and retries only transient fetches", () => {
+  const verifier = read("scripts/verify-community-previews.mjs");
+  const tsCandidate = verifier.indexOf("`${unresolved}.ts`");
+  const indexCandidate = verifier.indexOf("`${unresolved}/index.ts`");
+  const bareCandidate = verifier.indexOf("      unresolved,");
+
+  assert.ok(tsCandidate >= 0 && indexCandidate > tsCandidate && bareCandidate > indexCandidate);
+  assert.match(verifier, /existsSync\(url\)\s*&&\s*statSync\(url\)\.isFile\(\)/);
+  assert.match(verifier, /MAX_FETCH_ATTEMPTS\s*=\s*3/);
+  assert.match(verifier, /new Set\(\[408,\s*425,\s*429\]\)/);
+  assert.match(verifier, /status\s*>=\s*500/);
+  assert.match(verifier, /signal:\s*AbortSignal\.timeout\(FETCH_TIMEOUT_MS\)/);
+  assert.doesNotMatch(verifier, /new Set\(\[[^\]]*(?:400|401|403|404)/);
 });

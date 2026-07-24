@@ -27,6 +27,8 @@ jobs:
       - run: npm run typecheck
       - run: npm run build
       - run: npm run test:unit
+      - name: Verify pinned notebook guides
+        run: npm run verify:community-previews
 
   e2e:
     runs-on: ubuntu-latest
