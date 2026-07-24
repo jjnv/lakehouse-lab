@@ -49,16 +49,16 @@
   "devDependencies": {
     "@axe-core/playwright": "^4.12.1",
     "@playwright/test": "^1.61.1",
-    "@tailwindcss/postcss": "4.2.1",
-    "@types/node": "22.19.19",
+    "@tailwindcss/postcss": "4.3.3",
+    "@types/node": "26.1.1",
     "@types/react": "19.2.14",
     "@types/react-dom": "19.2.3",
     "drizzle-kit": "0.31.10",
-    "eslint": "9.39.4",
-    "eslint-config-next": "16.2.6",
-    "react-server-dom-webpack": "19.2.6",
-    "tailwindcss": "4.2.1",
-    "typescript": "5.9.3"
+    "eslint": "10.7.0",
+    "eslint-config-next": "16.2.11",
+    "react-server-dom-webpack": "19.2.8",
+    "tailwindcss": "4.3.3",
+    "typescript": "7.0.2"
   },
   "type": "module"
 }
