@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
+import { Analytics } from "@vercel/analytics/next";
 import { PROJECT_DESCRIPTION, PROJECT_NAME, PROJECT_PUBLIC_URL, PROJECT_TAGLINE } from "./project-info";
 import "./globals.css";
 import "./public.css";
@@ -30,5 +31,5 @@ export function generateMetadata(): Metadata {
 }
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
-  return <html lang="es"><body className={`${geistSans.variable} ${geistMono.variable} antialiased`}>{children}</body></html>;
+  return <html lang="es"><body className={`${geistSans.variable} ${geistMono.variable} antialiased`}>{children}<Analytics /></body></html>;
 }
