@@ -48,6 +48,19 @@
 
 .ll-language-switcher{display:inline-flex;align-items:center;gap:8px;color:#f5f7fa}.ll-language-switcher>span{font-size:11px;font-weight:850;text-transform:uppercase;color:#b8c0cb}.ll-language-switcher>div{display:inline-flex;min-height:40px;border:1px solid #303846;border-radius:8px;background:#101720;overflow:hidden}.ll-language-switcher button{min-width:44px;border:0;border-left:1px solid #303846;background:transparent;color:#d7deea;padding:0 10px;font-size:12px;font-weight:850;cursor:pointer}.ll-language-switcher button:first-child{border-left:0}.ll-language-switcher button[aria-pressed="true"]{background:#b9361f;color:#fff}.ll-language-switcher button:focus-visible{outline:2px solid #ff7a4f;outline-offset:-2px}.ll-language-switcher button:disabled{cursor:wait;opacity:.72}.ll-language-switcher small{max-width:180px;color:#f2c56a;font-size:11px}.ll-language-switcher.is-compact>span{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}.public-header .ll-language-switcher{margin-left:auto}.public-header .ll-language-switcher>div{background:#111821}.ent-mobile-header .ll-language-switcher{justify-self:end}.ent-topbar>.ll-language-switcher{flex:0 0 auto}@media(max-width:760px){.public-header .ll-language-switcher{order:4;margin-left:0}.ent-topbar>.ll-language-switcher{display:none}}
 
+/* La cabecera pública tiene ahora un control de idioma y una acción de cuenta separados. */
+.public-header{grid-template-columns:minmax(0,1fr) auto auto auto}
+@media(max-width:1280px){
+  .public-header{grid-template-columns:minmax(0,1fr) auto auto;gap:8px 16px}
+  .public-header nav{grid-column:1/-1;grid-row:2}
+}
+@media(max-width:480px){
+  .public-header{grid-template-columns:minmax(0,1fr) auto}
+  .public-header .ll-language-switcher{grid-column:1;grid-row:2;margin-left:0}
+  .public-header-action{grid-column:2;grid-row:2}
+  .public-header nav{grid-row:3}
+}
+
 .public-glossary-main{width:min(1380px,calc(100% - 48px))}
 .public-glossary{max-width:1120px}
 .public-glossary-summary{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:18px;align-items:stretch;border-top:0!important;margin-top:42px!important;padding-top:0!important}
