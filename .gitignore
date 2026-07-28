@@ -45,3 +45,8 @@ next-env.d.ts
 /.wrangler/
 /outputs/
 /work/
+
+# Codex local configuration, audit artifacts, attachments and logs
+/.codex-audit/
+/.codex-remote-attachments/
+/.codex-*.log

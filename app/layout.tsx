@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
+import { Analytics } from "@vercel/analytics/next";
 import { PROJECT_DESCRIPTION, PROJECT_NAME, PROJECT_PUBLIC_URL, PROJECT_TAGLINE } from "./project-info";
 import { openGraphLocale } from "./i18n/config";
 import { getRequestLocale } from "./i18n/server";
@@ -38,5 +39,5 @@ export async function generateMetadata(): Promise<Metadata> {
 
 export default async function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   const locale = await getRequestLocale();
-  return <html lang={locale}><body className={`${geistSans.variable} ${geistMono.variable} antialiased`}>{children}</body></html>;
+  return <html lang={locale}><body className={`${geistSans.variable} ${geistMono.variable} antialiased`}>{children}<Analytics /></body></html>;
 }
