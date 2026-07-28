@@ -418,7 +418,7 @@ footer{padding:30px max(24px,calc((100vw - var(--content))/2));background:#fffdf
 @media(prefers-reduced-motion:reduce){.ent-notebook-drawer{animation:none}}
 
 /* Global curriculum search */
-.ent-topbar{display:grid;grid-template-columns:minmax(150px,1fr) minmax(300px,520px) minmax(150px,1fr)}
+.ent-topbar{display:grid;grid-template-columns:minmax(150px,1fr) minmax(300px,520px) auto auto}
 .ent-topbar>.ent-topbar-title{min-width:0;display:flex;align-items:baseline;gap:12px}
 .ent-topbar>.ent-global-search{position:relative;display:block;align-self:center;width:100%;min-width:0}
 .ent-global-search form{height:44px;display:grid;grid-template-columns:25px minmax(0,1fr) auto;align-items:center;border:1px solid #cfd5dc;border-radius:10px;padding:0 10px;background:#f8f9fa;box-shadow:0 1px 2px rgba(26,33,42,.04)}
@@ -442,7 +442,7 @@ footer{padding:30px max(24px,calc((100vw - var(--content))/2));background:#fffdf
 .ent-topbar-account{justify-self:end}
 .ent-mental-model article[tabindex="-1"]{scroll-margin-top:150px}
 .ent-mental-model article[tabindex="-1"]:focus{outline:3px solid #246db2;outline-offset:4px;background:#fff}
-@media(max-width:1100px){.ent-topbar{grid-template-columns:minmax(150px,.65fr) minmax(280px,1.35fr)}.ent-topbar>.ent-global-search{justify-self:end}.ent-search-popover{right:0;left:auto}}
+@media(max-width:1100px){.ent-topbar{grid-template-columns:minmax(150px,.65fr) minmax(280px,1.35fr)}.ent-topbar>.ent-global-search{justify-self:end}.ent-topbar>.ll-language-switcher{display:none}.ent-search-popover{right:0;left:auto}}
 @media(max-width:700px){.ent-topbar{grid-template-columns:1fr}.ent-topbar>.ent-global-search{justify-self:stretch}.ent-search-popover{right:auto;left:0;width:100%}.ent-topbar>.ent-topbar-title{display:grid;gap:1px}.ent-global-search kbd{display:none}.ent-search-result{grid-template-columns:1fr}.ent-search-result>span{grid-row:auto;margin-bottom:2px}.ent-search-popover footer>span{display:none}.ent-search-popover footer{justify-content:flex-end}}
 
 /* Open access, resumable assessments and public verification. */
