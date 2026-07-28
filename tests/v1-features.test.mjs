@@ -167,7 +167,8 @@ test("keeps authored course data and answer keys outside every client component"
   assert.match(publicQuizProjection, /options:\s*\[\.\.\.question\.options\]/u);
   assert.match(publicQuizProjection, /domain:\s*question\.domain/u);
   assert.doesNotMatch(publicQuizProjection, /\banswer\s*:|\bexplanation\s*:/u);
-  assert.match(routeSources["app/curso/[slug]/page.tsx"], /<CourseWorkspace module=\{publicModule\(courseModule\)\}/u);
+  assert.match(routeSources["app/curso/[slug]/page.tsx"], /<CourseWorkspace module=\{modulePayload\}/u);
+  assert.match(routeSources["app/curso/[slug]/page.tsx"], /publicModule\(courseModule, context\.locale\)/u);
 
   const service = sources["app/enterprise/learning-service.ts"];
   assert.match(service, /from "\.\.\/course-data"/u);
@@ -207,8 +208,8 @@ test("retains static accessibility contracts in the shell, course and assessment
   const assessment = sources["app/components/enterprise/AssessmentPanel.tsx"];
   const styles = sources["app/globals.css"];
 
-  assert.match(layout, /<html lang="es">/u);
-  assert.match(shell, /href="#main-content">Saltar al contenido/u);
+  assert.match(layout, /<html lang=\{locale\}>/u);
+  assert.match(shell, /href="#main-content">\{text\.skip\}/u);
   assert.ok(shell.indexOf("<header") < shell.indexOf('<main id="main-content"'));
   assert.match(shell, /aria-current=\{isCurrent \? "page" : undefined\}/u);
   assert.match(shell, /aria-modal=\{drawerOpen && mobileNavigation \? true : undefined\}/u);

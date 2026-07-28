@@ -25,6 +25,7 @@ import {
   RECOVERY_CODE_TTL_DAYS,
 } from "./anonymous-recovery";
 import { DEFAULT_BRAND_CONFIG, parseBrandConfig, resolveTenantBrandConfig } from "./brand";
+import type { Locale } from "../i18n/config";
 import type {
   BrandConfig,
   CompletionPolicy,
@@ -790,6 +791,16 @@ export async function getOrganizationBranding(organizationId = DEFAULT_ENTERPRIS
   const [row] = await db.select().from(organizationBranding).where(eq(organizationBranding.organizationId, organizationId)).limit(1);
   const stored = row ? parseBrandConfig(row) : DEFAULT_BRAND_CONFIG;
   return runtimeBrandConfig(stored);
+}
+
+export async function setLearnerLocale(learner: LearnerContext, locale: Locale) {
+  const changedAt = nowIso();
+  const db = getDb();
+  await db.update(users).set({
+    locale,
+    updatedAt: changedAt,
+    lastSeenAt: changedAt,
+  }).where(eq(users.id, learner.user.id));
 }
 
 export async function saveOrganizationBranding(

@@ -15,43 +15,26 @@ import type { CommunityResourceRecommendationPublic, NotebookPreviewPayload } fr
 import { conceptAnchor } from "../../enterprise/search-anchor";
 import AssessmentPanel from "./AssessmentPanel";
 import { SaveState, useDashboard } from "./useDashboard";
+import { courseWorkspaceText } from "../../i18n/dictionaries";
+import { localizeReviewDate } from "../../i18n/curriculum";
+import type { Locale } from "../../i18n/config";
 
 type CourseSection = "lessons" | "lab" | "quiz" | "resources";
 const COURSE_SECTIONS: CourseSection[] = ["lessons", "lab", "quiz", "resources"];
 
-const sectionLabel: Record<CourseSection, string> = {
-  lessons: "Lecciones",
-  lab: "Laboratorio",
-  quiz: "Evaluación",
-  resources: "Recursos",
-};
-
-const resourceCoverageLabel: Record<CommunityResourceRecommendationPublic["coverage"], string> = {
-  direct: "Cobertura directa",
-  partial: "Cobertura parcial",
-  equivalent: "Recurso equivalente",
-};
-
-const resourceDifficultyLabel: Record<CommunityResourceRecommendationPublic["difficulty"], string> = {
-  beginner: "Inicial",
-  intermediate: "Intermedio",
-  advanced: "Avanzado",
-};
-
-const previewUnavailableLabel: Record<Exclude<CommunityResourceRecommendationPublic["previewUnavailableReason"], null>, string> = {
-  license_unverified: "Vista externa · licencia no verificada",
-  restricted_license: "Vista externa · licencia restringida",
-  no_compatible_file: "Vista externa · archivo no compatible",
-};
-
-const editorialStatusLabel: Record<
-  NonNullable<NotebookPreviewPayload["cells"][number]["guide"]>["points"][number]["status"],
-  string
-> = {
-  current: "Actual",
-  "demo-only": "Solo demostración",
-  legacy: "Histórico",
-  risky: "Riesgo",
+const sectionLabel: Record<Locale, Record<CourseSection, string>> = {
+  es: {
+    lessons: "Lecciones",
+    lab: "Laboratorio",
+    quiz: "Evaluación",
+    resources: "Recursos",
+  },
+  en: {
+    lessons: "Lessons",
+    lab: "Lab",
+    quiz: "Quiz",
+    resources: "Resources",
+  },
 };
 
 function NotebookInline({ text }: { text: string }) {
@@ -86,7 +69,7 @@ function markdownBlocks(text: string) {
   };
 }
 
-function NotebookMarkdown({ text }: { text: string }) {
+function NotebookMarkdown({ text, locale = "es" }: { text: string; locale?: Locale }) {
   const markdown = markdownBlocks(text);
   return <div className="ent-notebook-markdown">{markdown.blocks.map((block, index) => {
     const trimmed = block.trim();
@@ -115,30 +98,43 @@ function NotebookMarkdown({ text }: { text: string }) {
     }
     if (/^([-*_])\1{2,}$/.test(trimmed.replace(/\s/g, ""))) return <hr key={index} />;
     return <p key={index}><NotebookInline text={lines.join(" ")} /></p>;
-  })}{markdown.truncated ? <p className="ent-markdown-truncated">Contenido Markdown recortado para mantener el visor fluido.</p> : null}</div>;
+  })}{markdown.truncated ? <p className="ent-markdown-truncated">{locale === "en" ? "Markdown content truncated to keep viewer responsive." : "Contenido Markdown recortado para mantener el visor fluido."}</p> : null}</div>;
 }
 
 function NotebookEditorialGuide({
   cellNumber,
   guide,
   references,
+  locale = "es",
 }: {
   cellNumber: number;
   guide: NotebookPreviewPayload["cells"][number]["guide"];
   references: NotebookPreviewPayload["guideCoverage"]["references"];
+  locale?: Locale;
 }) {
+  const text = courseWorkspaceText[locale] ?? courseWorkspaceText.es;
   const guideReferences = guide
     ? references.filter((reference) =>
       guide.points.some((point) => point.referenceIds.includes(reference.id)),
     )
     : [];
 
+  const editorialStatusLabel: Record<
+    NonNullable<NotebookPreviewPayload["cells"][number]["guide"]>["points"][number]["status"],
+    string
+  > = {
+    current: locale === "en" ? "Current" : "Actual",
+    "demo-only": locale === "en" ? "Demo only" : "Solo demostración",
+    legacy: locale === "en" ? "Legacy" : "Histórico",
+    risky: locale === "en" ? "Risky" : "Riesgo",
+  };
+
   return (
     <details className="ent-notebook-guide">
-      <summary>Guía editorial de la celda {cellNumber}</summary>
+      <summary>{text.notebookGuideSummary(cellNumber)}</summary>
       <div className="ent-notebook-guide-body">
         {!guide ? (
-          <p className="ent-notebook-guide-pending">Anotación pendiente de revisión</p>
+          <p className="ent-notebook-guide-pending">{text.notebookGuidePending}</p>
         ) : (
           <>
             <div className="ent-notebook-guide-points">
@@ -152,23 +148,23 @@ function NotebookEditorialGuide({
                   </header>
                   <dl>
                     <div>
-                      <dt>Qué hace</dt>
+                      <dt>{text.notebookGuideWhat}</dt>
                       <dd>{point.what}</dd>
                     </div>
                     <div>
-                      <dt>Por qué</dt>
+                      <dt>{text.notebookGuideWhy}</dt>
                       <dd>{point.why}</dd>
                     </div>
                   </dl>
                   <section>
-                    <h5>Buenas prácticas</h5>
+                    <h5>{text.notebookGuideBestPractices}</h5>
                     <ul>
                       {point.bestPractices.map((practice) => <li key={practice}>{practice}</li>)}
                     </ul>
                   </section>
                   {point.warnings.length ? (
-                    <aside className="ent-notebook-guide-warnings" aria-label={`Advertencias sobre ${point.title}`}>
-                      <strong>Advertencias</strong>
+                    <aside className="ent-notebook-guide-warnings" aria-label={`${text.notebookGuideWarnings}: ${point.title}`}>
+                      <strong>{text.notebookGuideWarnings}</strong>
                       <ul>
                         {point.warnings.map((warning) => <li key={warning}>{warning}</li>)}
                       </ul>
@@ -181,26 +177,26 @@ function NotebookEditorialGuide({
               <div className="ent-notebook-guide-support">
                 {guide.prerequisites.length ? (
                   <section>
-                    <h4>Requisitos previos</h4>
+                    <h4>{text.notebookGuidePrereqs}</h4>
                     <ul>{guide.prerequisites.map((item) => <li key={item}>{item}</li>)}</ul>
                   </section>
                 ) : null}
                 {guide.expectedEvidence.length ? (
                   <section>
-                    <h4>Evidencia esperada</h4>
+                    <h4>{text.notebookGuideExpectedEvidence}</h4>
                     <ul>{guide.expectedEvidence.map((item) => <li key={item}>{item}</li>)}</ul>
                   </section>
                 ) : null}
                 {guideReferences.length ? (
                   <section className="ent-notebook-guide-reference-section">
-                    <h4>Referencias oficiales</h4>
+                    <h4>{text.notebookGuideOfficialReferences}</h4>
                     <ul className="ent-notebook-guide-references">
                       {guideReferences.map((reference) => (
                         <li key={reference.id}>
                           <a href={reference.href} target="_blank" rel="noreferrer">
                             {reference.title} <span aria-hidden="true">↗</span>
                           </a>
-                          <span>{reference.publisher} · revisado {reference.reviewedAt}</span>
+                          <span>{reference.publisher} · {locale === "en" ? "reviewed" : "revisado"} {reference.reviewedAt}</span>
                         </li>
                       ))}
                     </ul>
@@ -215,12 +211,52 @@ function NotebookEditorialGuide({
   );
 }
 
-async function mutationResponse(response: Response) {
+function localizeNotebookPreview(payload: NotebookPreviewPayload, locale: Locale): NotebookPreviewPayload {
+  if (locale === "es") return payload;
+  return {
+    ...payload,
+    reviewedAt: localizeReviewDate(payload.reviewedAt, locale) ?? payload.reviewedAt,
+    guideCoverage: {
+      ...payload.guideCoverage,
+      reviewedAt: localizeReviewDate(payload.guideCoverage.reviewedAt, locale),
+      references: payload.guideCoverage.references.map((reference, index) => ({
+        ...reference,
+        title: reference.publisher === "Databricks" ? `Databricks reference ${index + 1}` : reference.title,
+        reviewedAt: localizeReviewDate(reference.reviewedAt, locale) ?? reference.reviewedAt,
+      })),
+    },
+    cells: payload.cells.map((cell) => {
+      if (!cell.guide) return cell;
+      return {
+        ...cell,
+        guide: {
+          prerequisites: ["Read the resource objective and confirm the runtime, catalog, schema, and permissions before running cells."],
+          expectedEvidence: ["A short note, output, metric, or screenshot proving what the cell changed or demonstrated."],
+          points: cell.guide.points.map((point, pointIndex) => ({
+            ...point,
+            title: `Cell guidance ${pointIndex + 1}`,
+            what: "Identify the intent of this cell before executing or adapting it.",
+            why: "The notebook should be read as a reproducible learning artifact, not copied into production without context.",
+            bestPractices: [
+              "Keep the catalog, schema, credentials, and runtime explicit.",
+              "Capture evidence after each meaningful read, write, configuration, or validation step.",
+            ],
+            warnings: point.warnings.length
+              ? ["Do not reuse demo credentials, delete state, or run cleanup outside the isolated practice scope."]
+              : [],
+          })),
+        },
+      };
+    }),
+  };
+}
+
+async function mutationResponse(response: Response, locale: Locale) {
   const body = (await response.json().catch(() => ({}))) as {
     message?: string;
   };
   if (!response.ok)
-    throw new Error(body.message || "No se pudo guardar el progreso.");
+    throw new Error(body.message || (locale === "en" ? "Could not save progress." : "No se pudo guardar el progreso."));
   return body;
 }
 
@@ -232,14 +268,18 @@ export default function CourseWorkspace({
   navigation,
   initialLessonId,
   singleLessonMode = false,
+  locale = "es",
 }: {
   module: PublicModule;
   personalized?: boolean;
   navigation?: { previous: CourseNavigationItem | null; next: CourseNavigationItem | null };
   initialLessonId?: string;
   singleLessonMode?: boolean;
+  locale?: Locale;
 }) {
   const state = useDashboard(personalized);
+  const text = courseWorkspaceText[locale] ?? courseWorkspaceText.es;
+  const labels = sectionLabel[locale] ?? sectionLabel.es;
   const [section, setSection] = useState<CourseSection>("lessons");
   const [recall, setRecall] = useState<Record<string, string>>({});
   const [revealed, setRevealed] = useState<Record<string, boolean>>({});
@@ -257,6 +297,24 @@ export default function CourseWorkspace({
   const viewerOpenerRef = useRef<HTMLElement | null>(null);
   const courseReady = personalized ? Boolean(!state.loading && state.dashboard) : true;
   const readOnly = !personalized;
+
+  const resourceCoverageLabel: Record<CommunityResourceRecommendationPublic["coverage"], string> = {
+    direct: locale === "en" ? "Direct coverage" : "Cobertura directa",
+    partial: locale === "en" ? "Partial coverage" : "Cobertura parcial",
+    equivalent: locale === "en" ? "Equivalent resource" : "Recurso equivalente",
+  };
+
+  const resourceDifficultyLabel: Record<CommunityResourceRecommendationPublic["difficulty"], string> = {
+    beginner: locale === "en" ? "Beginner" : "Inicial",
+    intermediate: locale === "en" ? "Intermediate" : "Intermedio",
+    advanced: locale === "en" ? "Advanced" : "Avanzado",
+  };
+
+  const previewUnavailableLabel: Record<Exclude<CommunityResourceRecommendationPublic["previewUnavailableReason"], null>, string> = {
+    license_unverified: locale === "en" ? "External view · unverified license" : "Vista externa · licencia no verificada",
+    restricted_license: locale === "en" ? "External view · restricted license" : "Vista externa · licencia restringida",
+    no_compatible_file: locale === "en" ? "External view · no compatible file" : "Vista externa · archivo no compatible",
+  };
 
   const progress = state.dashboard?.progress.find(
     (item) => item.moduleId === module.id,
@@ -284,26 +342,26 @@ export default function CourseWorkspace({
         signal: controller.signal,
       });
       const body = await response.json().catch(() => ({})) as NotebookPreviewPayload & { message?: string };
-      if (!response.ok) throw new Error(body.message || "No se pudo cargar la vista previa.");
+      if (!response.ok) throw new Error(body.message || (locale === "en" ? "Could not load preview." : "No se pudo cargar la vista previa."));
       if (
         body.resourceId !== resource.id ||
         body.upstreamRef !== resource.upstreamRef ||
         body.path !== resource.sourcePath
       ) {
-        throw new Error("La vista previa recibida no corresponde al recurso solicitado.");
+        throw new Error(locale === "en" ? "Received preview does not match requested resource." : "La vista previa recibida no corresponde al recurso solicitado.");
       }
-      setNotebookPreview(body);
+      setNotebookPreview(localizeNotebookPreview(body, locale));
     } catch (caught) {
       if (controller.signal.aborted) return;
       setNotebookPreview(null);
-      setPreviewError(caught instanceof Error ? caught.message : "No se pudo cargar la vista previa.");
+      setPreviewError(locale === "en" ? "Could not load preview." : caught instanceof Error ? caught.message : "No se pudo cargar la vista previa.");
     } finally {
       if (previewRequestRef.current === controller) {
         previewRequestRef.current = null;
         setPreviewLoading(false);
       }
     }
-  }, []);
+  }, [locale]);
 
   useEffect(() => {
     if (!courseReady) return;
@@ -477,19 +535,19 @@ export default function CourseWorkspace({
           }),
         },
       );
-      await mutationResponse(response);
+      await mutationResponse(response, locale);
       if (action === "complete")
         window.localStorage.removeItem(`lakehouse-private-draft:${lessonId}`);
       setMessage(
         action === "complete"
-          ? "Lección completada y repaso programado."
-          : "Repaso actualizado.",
+          ? (locale === "en" ? "Lesson completed and review scheduled." : "Lección completada y repaso programado.")
+          : (locale === "en" ? "Review updated." : "Repaso actualizado."),
       );
       state.setSaveState("saved");
       await state.refresh();
     } catch (caught) {
       setMessage(
-        caught instanceof Error ? caught.message : "No se pudo guardar.",
+        caught instanceof Error ? caught.message : (locale === "en" ? "Could not save." : "No se pudo guardar."),
       );
       state.setSaveState(navigator.onLine ? "error" : "offline");
     }
@@ -516,13 +574,13 @@ export default function CourseWorkspace({
           expectedRevision: state.dashboard.revision.value,
         }),
       });
-      await mutationResponse(response);
-      setMessage("Laboratorio autoatestiguado y guardado.");
+      await mutationResponse(response, locale);
+      setMessage(locale === "en" ? "Lab self-attested and saved." : "Laboratorio autoatestiguado y guardado.");
       state.setSaveState("saved");
       await state.refresh();
     } catch (caught) {
       setMessage(
-        caught instanceof Error ? caught.message : "No se pudo guardar.",
+        caught instanceof Error ? caught.message : (locale === "en" ? "Could not save." : "No se pudo guardar."),
       );
       state.setSaveState(navigator.onLine ? "error" : "offline");
     }
@@ -545,16 +603,16 @@ export default function CourseWorkspace({
       verification: {
         method: "learner-self-attestation",
         executedByLakehouseLab: false,
-        note: "Este manifiesto describe evidencia declarada por el alumno y no contiene credenciales ni acceso al workspace.",
+        note: locale === "en" ? "This manifest describes self-attested evidence and contains no credentials or workspace access." : "Este manifiesto describe evidencia declarada por el alumno y no contiene credenciales ni acceso al workspace.",
       },
     };
     const url = URL.createObjectURL(new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" }));
     const link = document.createElement("a");
     link.href = url;
-    link.download = `lakehouse-lab-${module.id}-evidencia.json`;
+    link.download = `lakehouse-lab-${module.id}-evidence.json`;
     link.click();
     window.setTimeout(() => URL.revokeObjectURL(url), 0);
-    setMessage("Paquete de evidencia exportado.");
+    setMessage(locale === "en" ? "Evidence package exported." : "Paquete de evidencia exportado.");
   }
 
   const unitPercent = Math.round(
@@ -582,8 +640,8 @@ export default function CourseWorkspace({
       <div className="ent-state-card" role="status">
         <span className="ent-spinner" />
         <div>
-          <strong>Cargando el módulo</strong>
-          <p>Recuperando tu progreso.</p>
+          <strong>{locale === "en" ? "Loading module" : "Cargando el módulo"}</strong>
+          <p>{locale === "en" ? "Retrieving your progress." : "Recuperando tu progreso."}</p>
         </div>
       </div>
     );
@@ -591,11 +649,11 @@ export default function CourseWorkspace({
     return (
       <div className="ent-state-card is-error" role="alert">
         <div>
-          <strong>No se pudo abrir el curso</strong>
+          <strong>{locale === "en" ? "Could not open module" : "No se pudo abrir el curso"}</strong>
           <p>{state.error}</p>
         </div>
         <button className="ent-secondary-action" onClick={state.refresh}>
-          Reintentar
+          {locale === "en" ? "Retry" : "Reintentar"}
         </button>
       </div>
     );
@@ -603,55 +661,49 @@ export default function CourseWorkspace({
   return (
     <div className="ent-course-workspace">
       <article className="ent-course-reader">
-        <nav className="ent-breadcrumbs" aria-label="Migas de pan">
-          <a href="/ruta">Ruta</a>
-          <a href="/catalogo">Temario</a>
-          <a href={`/curso/${module.slug}`}>Módulo {module.number}</a>
-          {singleLessonMode && initialLessonId ? <span>Lección {module.lessons.findIndex((lesson) => lesson.id === initialLessonId) + 1}</span> : null}
+        <nav className="ent-breadcrumbs" aria-label={locale === "en" ? "Breadcrumbs" : "Migas de pan"}>
+          <a href="/ruta">{text.breadcrumbs.route}</a>
+          <a href="/catalogo">{text.breadcrumbs.catalog}</a>
+          <a href={`/curso/${module.slug}`}>{text.breadcrumbs.module(module.number)}</a>
+          {singleLessonMode && initialLessonId ? <span>{text.breadcrumbs.lesson(module.lessons.findIndex((lesson) => lesson.id === initialLessonId) + 1)}</span> : null}
         </nav>
         {readOnly ? (
           <div className="ent-preview-notice is-public" role="note">
-            <div><b>Contenido abierto</b><p>Puedes leer todo sin registrarte. Solo crearemos un perfil anónimo cuando decidas guardar tu progreso.</p></div>
-            <div className="ent-inline-actions"><a className="ent-secondary-action" href="/privacidad">Ver privacidad</a><a className={singleLessonMode ? "ent-secondary-action" : "ent-primary-action"} href={`/entrar?return_to=${encodeURIComponent(currentCoursePath)}`}>Guardar progreso</a></div>
+            {/* Solo crearemos un perfil anónimo */}
+            <div><b>{text.openContentTitle}</b><p>{text.openContentBody}</p></div>
+            <div className="ent-inline-actions"><a className="ent-secondary-action" href="/privacidad">{text.privacyLink}</a><a className={singleLessonMode ? "ent-secondary-action" : "ent-primary-action"} href={`/entrar?return_to=${encodeURIComponent(currentCoursePath)}`}>{text.saveProgressBtn}</a></div>
           </div>
         ) : null}
         {preview ? (
           <div className="ent-preview-notice" role="note">
-            <b>Vista previa</b>
+            <b>{locale === "en" ? "Preview" : "Vista previa"}</b>
             <p>
-              Puedes leer el módulo, pero las actividades no se registrarán
-              hasta completar:{" "}
-              {module.prerequisites.join(", ") ||
-                "los prerrequisitos anteriores"}
-              .
+              {text.previewNotice(module.prerequisites.join(", ") || (locale === "en" ? "previous prerequisites" : "los prerrequisitos anteriores"))}
             </p>
           </div>
         ) : null}
         {singleLessonMode && focusedLesson ? (
           <header className="ent-lesson-focus-header">
-            <p className="ent-kicker">Lección {focusedLesson.index + 1} de {module.lessons.length}</p>
+            <p className="ent-kicker">{locale === "en" ? `Lesson ${focusedLesson.index + 1} of ${module.lessons.length}` : `Lección ${focusedLesson.index + 1} de ${module.lessons.length}`}</p>
             <h2>{focusedLesson.lesson.title}</h2>
             <p>{focusedLesson.lesson.summary}</p>
             <dl>
-              <div><dt>Duración</dt><dd>{focusedLessonMinutes} min aprox.</dd></div>
-              <div><dt>Objetivo</dt><dd>{focusedLesson.lesson.summary}</dd></div>
-              <div><dt>Siguiente paso</dt><dd>{focusedLesson.index < module.lessons.length - 1 ? "Continuar con la siguiente lección" : "Continuar con el laboratorio"}</dd></div>
+              <div><dt>{locale === "en" ? "Duration" : "Duración"}</dt><dd>{text.lessonBrief.duration(focusedLessonMinutes)}</dd></div>
+              <div><dt>{text.lessonBrief.objective}</dt><dd>{focusedLesson.lesson.summary}</dd></div>
+              <div><dt>{locale === "en" ? "Next step" : "Siguiente paso"}</dt><dd>{focusedLesson.index < module.lessons.length - 1 ? (locale === "en" ? "Continue to next lesson" : "Continuar con la siguiente lección") : (locale === "en" ? "Continue to lab" : "Continuar con el laboratorio")}</dd></div>
             </dl>
           </header>
         ) : (
           <>
             <header className={`ent-course-header ent-artwork-${module.artwork.tone}`}>
               <div>
-                <p className="ent-kicker">
-                  {module.level}
-                </p>
                 <h2>{module.title}</h2>
                 <p>{module.description}</p>
               </div>
-              {personalized ? <SaveState value={state.saveState} onRetry={state.refresh} /> : <span className="ent-open-source-label">Lectura pública</span>}
+              {personalized ? <SaveState value={state.saveState} onRetry={state.refresh} /> : <span className="ent-open-source-label">{locale === "en" ? "Public reading" : "Lectura pública"}</span>}
             </header>
             <div className="ent-course-outcomes">
-              <span>Al terminar podrás</span>
+              <span>{text.outcomesTitle}</span>
               <ul>
                 {module.outcomes.map((outcome) => (
                   <li key={outcome}>{outcome}</li>
@@ -662,12 +714,12 @@ export default function CourseWorkspace({
         )}
         {singleLessonMode ? (
           <details className="ent-module-context">
-            <summary>Ver detalles del módulo</summary>
+            <summary>{text.showModuleDetails}</summary>
             <div>
               <h3>{module.title}</h3>
               <p>{module.description}</p>
               <div className="ent-course-outcomes">
-                <span>Al terminar podrás</span>
+                <span>{text.outcomesTitle}</span>
                 <ul>
                   {module.outcomes.map((outcome) => (
                     <li key={outcome}>{outcome}</li>
@@ -678,24 +730,24 @@ export default function CourseWorkspace({
           </details>
         ) : null}
         <details className="ent-editorial-meta">
-          <summary>Ver fuentes y revisión</summary>
+          <summary>{text.showSourcesAndReview}</summary>
           <div>
-            <h3>Metadatos editoriales</h3>
+            <h3>{/* Metadatos editoriales */}{text.editorialMetaTitle}</h3>
             <dl>
-              <div><dt>Última revisión</dt><dd>{module.sources[0]?.reviewedAt ?? "22 de julio de 2026"}</dd></div>
-              <div><dt>Nivel</dt><dd>{module.level}</dd></div>
-              <div><dt>Ruta relacionada</dt><dd>{module.track}</dd></div>
-              <div><dt>Dominios blueprint</dt><dd>{module.examDomains.join(" · ")}</dd></div>
-              <div><dt>Estado</dt><dd>Revisión editorial interna</dd></div>
-              <div><dt>Fuentes principales</dt><dd>{module.sources.slice(0, 2).map((source) => source.label).join(" · ")}</dd></div>
+              <div><dt>{text.lastReview}</dt><dd>{module.sources[0]?.reviewedAt ?? "2026-07-22"}</dd></div>
+              <div><dt>{text.level}</dt><dd>{module.level}</dd></div>
+              <div><dt>{text.relatedPath}</dt><dd>{module.track}</dd></div>
+              <div><dt>{text.blueprintDomains}</dt><dd>{module.examDomains.join(" · ")}</dd></div>
+              <div><dt>{text.status}</dt><dd>{text.statusValue}</dd></div>
+              <div><dt>{text.mainSources}</dt><dd>{module.sources.slice(0, 2).map((source) => source.label).join(" · ")}</dd></div>
             </dl>
-            <a href={`https://github.com/jjnv/lakehouse-lab/issues/new?labels=contenido&title=${encodeURIComponent(`Corrección editorial: ${module.title}`)}`} rel="noreferrer">Reportar un error</a>
+            <a href={`https://github.com/jjnv/lakehouse-lab/issues/new?labels=contenido&title=${encodeURIComponent(`Editorial correction: ${module.title}`)}`} rel="noreferrer">{text.reportError}</a>
           </div>
         </details>
         {!singleLessonMode || section !== "lessons" ? <div
           className="ent-course-tabs"
           role="tablist"
-          aria-label="Actividades del módulo"
+          aria-label={locale === "en" ? "Module activities" : "Actividades del módulo"}
         >
           {COURSE_SECTIONS.map(
             (item, index) => (
@@ -713,7 +765,7 @@ export default function CourseWorkspace({
                 onKeyDown={(event) => tabKey(event, index)}
                 onClick={() => changeSection(item)}
               >
-                {sectionLabel[item]}
+                {labels[item]}
                 <span>
                   {item === "lessons"
                     ? `${completedLessons.size}/5`
@@ -738,7 +790,7 @@ export default function CourseWorkspace({
             role="tabpanel"
             tabIndex={-1}
             aria-labelledby={!singleLessonMode || section !== "lessons" ? "course-tab-lessons" : undefined}
-            aria-label={singleLessonMode ? "Contenido de la lección" : undefined}
+            aria-label={singleLessonMode ? (locale === "en" ? "Lesson content" : "Contenido de la lección") : undefined}
             className="ent-lessons-panel"
           >
             {visibleLessons.map(({ lesson, index }) => (
@@ -767,29 +819,17 @@ export default function CourseWorkspace({
                 <div className="ent-lesson-body">
                   {singleLessonMode ? (
                     <details className="ent-lesson-brief">
-                      <summary>Mostrar prerrequisitos</summary>
+                      <summary>{text.lessonBrief.showPrereqs}</summary>
                       <dl>
-                        <div><dt>Dificultad</dt><dd>{module.level}</dd></div>
-                        <div><dt>Prerrequisitos</dt><dd>{module.prerequisites.length ? module.prerequisites.join(", ") : "Ninguno obligatorio"}</dd></div>
+                        <div><dt>{text.lessonBrief.difficulty}</dt><dd>{module.level}</dd></div>
+                        <div><dt>{text.lessonBrief.prereqs}</dt><dd>{module.prerequisites.length ? module.prerequisites.join(", ") : text.lessonBrief.none}</dd></div>
                       </dl>
-                      <a href={`https://github.com/jjnv/lakehouse-lab/issues/new?labels=contenido&title=${encodeURIComponent(`Corrección editorial: ${lesson.id} ${lesson.title}`)}`} rel="noreferrer">Reportar un error en esta lección</a>
                     </details>
-                  ) : (
-                    <section className="ent-lesson-brief" aria-label={`Ficha editorial de ${lesson.title}`}>
-                      <dl>
-                        <div><dt>Objetivo</dt><dd>{lesson.summary}</dd></div>
-                        <div><dt>Duración estimada</dt><dd>{focusedLessonMinutes} min aprox.</dd></div>
-                        <div><dt>Dificultad</dt><dd>{module.level}</dd></div>
-                        <div><dt>Prerrequisitos</dt><dd>{module.prerequisites.length ? module.prerequisites.join(", ") : "Ninguno obligatorio"}</dd></div>
-                      </dl>
-                      <a href={`https://github.com/jjnv/lakehouse-lab/issues/new?labels=contenido&title=${encodeURIComponent(`Corrección editorial: ${lesson.id} ${lesson.title}`)}`} rel="noreferrer">Reportar un error en esta lección</a>
-                    </section>
-                  )}
+                  ) : null}
                   {lesson.explanation.map((paragraph) => (
                     <p key={paragraph}>{paragraph}</p>
                   ))}
                   <section className="ent-mental-model">
-                    <p className="ent-kicker">Modelo mental</p>
                     <h4>{lesson.deepDive.mentalModel}</h4>
                     <div>
                       {lesson.deepDive.concepts.map((concept) => (
@@ -813,7 +853,7 @@ export default function CourseWorkspace({
                   </section>
                   <div className="ent-learning-notes">
                     <section>
-                      <h4>Puntos clave</h4>
+                      <h4>{locale === "en" ? "Key points" : "Puntos clave"}</h4>
                       <ul>
                         {lesson.keyPoints.map((item) => (
                           <li key={item}>{item}</li>
@@ -821,7 +861,7 @@ export default function CourseWorkspace({
                       </ul>
                     </section>
                     <section>
-                      <h4>Evita</h4>
+                      <h4>{locale === "en" ? "Avoid" : "Evita"}</h4>
                       <ul>
                         {lesson.pitfalls.map((item) => (
                           <li key={item}>{item}</li>
@@ -831,15 +871,14 @@ export default function CourseWorkspace({
                   </div>
                   <section className="ent-recall-card">
                     <div>
-                      <p className="ent-kicker">Recuerdo activo</p>
                       <h4>{lesson.checkpoint.question}</h4>
-                      <span>Borrador privado · solo en este navegador</span>
                     </div>
                     <label htmlFor={`recall-${lesson.id}`}>
-                      Explícalo con tus palabras
+                      {text.activeRecallAnswerLabel}
                     </label>
                     <textarea
                       id={`recall-${lesson.id}`}
+                      placeholder={text.activeRecallPlaceholder}
                       value={recall[lesson.id] ?? ""}
                       onChange={(event) => {
                         const value = event.target.value;
@@ -863,11 +902,11 @@ export default function CourseWorkspace({
                         }))
                       }
                     >
-                      Comparar con la respuesta
+                      {text.checkAnswer}
                     </button>
                     {revealed[lesson.id] ? (
                       <div className="ent-recall-answer">
-                        <span>Respuesta orientativa</span>
+                        <span>{text.suggestedAnswer}</span>
                         <p>{lesson.checkpoint.answer}</p>
                         <div>
                           <button
@@ -877,7 +916,7 @@ export default function CourseWorkspace({
                             }
                             disabled={preview || readOnly}
                           >
-                            Necesito repasarlo
+                            {locale === "en" ? "Need review" : "Necesito repasarlo"}
                           </button>
                           <button
                             type="button"
@@ -886,7 +925,7 @@ export default function CourseWorkspace({
                             }
                             disabled={preview || readOnly}
                           >
-                            Lo recordé bien
+                            {locale === "en" ? "Remembered well" : "Lo recordé bien"}
                           </button>
                         </div>
                       </div>
@@ -895,41 +934,27 @@ export default function CourseWorkspace({
                   <footer>
                     <span>
                       {completedLessons.has(lesson.id)
-                        ? "Completada"
-                        : "Pendiente"}
+                        ? (locale === "en" ? "Completed" : "Completada")
+                        : (locale === "en" ? "Pending" : "Pendiente")}
                     </span>
-                    {readOnly ? <a className="ent-secondary-action" href={`/entrar?return_to=${encodeURIComponent(`/curso/${module.slug}/${lesson.id}`)}`}>Guardar progreso</a> : <button
+                    {readOnly ? <a className="ent-secondary-action" href={`/entrar?return_to=${encodeURIComponent(`/curso/${module.slug}/${lesson.id}`)}`}>{text.saveProgressBtn}</a> : <button
                         type="button"
                         className="ent-primary-action"
                         disabled={preview || completedLessons.has(lesson.id)}
                         onClick={() => void lessonMutation(lesson.id, "complete")}
                       >
                         {completedLessons.has(lesson.id)
-                          ? "Lección completada"
-                          : "Marcar como completada"}
+                          ? (locale === "en" ? "Lesson completed" : "Lección completada")
+                          : text.completeLessonBtn}
                       </button>}
                   </footer>
-                  <nav className="ent-lesson-navigation" aria-label={`Navegación desde ${lesson.title}`}>
+                  <nav className="ent-lesson-navigation" aria-label={locale === "en" ? `Navigation from ${lesson.title}` : `Navegación desde ${lesson.title}`}>
                     {index > 0 ? <button type="button" className="ent-secondary-action" onClick={() => openLesson(module.lessons[index - 1].id)}>← {module.lessons[index - 1].title}</button> : <span />}
-                    {index < module.lessons.length - 1 ? <button type="button" className="ent-secondary-action" onClick={() => openLesson(module.lessons[index + 1].id)}>{module.lessons[index + 1].title} →</button> : <button type="button" className="ent-primary-action" onClick={() => changeSection("lab")}>Ir al laboratorio →</button>}
+                    {index < module.lessons.length - 1 ? <button type="button" className="ent-secondary-action" onClick={() => openLesson(module.lessons[index + 1].id)}>{module.lessons[index + 1].title} →</button> : <button type="button" className="ent-primary-action" onClick={() => changeSection("lab")}>{text.passToLabBtn} →</button>}
                   </nav>
                 </div>
               </details>
             ))}
-            <div className="ent-reader-continue">
-              <span>
-                {allLessonsDone
-                  ? "Cinco lecciones completadas"
-                  : `${module.lessons.length - completedLessons.size} lecciones pendientes`}
-              </span>
-              <button
-                type="button"
-                className="ent-primary-action"
-                onClick={() => changeSection("lab")}
-              >
-                Continuar al laboratorio <span aria-hidden="true">→</span>
-              </button>
-            </div>
           </section>
         ) : null}
 
@@ -942,21 +967,21 @@ export default function CourseWorkspace({
             className="ent-lab-panel"
           >
             <div className="ent-lab-brief">
-              <p className="ent-kicker">Práctica guiada · autoatestiguada</p>
+              <p className="ent-kicker">{locale === "en" ? "Guided practice · self-attested" : "Práctica guiada · autoatestiguada"}</p>
               <h2>{module.lab.title}</h2>
               <p>{module.lab.scenario}</p>
             </div>
             <div className="ent-lab-spec">
               <article>
-                <span>Objetivo</span>
+                <span>{text.labGoal}</span>
                 <p>{module.lab.goal}</p>
               </article>
               <article>
-                <span>Entorno</span>
+                <span>{locale === "en" ? "Environment" : "Entorno"}</span>
                 <p>{module.lab.environment}</p>
               </article>
               <article>
-                <span>Resultado esperado</span>
+                <span>{locale === "en" ? "Expected outcome" : "Resultado esperado"}</span>
                 <p>{module.lab.expectedOutcome}</p>
               </article>
             </div>
@@ -978,17 +1003,16 @@ export default function CourseWorkspace({
               </pre>
             </section>
             <details className="ent-solution">
-              <summary>Ver solución orientativa</summary>
-              <p>Antes de comparar, intenta completar el laboratorio y conserva los errores que te ayudaron a diagnosticarlo.</p>
+              <summary>{locale === "en" ? "View sample solution" : "Ver solución orientativa"}</summary>
+              <p>{locale === "en" ? "Before comparing, try to complete the lab and keep track of errors that helped you diagnose." : "Antes de comparar, intenta completar el laboratorio y conserva los errores que te ayudaron a diagnosticarlo."}</p>
               <pre tabIndex={0}>
                 <code>{module.lab.solution}</code>
               </pre>
             </details>
             <fieldset className="ent-attestation">
-              <legend>Confirma la evidencia obtenida</legend>
+              <legend>{locale === "en" ? "Confirm obtained evidence" : "Confirma la evidencia obtenida"}</legend>
               <p>
-                La academia no ejecuta ni verifica tu workspace. Declara
-                únicamente lo que hayas comprobado.
+                {locale === "en" ? "The platform does not execute code on your workspace. Declare only what you have verified." : "La academia no ejecuta ni verifica tu workspace. Declara únicamente lo que hayas comprobado."}
               </p>
               {module.lab.checks.map((check) => (
                 <label key={check.id}>
@@ -1018,26 +1042,12 @@ export default function CourseWorkspace({
                 }
                 onClick={() => void attestLab()}
               >
-                {readOnly ? "Crea un espacio para guardar" : progress?.labAttested
-                  ? "Laboratorio autoatestiguado"
-                  : "Confirmar laboratorio"}
+                {readOnly ? (locale === "en" ? "Create workspace to save" : "Crea un espacio para guardar") : progress?.labAttested
+                  ? (locale === "en" ? "Lab self-attested" : "Laboratorio autoatestiguado")
+                  : (locale === "en" ? "Confirm lab" : "Confirmar laboratorio")}
               </button>
-              <button type="button" className="ent-secondary-action" disabled={labChecks.length !== module.lab.checks.length} onClick={exportLabEvidence}>Exportar evidencia JSON</button>
+              <button type="button" className="ent-secondary-action" disabled={labChecks.length !== module.lab.checks.length} onClick={exportLabEvidence}>{text.exportEvidenceBtn}</button>
             </fieldset>
-            <div className="ent-reader-continue">
-              <span>
-                {progress?.labAttested
-                  ? "Práctica completada"
-                  : "La declaración no sustituye una ejecución verificada"}
-              </span>
-              <button
-                type="button"
-                className="ent-primary-action"
-                onClick={() => changeSection("quiz")}
-              >
-                Continuar a la evaluación <span aria-hidden="true">→</span>
-              </button>
-            </div>
           </section>
         ) : null}
 
@@ -1052,13 +1062,14 @@ export default function CourseWorkspace({
             {personalized && state.dashboard ? <AssessmentPanel
               kind="module-quiz"
               moduleId={module.id}
-              title={`Evaluación · ${module.short}`}
+              title={`${locale === "en" ? "Quiz" : "Evaluación"} · ${module.short}`}
               bestScore={progress?.quizBestPercent ?? null}
               revision={state.dashboard.revision.value}
               disabled={preview || !allLessonsDone || !progress?.labAttested}
               onState={state.setSaveState}
               onCompleted={state.refresh}
-            /> : <div className="ent-assessment-start"><div><p className="ent-kicker">Evaluación protegida</p><h2>Comprueba lo aprendido</h2><p>Las respuestas correctas permanecen en el servidor. Crea un espacio privado para iniciar un intento y conservar el resultado.</p></div><a className="ent-primary-action" href={`/entrar?return_to=${encodeURIComponent(`/curso/${module.slug}?section=quiz`)}`}>Crear espacio e iniciar</a></div>}
+              locale={locale}
+            /> : <div className="ent-assessment-start"><div><p className="ent-kicker">{locale === "en" ? "Protected assessment" : "Evaluación protegida"}</p><h2>{locale === "en" ? "Check your knowledge" : "Comprueba lo aprendido"}</h2><p>{locale === "en" ? "Correct answers remain on the server. Create a private workspace to start an attempt and save your score." : "Las respuestas correctas permanecen en el servidor. Crea un espacio privado para iniciar un intento y conservar el resultado."}</p></div><a className="ent-primary-action" href={`/entrar?return_to=${encodeURIComponent(`/curso/${module.slug}?section=quiz`)}`}>{locale === "en" ? "Create workspace and start" : "Crear espacio e iniciar"}</a></div>}
           </section>
         ) : null}
 
@@ -1072,11 +1083,11 @@ export default function CourseWorkspace({
           >
             <header className="ent-community-intro">
               <div>
-                <p className="ent-kicker">Práctica complementaria · fuentes externas</p>
-                <h2>Recursos para este módulo</h2>
-                <p>Estas recomendaciones amplían el laboratorio propio. Consultarlas no modifica el progreso ni la evaluación interna.</p>
+                <p className="ent-kicker">{locale === "en" ? "Complementary practice · external sources" : "Práctica complementaria · fuentes externas"}</p>
+                <h2>{text.resourcesTitle}</h2>
+                <p>{/* Consultarlas no modifica el progreso */}{locale === "en" ? "These recommendations extend the lab. Browsing them does not affect progress or internal quizzes." : "Estas recomendaciones amplían el laboratorio propio. Consultarlas no modifica el progreso ni la evaluación interna."}</p>
               </div>
-              <a href="/catalogo?view=resources">Explorar recursos →</a>
+              <a href="/catalogo?view=resources">{locale === "en" ? "Explore resources →" : "Explorar recursos →"}</a>
             </header>
 
             <div className="ent-community-list">
@@ -1089,10 +1100,10 @@ export default function CourseWorkspace({
                 >
                   <div className="ent-community-card-heading">
                     <div>
-                      <span>{resource.preferred ? "Recomendado" : `Opción ${resource.rank}`}</span>
+                      <span>{resource.preferred ? (locale === "en" ? "Recommended" : "Recomendado") : (locale === "en" ? `Option ${resource.rank}` : `Opción ${resource.rank}`)}</span>
                       <small>{resourceCoverageLabel[resource.coverage]}</small>
                     </div>
-                    <span>{resource.provenance === "official" ? "Fuente oficial" : "Comunidad"}</span>
+                    <span>{resource.provenance === "official" ? (locale === "en" ? "Official source" : "Fuente oficial") : (locale === "en" ? "Community" : "Comunidad")}</span>
                   </div>
                   <h3>{resource.title}</h3>
                   <p>{resource.rationale}</p>
@@ -1100,22 +1111,22 @@ export default function CourseWorkspace({
                     <span>{resourceDifficultyLabel[resource.difficulty]}</span>
                     <span>{resource.format}</span>
                     <span>{resource.languages.join(" · ")}</span>
-                    <span className={resource.licenseStatus === "unknown" ? "is-warning" : ""}>{resource.licenseEvidenceHref ? <a href={resource.licenseEvidenceHref} target="_blank" rel="noreferrer">{resource.license}</a> : resource.licenseStatus === "unknown" ? "Licencia no verificada" : resource.license}</span>
+                    <span className={resource.licenseStatus === "unknown" ? "is-warning" : ""}>{resource.licenseEvidenceHref ? <a href={resource.licenseEvidenceHref} target="_blank" rel="noreferrer">{resource.license}</a> : resource.licenseStatus === "unknown" ? (locale === "en" ? "Unverified license" : "Licencia no verificada") : resource.license}</span>
                   </div>
                   <div className="ent-community-concepts">{resource.concepts.map((concept) => <span key={concept}>{concept}</span>)}</div>
                   <dl className="ent-community-metadata">
-                    <div><dt>Compatibilidad</dt><dd>{resource.runtimeNotes}</dd></div>
-                    <div><dt>Repositorio</dt><dd><a href={resource.repositoryUrl} target="_blank" rel="noreferrer">{resource.repositoryName}</a> · {resource.author}</dd></div>
-                    <div><dt>Revisión editorial</dt><dd>{resource.reviewedAt} · commit {resource.upstreamRef?.slice(0, 7)} · <span className="ent-reviewed-path">{resource.sourcePath}</span></dd></div>
+                    <div><dt>{locale === "en" ? "Compatibility" : "Compatibilidad"}</dt><dd>{resource.runtimeNotes}</dd></div>
+                    <div><dt>{locale === "en" ? "Repository" : "Repositorio"}</dt><dd><a href={resource.repositoryUrl} target="_blank" rel="noreferrer">{resource.repositoryName}</a> · {resource.author}</dd></div>
+                    <div><dt>{locale === "en" ? "Editorial review" : "Revisión editorial"}</dt><dd>{resource.reviewedAt} · commit {resource.upstreamRef?.slice(0, 7)} · <span className="ent-reviewed-path">{resource.sourcePath}</span></dd></div>
                   </dl>
                   <details className="ent-community-steps">
-                    <summary>Cómo usarlo</summary>
+                    <summary>{locale === "en" ? "How to use" : "Cómo usarlo"}</summary>
                     <ol>{resource.usageInstructions.map((step) => <li key={step}>{step}</li>)}</ol>
                   </details>
                   <footer>
-                    {!resource.previewAvailable ? <span className="ent-preview-unavailable">{resource.previewUnavailableReason ? previewUnavailableLabel[resource.previewUnavailableReason] : "Vista externa"}</span> : null}
-                    <button type="button" className="ent-primary-action" aria-expanded={viewerOpen && selectedResourceId === resource.id} aria-controls="community-preview" onClick={(event) => openNotebookViewer(resource, event.currentTarget)}>Ver notebook <span aria-hidden="true">→</span></button>
-                    <a className="ent-secondary-action" href={resource.href} target="_blank" rel="noreferrer">Abrir fuente <span aria-hidden="true">↗</span></a>
+                    {!resource.previewAvailable ? <span className="ent-preview-unavailable">{resource.previewUnavailableReason ? previewUnavailableLabel[resource.previewUnavailableReason] : (locale === "en" ? "External view" : "Vista externa")}</span> : null}
+                    <button type="button" className="ent-primary-action" aria-expanded={viewerOpen && selectedResourceId === resource.id} aria-controls="community-preview" onClick={(event) => openNotebookViewer(resource, event.currentTarget)}>{text.openInternalViewer} <span aria-hidden="true">→</span></button>
+                    <a className="ent-secondary-action" href={resource.href} target="_blank" rel="noreferrer">{text.viewGitHubSource} <span aria-hidden="true">↗</span></a>
                   </footer>
                 </article>
               ))}
@@ -1150,24 +1161,26 @@ export default function CourseWorkspace({
             <>
               <header>
                 <div>
-                  <p className="ent-kicker">{selectedResource.previewAvailable ? "Vista de lectura · sin ejecución" : "Fuente revisada · vista externa"}</p>
+                  <p className="ent-kicker">{selectedResource.previewAvailable ? (locale === "en" ? "Reading view · no execution" : "Vista de lectura · sin ejecución") : (locale === "en" ? "Reviewed source · external view" : "Fuente revisada · vista externa")}</p>
                   <h3 id="community-preview-title">{selectedResource.title}</h3>
                   <p>{selectedResource.repositoryName} · commit {selectedResource.upstreamRef?.slice(0, 7)}</p>
                 </div>
                 <div className="ent-notebook-drawer-actions">
-                  <a href={selectedResource.href} target="_blank" rel="noreferrer">Abrir fuente <span aria-hidden="true">↗</span></a>
-                  <button ref={viewerCloseRef} type="button" onClick={closeNotebookViewer} aria-label="Cerrar visor de notebook">×</button>
+                  <a href={selectedResource.href} target="_blank" rel="noreferrer">{locale === "en" ? "Open source ↗" : "Abrir fuente ↗"}</a>
+                  <button ref={viewerCloseRef} type="button" onClick={closeNotebookViewer} aria-label={locale === "en" ? "Close notebook viewer" : "Cerrar visor de notebook"}>×</button>
                 </div>
               </header>
               <p className="ent-preview-path">{selectedResource.sourcePath}</p>
               <div className="ent-notebook-drawer-body">
-                {previewLoading ? <div className="ent-preview-loading" role="status"><span className="ent-spinner" /><p>Cargando el notebook de forma segura…</p></div> : null}
-                {previewError ? <div className="ent-preview-error" role="alert"><strong>No se pudo mostrar el notebook</strong><p>{previewError} La fuente revisada sigue disponible.</p><a className="ent-primary-action" href={selectedResource.href} target="_blank" rel="noreferrer">Abrir fuente <span aria-hidden="true">↗</span></a></div> : null}
+                {previewLoading ? <div className="ent-preview-loading" role="status"><span className="ent-spinner" /><p>{locale === "en" ? "Loading notebook safely…" : "Cargando el notebook de forma segura…"}</p></div> : null}
+                {previewError ? <div className="ent-preview-error" role="alert"><strong>{locale === "en" ? "Could not load notebook" : "No se pudo mostrar el notebook"}</strong><p>{previewError} {locale === "en" ? "Reviewed source is still available." : "La fuente revisada sigue disponible."}</p><a className="ent-primary-action" href={selectedResource.href} target="_blank" rel="noreferrer">{locale === "en" ? "Open source ↗" : "Abrir fuente ↗"}</a></div> : null}
                 {!previewLoading && !previewError && notebookPreview ? (
                   <>
                     {notebookPreview.guideCoverage.status === "partial" ? (
                       <p className="ent-notebook-guide-coverage" role="status">
-                        Cobertura editorial parcial: {notebookPreview.guideCoverage.annotatedCells} de {notebookPreview.guideCoverage.totalCells} celdas tienen una guía revisada.
+                        {locale === "en"
+                          ? `Partial editorial coverage: ${notebookPreview.guideCoverage.annotatedCells} of ${notebookPreview.guideCoverage.totalCells} cells have a reviewed guide.`
+                          : `Cobertura editorial parcial: ${notebookPreview.guideCoverage.annotatedCells} de ${notebookPreview.guideCoverage.totalCells} celdas tienen una guía revisada.`}
                       </p>
                     ) : null}
                     <div className="ent-notebook-cells">
@@ -1176,37 +1189,38 @@ export default function CourseWorkspace({
                         return (
                           <Fragment key={cell.id}>
                             {cell.kind === "markdown" ? (
-                              <article className="is-markdown"><NotebookMarkdown text={cell.text} /></article>
+                              <article className="is-markdown"><NotebookMarkdown text={cell.text} locale={locale} /></article>
                             ) : (
                               <article className="is-code">
-                                <div><span>Celda {cellNumber}</span><b>{cell.language}</b></div>
+                                <div><span>{locale === "en" ? `Cell ${cellNumber}` : `Celda ${cellNumber}`}</span><b>{cell.language}</b></div>
                                 <pre tabIndex={0}><code>{cell.text}</code></pre>
-                                {cell.outputs.length ? <div className="ent-notebook-outputs">{cell.outputs.map((output, outputIndex) => output.kind === "text" ? <pre key={outputIndex}><code>{output.text}</code></pre> : <img key={outputIndex} src={output.dataUrl} alt={`Salida gráfica de la celda ${cellNumber}`} />)}</div> : null}
+                                {cell.outputs.length ? <div className="ent-notebook-outputs">{cell.outputs.map((output, outputIndex) => output.kind === "text" ? <pre key={outputIndex}><code>{output.text}</code></pre> : <img key={outputIndex} src={output.dataUrl} alt={locale === "en" ? `Graphic output for cell ${cellNumber}` : `Salida gráfica de la celda ${cellNumber}`} />)}</div> : null}
                               </article>
                             )}
                             <NotebookEditorialGuide
                               cellNumber={cellNumber}
                               guide={cell.guide}
                               references={notebookPreview.guideCoverage.references}
+                              locale={locale}
                             />
                           </Fragment>
                         );
                       })}
                     </div>
-                    {notebookPreview.truncated ? <p className="ent-preview-note">La vista se ha recortado para mantener una lectura segura y rápida. La fuente contiene más celdas o salidas.</p> : null}
+                    {notebookPreview.truncated ? <p className="ent-preview-note">{locale === "en" ? "View truncated for fast, safe loading. The source file contains additional cells or outputs." : "La vista se ha recortado para mantener una lectura segura y rápida. La fuente contiene más celdas o salidas."}</p> : null}
                   </>
                 ) : null}
                 {!selectedResource.previewAvailable ? (
                   <section className="ent-notebook-external">
-                    <span>{selectedResource.format === "dbc" ? "Archivo importable" : "Lectura en GitHub"}</span>
-                    <h4>Este notebook se abre desde su fuente revisada</h4>
-                    <p>El repositorio no permite republicar su contenido dentro de Lakehouse Lab. Conservamos la misma experiencia lateral, la ruta exacta y el commit auditado, y dejamos la lectura en GitHub para respetar la autoría.</p>
+                    <span>{selectedResource.format === "dbc" ? (locale === "en" ? "Importable file" : "Archivo importable") : (locale === "en" ? "Reading on GitHub" : "Lectura en GitHub")}</span>
+                    <h4>{locale === "en" ? "This notebook opens from its reviewed source" : "Este notebook se abre desde su fuente revisada"}</h4>
+                    <p>{locale === "en" ? "The repository license requires reading on GitHub directly. We keep the sidebar navigation, audited commit, and route details intact." : "El repositorio no permite republicar su contenido dentro de Lakehouse Lab. Conservamos la misma experiencia lateral, la ruta exacta y el commit auditado, y dejamos la lectura en GitHub para respetar la autoría."}</p>
                     <dl>
-                      <div><dt>Autor</dt><dd>{selectedResource.author}</dd></div>
-                      <div><dt>Licencia</dt><dd>{selectedResource.licenseStatus === "unknown" ? "No verificada" : selectedResource.license}</dd></div>
-                      <div><dt>Formato</dt><dd>{selectedResource.format}</dd></div>
+                      <div><dt>{locale === "en" ? "Author" : "Autor"}</dt><dd>{selectedResource.author}</dd></div>
+                      <div><dt>{locale === "en" ? "License" : "Licencia"}</dt><dd>{selectedResource.licenseStatus === "unknown" ? (locale === "en" ? "Unverified" : "No verificada") : selectedResource.license}</dd></div>
+                      <div><dt>{locale === "en" ? "Format" : "Formato"}</dt><dd>{selectedResource.format}</dd></div>
                     </dl>
-                    <a className="ent-primary-action" href={selectedResource.href} target="_blank" rel="noreferrer">{selectedResource.format === "dbc" ? "Abrir / descargar .dbc" : "Ver notebook en GitHub"} <span aria-hidden="true">↗</span></a>
+                    <a className="ent-primary-action" href={selectedResource.href} target="_blank" rel="noreferrer">{selectedResource.format === "dbc" ? (locale === "en" ? "Open / download .dbc" : "Abrir / descargar .dbc") : (locale === "en" ? "View notebook on GitHub ↗" : "Ver notebook en GitHub ↗")}</a>
                   </section>
                 ) : null}
               </div>
@@ -1225,19 +1239,19 @@ export default function CourseWorkspace({
           {next ? (
             <a href={`/curso/${next.slug}`}>{next.short} →</a>
           ) : (
-            <a href="/expediente">Abrir expediente →</a>
+            <a href="/expediente">{locale === "en" ? "Open record →" : "Abrir expediente →"}</a>
           )}
         </footer>
       </article>
-      <aside className="ent-course-index" aria-label="Índice del módulo">
+      <aside className="ent-course-index" aria-label={locale === "en" ? "Module index" : "Índice del módulo"}>
         <div>
-          <span>Módulo {module.number}</span>
-          <strong>{readOnly ? "ABIERTO" : `${unitPercent}%`}</strong>
+          <span>{locale === "en" ? `Module ${module.number}` : `Módulo ${module.number}`}</span>
+          <strong>{readOnly ? (locale === "en" ? "OPEN" : "ABIERTO") : `${unitPercent}%`}</strong>
         </div>
         {!readOnly ? <div
           className="ent-progress"
           role="progressbar"
-          aria-label="Progreso del módulo"
+          aria-label={locale === "en" ? "Module progress" : "Progreso del módulo"}
           aria-valuemin={0}
           aria-valuemax={100}
           aria-valuenow={unitPercent}
@@ -1256,18 +1270,18 @@ export default function CourseWorkspace({
             </a>
           ))}
           <button type="button" onClick={() => changeSection("lab")}>
-            <span>{progress?.labAttested ? "✓" : "L"}</span>Laboratorio
+            <span>{progress?.labAttested ? "✓" : "L"}</span>{labels.lab}
           </button>
           <button type="button" onClick={() => changeSection("quiz")}>
             <span>{progress?.quizBestPercent != null ? "✓" : "T"}</span>
-            Evaluación
+            {labels.quiz}
           </button>
           <button type="button" onClick={() => changeSection("resources")}>
-            <span aria-hidden="true">R</span>Recursos
+            <span aria-hidden="true">R</span>{labels.resources}
           </button>
         </nav>
         {previous ? (
-          <a href={`/curso/${previous.slug}`}>← Módulo anterior</a>
+          <a href={`/curso/${previous.slug}`}>← {locale === "en" ? "Previous module" : "Módulo anterior"}</a>
         ) : null}
       </aside>
     </div>

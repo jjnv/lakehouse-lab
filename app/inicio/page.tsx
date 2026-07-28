@@ -10,5 +10,5 @@ export const metadata: Metadata = {
 
 export default async function InicioPage() {
   const context = await requireEnterprisePageContext("/inicio");
-  return <AppShell active="home" title="Inicio" brand={context.brand} userDisplayName={context.userDisplayName}><EmployeeHomeV2 /></AppShell>;
+  return <AppShell active="home" title="Inicio" brand={context.brand} userDisplayName={context.userDisplayName} locale={context.locale}><EmployeeHomeV2 locale={context.locale} /></AppShell>;
 }

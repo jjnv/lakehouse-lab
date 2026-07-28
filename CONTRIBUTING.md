@@ -61,6 +61,18 @@ queda pendiente.
 - Las claves de respuesta pueden existir en el repositorio abierto, pero nunca
   deben enviarse al cliente antes de la corrección.
 
+### Glosario
+
+- Añade o modifica términos en `app/curriculum/glossary.ts`.
+- Mantén una definición breve, una explicación de utilidad práctica, alias,
+  conceptos relacionados, fuente oficial y fecha de revisión.
+- Usa IDs estables y semánticos; cambiarlos rompe enlaces como
+  `/glosario#delta-lake`.
+- Si el término también aparece en una lección, conserva coherencia con el
+  vocabulario del módulo correspondiente.
+- No conviertas el glosario en copia de documentación externa: resume con voz
+  propia y enlaza la fuente.
+
 ### Laboratorios
 
 - Declara runtime, cloud, permisos, dataset, coste estimado, cleanup y recuperación.

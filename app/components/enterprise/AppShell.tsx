@@ -5,6 +5,9 @@
 import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import { DEFAULT_BRAND_CONFIG } from "../../enterprise/brand";
 import type { BrandConfig } from "../../enterprise/types";
+import LanguageSwitcher from "../LanguageSwitcher";
+import { appShellText } from "../../i18n/dictionaries";
+import type { Locale } from "../../i18n/config";
 import CurriculumSearch from "./CurriculumSearch";
 
 export type EnterpriseArea = "home" | "learning" | "catalog" | "resources" | "record" | "settings";
@@ -18,18 +21,12 @@ type AppShellProps = {
   brand?: BrandConfig;
   userDisplayName?: string;
   publicMode?: boolean;
+  locale?: Locale;
 };
 
-const primaryNavigation: Array<{ href: string; label: string; short: string; area: EnterpriseArea }> = [
-  { href: "/inicio", label: "Inicio", short: "IN", area: "home" },
-  { href: "/mi-aprendizaje", label: "Ruta", short: "RU", area: "learning" },
-  { href: "/catalogo", label: "Temario", short: "TE", area: "catalog" },
-  { href: "/recursos", label: "Recursos", short: "RC", area: "resources" },
-  { href: "/expediente", label: "Mi progreso", short: "MP", area: "record" },
-];
 let lastClientPath: string | null = null;
 
-export default function AppShell({ active, title, eyebrow = "Lakehouse Lab", children, courseMode = false, brand = DEFAULT_BRAND_CONFIG, userDisplayName, publicMode = false }: AppShellProps) {
+export default function AppShell({ active, title, children, courseMode = false, brand = DEFAULT_BRAND_CONFIG, userDisplayName, publicMode = false, locale = "es" }: AppShellProps) {
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [mobileNavigation, setMobileNavigation] = useState(false);
   const drawerRef = useRef<HTMLElement>(null);
@@ -105,30 +102,38 @@ export default function AppShell({ active, title, eyebrow = "Lakehouse Lab", chi
     "--tenant-accent": brand.accentColor,
     "--tenant-on-primary": "#ffffff",
   } as CSSProperties;
-  const organizationInitials = brand.organizationName.slice(0, 2).toLocaleUpperCase("es");
   const accountLabel = userDisplayName || brand.organizationName;
   const brandHref = publicMode ? "/" : "/inicio";
+  const text = appShellText[locale];
+  const primaryNavigation: Array<{ href: string; label: string; short: string; area: EnterpriseArea }> = [
+    { href: "/inicio", label: text.nav.home, short: text.short.home, area: "home" },
+    { href: "/mi-aprendizaje", label: text.nav.route, short: text.short.route, area: "learning" },
+    { href: "/catalogo", label: text.nav.catalog, short: text.short.catalog, area: "catalog" },
+    { href: "/recursos", label: text.nav.resources, short: text.short.resources, area: "resources" },
+    { href: "/expediente", label: text.nav.progress, short: text.short.progress, area: "record" },
+  ];
   const navigation = publicMode
     ? [
-        { href: "/ruta", label: "Ruta", short: "RU", area: "learning" as const },
-        { href: "/catalogo", label: "Temario", short: "TE", area: "catalog" as const },
-        { href: "/simulacros", label: "Simulacros", short: "SI", area: "catalog" as const },
-        { href: "/recursos", label: "Recursos", short: "RC", area: "resources" as const },
+        { href: "/ruta", label: text.nav.route, short: text.short.route, area: "learning" as const },
+        { href: "/catalogo", label: text.nav.catalog, short: text.short.catalog, area: "catalog" as const },
+        { href: "/simulacros", label: text.nav.simulators, short: text.short.simulators, area: "catalog" as const },
+        { href: "/recursos", label: text.nav.resources, short: text.short.resources, area: "resources" as const },
       ]
     : primaryNavigation;
 
   return (
     <div className={`ent-shell ${courseMode ? "ent-shell-course" : ""}`} style={shellStyle}>
-      <a className="ent-skip-link" href="#main-content">Saltar al contenido</a>
+      <a className="ent-skip-link" href="#main-content">{text.skip}</a>
 
       <header className="ent-mobile-header" inert={drawerOpen && mobileNavigation ? true : undefined}>
-        <a className="ent-mobile-brand" href={brandHref} aria-label={`${brand.productName}, ir a Inicio`}>
+        <a className="ent-mobile-brand" href={brandHref} aria-label={text.brandHome(brand.productName)}>
           {brand.logoUrl ? <img src={brand.logoUrl} alt={brand.logoAlt ?? brand.organizationName} /> : <span className="ent-brand-mark" aria-hidden="true"><i /><i /><i /></span>}
           <span><b>{brand.organizationName}</b><small>{brand.productName}</small></span>
         </a>
+        <LanguageSwitcher locale={locale} compact />
         <button ref={menuButtonRef} className="ent-menu-button" type="button" aria-controls="enterprise-navigation" aria-expanded={drawerOpen} aria-haspopup="dialog" onClick={() => { restoreDrawerFocusRef.current = false; setDrawerOpen(true); }}>
           <span aria-hidden="true"><i /><i /><i /></span>
-          <span>Menú</span>
+          <span>{text.mobileMenu}</span>
         </button>
       </header>
 
@@ -138,66 +143,51 @@ export default function AppShell({ active, title, eyebrow = "Lakehouse Lab", chi
         ref={drawerRef}
         id="enterprise-navigation"
         className={`ent-rail ${drawerOpen ? "is-open" : ""}`}
-        aria-label="Navegación principal"
+        aria-label={text.mainNav}
         aria-hidden={mobileNavigation && !drawerOpen ? true : undefined}
         aria-modal={drawerOpen && mobileNavigation ? true : undefined}
         inert={mobileNavigation && !drawerOpen ? true : undefined}
         role={drawerOpen && mobileNavigation ? "dialog" : undefined}
       >
         <div className="ent-rail-brand">
-          <a href={brandHref} aria-label={`${brand.productName}, ir a Inicio`} onClick={() => closeDrawer(false)}>
+          <a href={brandHref} aria-label={text.brandHome(brand.productName)} onClick={() => closeDrawer(false)}>
             {brand.logoUrl ? <img src={brand.logoUrl} alt={brand.logoAlt ?? brand.organizationName} /> : <span className="ent-brand-mark" aria-hidden="true"><i /><i /><i /></span>}
             <span><b>{brand.organizationName}</b><small>{brand.productName}</small></span>
           </a>
-          <button ref={drawerCloseRef} className="ent-drawer-close" type="button" aria-label="Cerrar menú de navegación" onClick={() => closeDrawer(true)}>Cerrar</button>
+          <button ref={drawerCloseRef} className="ent-drawer-close" type="button" aria-label={locale === "en" ? "Close navigation menu" : "Cerrar menú de navegación"} onClick={() => closeDrawer(true)}>{text.closeMenu}</button>
         </div>
 
-        {publicMode ? (
-          <div className="ent-tenant">
-            <span aria-hidden="true">OS</span>
-            <div><small>Acceso público</small><b>Contenido abierto</b></div>
-          </div>
-        ) : (
-          <div className="ent-tenant">
-            <span aria-hidden="true">{organizationInitials}</span>
-            <div><small>Mi preparación</small><b>{brand.organizationName}</b></div>
-          </div>
-        )}
-
-        <nav className="ent-nav" aria-label="Áreas principales">
-          <p>Aprendizaje</p>
+        <nav className="ent-nav" aria-label={locale === "en" ? "Main areas" : "Áreas principales"}>
+          <p>{text.learning}</p>
           {navigation.map((item) => {
             const isCurrent = active === item.area;
-            return <a key={item.href} href={item.href} aria-current={isCurrent ? "page" : undefined} onClick={() => closeDrawer(false)}><span aria-hidden="true">{item.short}</span>{item.label}</a>;
+            return <a key={item.href} href={item.href} aria-current={isCurrent ? "page" : undefined} onClick={() => closeDrawer(false)}>{item.label}</a>;
           })}
         </nav>
 
-        <nav className="ent-nav ent-nav-secondary" aria-label="Configuración">
-          <p>{publicMode ? "Participa" : "Cuenta"}</p>
+        <nav className="ent-nav ent-nav-secondary" aria-label={locale === "en" ? "Settings" : "Configuración"}>
+          <p>{publicMode ? text.participate : text.account}</p>
           {publicMode ? (
-            <a href="/entrar?return_to=%2Finicio" onClick={() => closeDrawer(false)}><span aria-hidden="true">＋</span>Crear espacio personal</a>
+            <a href="/entrar?return_to=%2Finicio" onClick={() => closeDrawer(false)}>{text.createWorkspace}</a>
           ) : (
-            <a href="/ajustes" aria-current={active === "settings" ? "page" : undefined} onClick={() => closeDrawer(false)}><span aria-hidden="true">CU</span>Mi cuenta</a>
+            <a href="/ajustes" aria-current={active === "settings" ? "page" : undefined} onClick={() => closeDrawer(false)}>{text.myAccount}</a>
           )}
           {/* A document navigation intentionally resets the private workspace state. */}
           {/* eslint-disable-next-line @next/next/no-html-link-for-pages */}
-          <a href="/" onClick={() => closeDrawer(false)}><span aria-hidden="true">↖</span>Volver a la portada</a>
-          <p>Proyecto</p>
-          <a href="/acerca-de" onClick={() => closeDrawer(false)}><span aria-hidden="true">PR</span>Acerca de</a>
-          <a href="/privacidad" onClick={() => closeDrawer(false)}><span aria-hidden="true">PV</span>Privacidad</a>
+          <a href="/" onClick={() => closeDrawer(false)}>{text.backHome}</a>
+          <p>{text.project}</p>
+          <a href="/glosario" onClick={() => closeDrawer(false)}>{locale === "en" ? "Glossary" : "Glosario"}</a>
+          <a href="/acerca-de" onClick={() => closeDrawer(false)}>{text.about}</a>
+          <a href="/privacidad" onClick={() => closeDrawer(false)}>{text.privacy}</a>
         </nav>
-
-        <div className="ent-rail-note">
-          <span aria-hidden="true" />
-          <p><b>{publicMode ? "Exploración sin registro" : "Progreso persistente"}</b><small>{publicMode ? "Crea un espacio solo al guardar" : "Recuperable con tu código privado"}</small></p>
-        </div>
       </aside>
 
       <div className="ent-workspace" inert={drawerOpen && mobileNavigation ? true : undefined}>
         <header className="ent-topbar">
-          <div className="ent-topbar-title"><span>{eyebrow}</span><h1>{title}</h1></div>
-          <CurriculumSearch />
-          <a href={publicMode ? "/entrar?return_to=%2Finicio" : "/ajustes"} className="ent-topbar-account" aria-label={publicMode ? "Crear un espacio personal" : "Abrir mi cuenta"}><span aria-hidden="true">{publicMode ? "＋" : accountLabel.slice(0, 2).toLocaleUpperCase("es")}</span><b>{publicMode ? "Guardar progreso" : accountLabel}</b></a>
+          <div className="ent-topbar-title"><h1>{title}</h1></div>
+          <CurriculumSearch locale={locale} />
+          <LanguageSwitcher locale={locale} compact />
+          <a href={publicMode ? "/entrar?return_to=%2Finicio" : "/ajustes"} className="ent-topbar-account" aria-label={publicMode ? text.createWorkspaceAria : text.accountAria}><span aria-hidden="true">{publicMode ? "＋" : accountLabel.slice(0, 2).toLocaleUpperCase("es")}</span><b>{publicMode ? text.saveProgress : accountLabel}</b></a>
         </header>
         <main id="main-content" className="ent-main" tabIndex={-1}>{children}</main>
       </div>

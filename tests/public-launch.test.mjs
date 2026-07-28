@@ -11,11 +11,11 @@ test("the root is a public landing page instead of a protected redirect", () => 
   assert.doesNotMatch(rootPage, /redirect\s*\(\s*["']\/inicio/);
   assert.doesNotMatch(rootPage, /requireLearner|requireEnterprisePageContext/);
   assert.match(rootPage, /getSessionUser\(\)/);
-  assert.match(rootPage, /Domina la ingeniería de datos/u);
-  assert.match(rootPage, /Empezar la ruta/u);
-  assert.match(rootPage, /Ver una lección de ejemplo/u);
+  assert.match(rootPage, /Empieza con fundamentos/u);
+  assert.match(rootPage, /Empezar la primera lección/u);
+  assert.match(rootPage, /Explorar rutas/u);
   assert.doesNotMatch(rootPage, /Explorar la demo|Beta pública/);
-  assert.match(rootPage, /Lakehouse Lab no está afiliado ni avalado por Databricks|proyecto independiente/i);
+  assert.match(rootPage, /independiente de Databricks|Proyecto independiente/i);
 });
 
 test("the legacy demo redirects while public, recovery and legal pages remain anonymous-compatible", () => {
@@ -53,9 +53,12 @@ test("public mutations and responses include launch security hardening", () => {
 
 test("personal navigation exposes return and legal controls", () => {
   const shell = read("app/components/enterprise/AppShell.tsx");
-  for (const expected of ["Volver a la portada", "/acerca-de", "/privacidad"]) {
+  const dictionaries = read("app/i18n/dictionaries.ts");
+  for (const expected of ["/acerca-de", "/privacidad"]) {
     assert.ok(shell.includes(expected), `enterprise shell is missing ${expected}`);
   }
+  assert.match(dictionaries, /Volver a la portada/);
+  assert.match(dictionaries, /Back to the homepage/);
 });
 
 test("public and signed-in navigation share the curriculum concept search", () => {
@@ -64,17 +67,35 @@ test("public and signed-in navigation share the curriculum concept search", () =
   const route = read("app/api/search/route.ts");
   const curriculum = read("app/enterprise/curriculum.ts");
   const course = read("app/components/enterprise/CourseWorkspace.tsx");
-  assert.match(shell, /<CurriculumSearch\s*\/>/);
-  assert.match(search, /Buscar conceptos en el temario/);
+  assert.match(shell, /<CurriculumSearch\s+locale=\{locale\}\s*\/>/);
+  assert.match(read("app/i18n/dictionaries.ts"), /Buscar conceptos en el temario/);
   assert.match(search, /Ctrl K/);
   assert.match(search, /aria-live="polite"/);
   assert.doesNotMatch(route, /withLearner/);
   assert.match(route, /cache-control/);
-  assert.match(route, /searchCurriculum\(query\)/);
+  assert.match(route, /searchCurriculum\(query, locale\)/);
   assert.match(curriculum, /lesson\.deepDive\.concepts/);
+  assert.match(curriculum, /glossaryEntries/);
   assert.match(curriculum, /normalize\("NFD"\)/);
   assert.match(course, /requestedConcept/);
   assert.match(course, /conceptAnchor\(lesson\.id, concept\.term\)/);
+});
+
+test("the Databricks glossary is public, sourced and searchable", () => {
+  const glossaryPage = read("app/glosario/page.tsx");
+  const glossaryData = read("app/curriculum/glossary.ts");
+  const publicShell = read("app/components/public/PublicShell.tsx");
+  const sitemap = read("app/sitemap.ts");
+
+  assert.match(glossaryPage, /PublicShell active="glossary"/);
+  assert.match(glossaryPage, /glossaryEntriesByInitial/);
+  assert.match(glossaryData, /Delta Lake/);
+  assert.match(glossaryData, /Unity Catalog/);
+  assert.match(glossaryData, /Lakeflow Jobs/);
+  assert.match(glossaryData, /sourceUrl:/);
+  assert.match(publicShell, /href="\/glosario"/);
+  assert.ok(sitemap.includes('entry("/glosario"'), "sitemap missing /glosario");
+  assert.match(read("app/i18n/dictionaries.ts"), /glossary:\s*"Glosario"/);
 });
 
 test("public-source documentation declares independent branding and licensing", () => {

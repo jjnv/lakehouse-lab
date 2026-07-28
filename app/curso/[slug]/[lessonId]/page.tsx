@@ -5,19 +5,24 @@ import CourseWorkspace from "../../../components/enterprise/CourseWorkspace";
 import { getOptionalEnterprisePageContext } from "../../../components/enterprise/getShellContext";
 import { findModuleBySlug, moduleSummaries, publicModule } from "../../../enterprise/curriculum";
 import { lessonEditorialMetadata, sourceStructuredData } from "../../../editorial-model";
+import { getRequestLocale } from "../../../i18n/server";
+import { localizeModule } from "../../../i18n/curriculum";
 
 export async function generateMetadata({ params }: { params: Promise<{ slug: string; lessonId: string }> }): Promise<Metadata> {
   const { slug, lessonId } = await params;
   const courseModule = findModuleBySlug(slug);
   const lesson = courseModule?.lessons.find((candidate) => candidate.id === lessonId);
   if (!courseModule || !lesson) return {};
+  const locale = await getRequestLocale();
+  const localizedModule = localizeModule(courseModule, locale);
+  const localizedLesson = localizedModule.lessons.find((candidate) => candidate.id === lessonId) ?? lesson;
   return {
-    title: lesson.title,
-    description: lesson.summary,
+    title: localizedLesson.title,
+    description: localizedLesson.summary,
     alternates: { canonical: `/curso/${courseModule.slug}/${lesson.id}` },
     openGraph: {
-      title: `${lesson.title} · ${courseModule.short}`,
-      description: lesson.summary,
+      title: `${localizedLesson.title} · ${localizedModule.short}`,
+      description: localizedLesson.summary,
       url: `/curso/${courseModule.slug}/${lesson.id}`,
     },
   };
@@ -29,30 +34,33 @@ export default async function LessonPage({ params }: { params: Promise<{ slug: s
   if (!courseModule || !courseModule.lessons.some((lesson) => lesson.id === lessonId)) notFound();
   const context = await getOptionalEnterprisePageContext();
   const personalized = Boolean(context.learner);
-  const summaries = moduleSummaries();
+  const summaries = moduleSummaries(context.locale);
   const index = summaries.findIndex((item) => item.id === courseModule.id);
   const navigation = {
     previous: index > 0 ? summaries[index - 1] : null,
     next: index >= 0 && index < summaries.length - 1 ? summaries[index + 1] : null,
   };
-  const lesson = courseModule.lessons.find((candidate) => candidate.id === lessonId)!;
-  const editorial = lessonEditorialMetadata(courseModule, lesson);
+  const modulePayload = publicModule(courseModule, context.locale);
+  const lesson = modulePayload.lessons.find((candidate) => candidate.id === lessonId)!;
+  const sourceLesson = courseModule.lessons.find((candidate) => candidate.id === lessonId)!;
+  const editorial = lessonEditorialMetadata(courseModule, sourceLesson);
   const jsonLd = {
     "@context": "https://schema.org",
     "@type": "LearningResource",
     name: lesson.title,
     description: lesson.summary,
-    inLanguage: "es",
-    educationalLevel: courseModule.level,
+    inLanguage: context.locale,
+    educationalLevel: modulePayload.level,
     timeRequired: `PT${editorial.estimatedMinutes}M`,
     isPartOf: {
       "@type": "Course",
       name: "Lakehouse Lab",
     },
-    citation: editorial.sources.map(sourceStructuredData),
+    citation: modulePayload.sources.map(sourceStructuredData),
   };
-  return <AppShell active="learning" eyebrow={`Módulo ${courseModule.number} · Lección`} title={lesson.title} courseMode brand={context.brand} userDisplayName={context.userDisplayName} publicMode={!personalized}>
+  const eyebrow = context.locale === "en" ? `Module ${courseModule.number} · Lesson` : `Módulo ${courseModule.number} · Lección`;
+  return <AppShell active="learning" eyebrow={eyebrow} title={modulePayload.short} courseMode brand={context.brand} userDisplayName={context.userDisplayName} locale={context.locale} publicMode={!personalized}>
     <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }} />
-    <CourseWorkspace module={publicModule(courseModule)} personalized={personalized} navigation={navigation} initialLessonId={lessonId} singleLessonMode />
+    <CourseWorkspace module={modulePayload} personalized={personalized} navigation={navigation} initialLessonId={lessonId} singleLessonMode locale={context.locale} />
   </AppShell>;
 }

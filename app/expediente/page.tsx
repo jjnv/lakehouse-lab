@@ -10,5 +10,5 @@ export const metadata: Metadata = {
 
 export default async function ExpedientePage() {
   const context = await requireEnterprisePageContext("/expediente");
-  return <AppShell active="record" title="Resultados" brand={context.brand} userDisplayName={context.userDisplayName}><LearningRecordV2 /></AppShell>;
+  return <AppShell active="record" title="Resultados" brand={context.brand} userDisplayName={context.userDisplayName} locale={context.locale}><LearningRecordV2 locale={context.locale} /></AppShell>;
 }

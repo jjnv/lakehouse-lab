@@ -10,5 +10,5 @@ export const metadata: Metadata = {
 
 export default async function AjustesPage() {
   const context = await requireEnterprisePageContext("/ajustes");
-  return <AppShell active="settings" title="Mi cuenta" brand={context.brand} userDisplayName={context.userDisplayName}><LearnerSettingsV2 /></AppShell>;
+  return <AppShell active="settings" title="Mi cuenta" brand={context.brand} userDisplayName={context.userDisplayName} locale={context.locale}><LearnerSettingsV2 locale={context.locale} /></AppShell>;
 }

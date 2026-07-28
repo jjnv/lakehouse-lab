@@ -14,6 +14,8 @@ Este dominio no se declara como adquirido ni configurado. Mientras no exista, pr
 - `metadataBase` se calcula desde `NEXT_PUBLIC_SITE_URL`, `VERCEL_PROJECT_PRODUCTION_URL`, `VERCEL_URL` o el dominio temporal de Vercel.
 - Las rutas públicas usan `alternates.canonical` relativo para evitar duplicados.
 - `app/sitemap.ts` genera URLs absolutas con `PROJECT_PUBLIC_URL`.
+- `/glosario` es una ruta pública indexable con anclajes por término y se
+  incluye en el sitemap.
 - `app/robots.ts` bloquea API y zonas privadas, y expone `sitemap.xml`.
 - Open Graph y Twitter/X cards usan `/og-public.png`.
 - El favicon y el manifest usan los assets del directorio `public/`.

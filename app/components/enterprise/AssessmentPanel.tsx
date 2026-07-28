@@ -6,6 +6,8 @@ import type {
   AssessmentTimingMode,
 } from "../../enterprise/assessment";
 import type { AssessmentAttemptPublic } from "../../enterprise/contracts";
+import { assessmentPanelText } from "../../i18n/dictionaries";
+import type { Locale } from "../../i18n/config";
 
 type AssessmentResultView = {
   scorePercent: number;
@@ -38,15 +40,17 @@ type Props = {
   disabled?: boolean;
   onState: (state: "saved" | "saving" | "offline" | "error") => void;
   onCompleted: () => Promise<void> | void;
+  locale?: Locale;
 };
 
 async function responseBody<T>(
   response: Response,
+  locale: Locale = "es",
 ): Promise<{ data: T; revision?: number }> {
   const body = await response.json().catch(() => ({}));
   if (!response.ok) {
     const error = body as { message?: string };
-    throw new Error(error.message || "No se pudo completar la evaluación.");
+    throw new Error(error.message || (locale === "en" ? "Could not complete assessment." : "No se pudo completar la evaluación."));
   }
   const value =
     body && typeof body === "object" ? (body as Record<string, unknown>) : {};
@@ -71,7 +75,9 @@ export default function AssessmentPanel({
   disabled = false,
   onState,
   onCompleted,
+  locale = "es",
 }: Props) {
+  const text = assessmentPanelText[locale] ?? assessmentPanelText.es;
   const [timingMode, setTimingMode] = useState<AssessmentTimingMode>("untimed");
   const [attempt, setAttempt] = useState<AssessmentAttemptPublic | null>(null);
   const [selections, setSelections] = useState<Record<string, string>>({});
@@ -122,16 +128,16 @@ export default function AssessmentPanel({
           signal: controller.signal,
         });
         const body = await response.json().catch(() => ({})) as { attempt?: AssessmentAttemptPublic | null; message?: string };
-        if (!response.ok) throw new Error(body.message || "No se pudo recuperar el intento.");
+        if (!response.ok) throw new Error(body.message || (locale === "en" ? "Could not retrieve attempt." : "No se pudo recuperar el intento."));
         if (body.attempt) restoreAttempt(body.attempt);
       } catch (caught) {
-        if (!controller.signal.aborted) setError(caught instanceof Error ? caught.message : "No se pudo recuperar el intento.");
+        if (!controller.signal.aborted) setError(caught instanceof Error ? caught.message : (locale === "en" ? "Could not retrieve attempt." : "No se pudo recuperar el intento."));
       } finally {
         if (!controller.signal.aborted) setRecovering(false);
       }
     })();
     return () => controller.abort();
-  }, [kind, moduleId, restoreAttempt]);
+  }, [kind, locale, moduleId, restoreAttempt]);
 
   const start = useCallback(async () => {
     setError(null);
@@ -150,7 +156,7 @@ export default function AssessmentPanel({
       });
       const envelope = await responseBody<
         { attempt: AssessmentAttemptPublic } | AssessmentAttemptPublic
-      >(response);
+      >(response, locale);
       const payload = envelope.data;
       const next = "attempt" in payload ? payload.attempt : payload;
       if (envelope.revision !== undefined)
@@ -162,11 +168,11 @@ export default function AssessmentPanel({
       onState("saved");
     } catch (caught) {
       setError(
-        caught instanceof Error ? caught.message : "No se pudo iniciar.",
+        caught instanceof Error ? caught.message : (locale === "en" ? "Could not start attempt." : "No se pudo iniciar."),
       );
       onState(navigator.onLine ? "error" : "offline");
     }
-  }, [effectiveRevision, kind, moduleId, onState, restoreAttempt, timingMode]);
+  }, [effectiveRevision, kind, locale, moduleId, onState, restoreAttempt, timingMode]);
 
   const submit = useCallback(async () => {
     if (!attempt || submittingRef.current) return;
@@ -184,7 +190,7 @@ export default function AssessmentPanel({
       });
       const envelope = await responseBody<
         { result: AssessmentResultView } | AssessmentResultView
-      >(response);
+      >(response, locale);
       const payload = envelope.data;
       if (envelope.revision !== undefined)
         setCurrentRevision(envelope.revision);
@@ -194,30 +200,32 @@ export default function AssessmentPanel({
       await onCompleted();
     } catch (caught) {
       setError(
-        caught instanceof Error ? caught.message : "No se pudo corregir.",
+        caught instanceof Error ? caught.message : (locale === "en" ? "Could not submit attempt." : "No se pudo corregir."),
       );
       onState(navigator.onLine ? "error" : "offline");
     } finally {
       submittingRef.current = false;
     }
-  }, [attempt, effectiveRevision, onCompleted, onState]);
+  }, [attempt, effectiveRevision, locale, onCompleted, onState]);
 
   useEffect(() => {
     if (secondsLeft === null || result || !attempt) return;
     const timer = window.setTimeout(() => {
       const next = Math.max(0, secondsLeft - 1);
       setSecondsLeft(next);
-      if (next === 300) setWarning("Quedan cinco minutos.");
-      if (next === 60) setWarning("Queda un minuto.");
+      if (next === 300) setWarning(locale === "en" ? "Five minutes remaining." : "Quedan cinco minutos.");
+      if (next === 60) setWarning(locale === "en" ? "One minute remaining." : "Queda un minuto.");
       if (next === 0) {
         setWarning(
-          "El tiempo ha terminado. El intento se enviará para corrección.",
+          locale === "en"
+            ? "Time has expired. Attempt will be submitted for scoring."
+            : "El tiempo ha terminado. El intento se enviará para corrección.",
         );
         void submit();
       }
     }, secondsLeft <= 0 ? 0 : 1000);
     return () => window.clearTimeout(timer);
-  }, [attempt, result, secondsLeft, submit]);
+  }, [attempt, locale, result, secondsLeft, submit]);
 
   async function select(questionId: string, optionId: string) {
     if (!attempt || result) return;
@@ -236,14 +244,14 @@ export default function AssessmentPanel({
           expectedRevision: effectiveRevision,
         }),
       });
-      const envelope = await responseBody(response);
+      const envelope = await responseBody(response, locale);
       if (envelope.revision !== undefined)
         setCurrentRevision(envelope.revision);
       onState("saved");
     } catch (caught) {
       setSelections(previous);
       setError(
-        caught instanceof Error ? caught.message : "No se guardó la respuesta.",
+        caught instanceof Error ? caught.message : (locale === "en" ? "Answer was not saved." : "No se guardó la respuesta."),
       );
       onState(navigator.onLine ? "error" : "offline");
     }
@@ -262,10 +270,10 @@ export default function AssessmentPanel({
     questions.every((question) => selections[question.id]);
   const timerText =
     secondsLeft === null
-      ? "Sin límite"
+      ? text.untimedText
       : `${String(Math.floor(secondsLeft / 60)).padStart(2, "0")}:${String(secondsLeft % 60).padStart(2, "0")}`;
 
-  if (recovering) return <div className="ent-state-card" role="status"><span className="ent-spinner" aria-hidden="true" /><div><strong>Buscando un intento guardado</strong><p>Si recargaste la página, continuarás donde lo dejaste.</p></div></div>;
+  if (recovering) return <div className="ent-state-card" role="status"><span className="ent-spinner" aria-hidden="true" /><div><strong>{text.recoveringTitle}</strong><p>{text.recoveringBody}</p></div></div>;
 
   if (!attempt)
     return (
@@ -274,21 +282,18 @@ export default function AssessmentPanel({
         aria-labelledby="assessment-start-heading"
       >
         <div>
-          <p className="ent-kicker">Evaluación protegida</p>
+          <p className="ent-kicker">{text.startKicker}</p>
           <h2 id="assessment-start-heading">{title}</h2>
-          <p>
-            Las preguntas se corrigen en el servidor. La mejor nota aprobada
-            nunca disminuye y puedes repetir sin límite.
-          </p>
+          <p>{text.startDesc}</p>
           {bestScore !== null ? (
             <span>
-              Mejor resultado: <b>{bestScore}%</b>
+              <b>{text.bestScore(bestScore)}</b>
             </span>
           ) : null}
         </div>
         <div>
           <label htmlFor={`timing-${kind}-${moduleId ?? "global"}`}>
-            Tiempo del intento
+            {text.timingLabel}
           </label>
           <select
             id={`timing-${kind}-${moduleId ?? "global"}`}
@@ -298,10 +303,10 @@ export default function AssessmentPanel({
             }
             disabled={disabled}
           >
-            <option value="untimed">Sin límite</option>
-            <option value="1x">Tiempo estándar</option>
-            <option value="1.5x">Tiempo × 1,5</option>
-            <option value="2x">Tiempo × 2</option>
+            <option value="untimed">{text.timingUntimed}</option>
+            <option value="1x">{text.timing1x}</option>
+            <option value="1.5x">{text.timing15x}</option>
+            <option value="2x">{text.timing2x}</option>
           </select>
           <button
             type="button"
@@ -310,8 +315,8 @@ export default function AssessmentPanel({
             onClick={() => void start()}
           >
             {disabled
-              ? "Disponible al cumplir prerrequisitos"
-              : "Iniciar intento"}
+              ? text.startDisabled
+              : text.startBtn}
           </button>
         </div>
         {error ? (
@@ -326,26 +331,26 @@ export default function AssessmentPanel({
     <section className="ent-assessment" aria-labelledby="assessment-heading">
       <header>
         <div>
-          <p className="ent-kicker">Intento en curso</p>
+          <p className="ent-kicker">{text.inProgressKicker}</p>
           <h2 id="assessment-heading" tabIndex={-1}>
             {attempt.assessment.title}
           </h2>
           <p>{attempt.assessment.instructions}</p>
         </div>
         <div className="ent-assessment-timer">
-          <span>Tiempo</span>
-          <strong aria-label={`Tiempo restante ${timerText}`}>
+          <span>{text.timerLabel}</span>
+          <strong aria-label={`${text.timerLabel} ${timerText}`}>
             {timerText}
           </strong>
           <small>
-            {Object.keys(selections).length}/{questions.length} respondidas
+            {text.answeredCount(Object.keys(selections).length, questions.length)}
           </small>
         </div>
       </header>
       <div
         className="ent-assessment-progress"
         role="progressbar"
-        aria-label="Preguntas respondidas"
+        aria-label={locale === "en" ? "Answered questions" : "Preguntas respondidas"}
         aria-valuemin={0}
         aria-valuemax={questions.length}
         aria-valuenow={Object.keys(selections).length}
@@ -359,12 +364,12 @@ export default function AssessmentPanel({
       <p className="sr-only" aria-live="assertive">
         {warning}
       </p>
-      <nav className="ent-question-map" aria-label="Mapa de preguntas">
+      <nav className="ent-question-map" aria-label={text.questionMapLabel /* Mapa de preguntas */}>
         {questions.map((question, index) => {
           const current = Math.floor(index / pageSize) === page;
           const answered = Boolean(selections[question.id]);
           const isMarked = marked.includes(question.id);
-          return <button key={question.id} type="button" className={`${answered ? "is-answered" : ""} ${isMarked ? "is-marked" : ""}`} aria-current={current ? "step" : undefined} aria-label={`Pregunta ${index + 1}${answered ? ", respondida" : ", pendiente"}${isMarked ? ", marcada para revisar" : ""}`} onClick={() => {
+          return <button key={question.id} type="button" className={`${answered ? "is-answered" : ""} ${isMarked ? "is-marked" : ""}`} aria-current={current ? "step" : undefined} aria-label={text.questionAria(index + 1, answered, isMarked)} onClick={() => {
             const nextPage = Math.floor(index / pageSize);
             setPage(nextPage);
             window.sessionStorage.setItem(`lakehouse-assessment:${attempt.id}:page`, String(nextPage));
@@ -374,16 +379,16 @@ export default function AssessmentPanel({
         })}
       </nav>
       {reviewing ? <section className="ent-assessment-review" aria-labelledby="assessment-review-heading">
-        <p className="ent-kicker">Revisión final</p>
-        <h3 id="assessment-review-heading">Comprueba el intento antes de entregarlo</h3>
-        <p>Has respondido {Object.keys(selections).length} de {questions.length} preguntas. {marked.length ? `Mantienes ${marked.length} marcadas para revisar.` : "No hay preguntas marcadas."}</p>
+        <p className="ent-kicker">{text.reviewKicker /* Revisión final */}</p>
+        <h3 id="assessment-review-heading">{text.reviewTitle}</h3>
+        <p>{text.reviewDesc(Object.keys(selections).length, questions.length, marked.length)}</p>
         <ul>{questions.map((question, index) => <li key={question.id}><button type="button" onClick={() => {
           const nextPage = Math.floor(index / pageSize);
           setPage(nextPage);
           setReviewing(false);
           requestAnimationFrame(() => document.getElementById("assessment-heading")?.focus());
-        }}><span>{index + 1}</span><b>{selections[question.id] ? "Respondida" : "Pendiente"}</b>{marked.includes(question.id) ? <small>Revisar</small> : null}</button></li>)}</ul>
-        <div className="ent-form-actions"><button type="button" className="ent-secondary-action" onClick={() => setReviewing(false)}>Volver al intento</button><button type="button" className="ent-primary-action" disabled={!complete} onClick={() => void submit()}>Confirmar entrega</button></div>
+        }}><span>{index + 1}</span><b>{selections[question.id] ? text.reviewAnswered : text.reviewPending}</b>{marked.includes(question.id) ? <small>{text.reviewMarked}</small> : null}</button></li>)}</ul>
+        <div className="ent-form-actions"><button type="button" className="ent-secondary-action" onClick={() => setReviewing(false)}>{text.backToAttempt}</button><button type="button" className="ent-primary-action" disabled={!complete} onClick={() => void submit()}>{text.confirmSubmit /* Confirmar entrega */}</button></div>
       </section> : <div className="ent-question-list">
         {visible.map((question, index) => {
           const correction = correctionMap.get(question.id);
@@ -432,7 +437,7 @@ export default function AssessmentPanel({
                   className={`ent-correction ${correction.correct ? "is-correct" : "is-review"}`}
                 >
                   <b>
-                    {correction.correct ? "Correcta" : "Revisa esta decisión"}
+                    {correction.correct ? text.correctTag : text.reviewTag}
                   </b>
                   <p>{correction.explanation}</p>
                 </div>
@@ -443,14 +448,14 @@ export default function AssessmentPanel({
                   window.sessionStorage.setItem(`lakehouse-assessment:${attempt.id}:marked`, JSON.stringify(next));
                   return next;
                 });
-              }}>{marked.includes(question.id) ? "Quitar marca" : "Marcar para revisar"}</button> : null}
+              }}>{marked.includes(question.id) ? text.unmarkQuestion : text.markQuestion /* Marcar para revisar */}</button> : null}
             </fieldset>
           );
         })}
       </div>}
       <nav
         className="ent-assessment-pagination"
-        aria-label="Páginas de preguntas"
+        aria-label={locale === "en" ? "Question pages" : "Páginas de preguntas"}
       >
         <button
           type="button"
@@ -466,10 +471,10 @@ export default function AssessmentPanel({
             document.getElementById("assessment-heading")?.focus();
           }}
         >
-          Anterior
+          {text.pagePrevious}
         </button>
         <span>
-          Página {page + 1} de {pages}
+          {text.pageText(page + 1, pages)}
         </span>
         {page < pages - 1 ? (
           <button
@@ -485,7 +490,7 @@ export default function AssessmentPanel({
               document.getElementById("assessment-heading")?.focus();
             }}
           >
-            Siguiente
+            {text.pageNext}
           </button>
         ) : (
           <button
@@ -494,7 +499,7 @@ export default function AssessmentPanel({
             disabled={!complete || Boolean(result)}
             onClick={() => setReviewing(true)}
           >
-            Revisar entrega
+            {text.pageReview}
           </button>
         )}
       </nav>
@@ -509,21 +514,19 @@ export default function AssessmentPanel({
           aria-live="polite"
         >
           <div>
-            <span>Resultado</span>
+            <span>{text.resultHeader}</span>
             <strong>{result.scorePercent}%</strong>
           </div>
           <div>
             <h2>
               {result.passed
-                ? "Objetivo alcanzado"
-                : "Conviene reforzar algunos dominios"}
+                ? text.passTitle
+                : text.reviewTitleResult}
             </h2>
             <p>
-              {result.correctAnswers} de {result.totalQuestions} respuestas
-              correctas.{" "}
               {result.passed
-                ? "El intento queda registrado."
-                : "Tu mejor nota anterior se conserva si era superior."}
+                ? text.resultBodyPass(result.correctAnswers, result.totalQuestions)
+                : text.resultBodyReview(result.correctAnswers, result.totalQuestions)}
             </p>
             <button
               type="button"
@@ -537,12 +540,12 @@ export default function AssessmentPanel({
                 setReviewing(false);
               }}
             >
-              Nuevo intento
+              {text.newAttemptBtn}
             </button>
           </div>
           {result.domainBreakdown?.length ? (
             <div className="ent-domain-breakdown">
-              <h3>Desglose por dominio</h3>
+              <h3>{text.domainBreakdownTitle}</h3>
               {result.domainBreakdown.map((domain) => (
                 <p key={domain.domain}>
                   <span>{domain.domain}</span>

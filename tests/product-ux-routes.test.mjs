@@ -47,11 +47,24 @@ test("lesson UX has stable urls, breadcrumbs, editorial metadata and privacy cop
 test("public SEO includes new indexable routes and domain documentation", () => {
   const sitemap = read("app/sitemap.ts");
   const docs = read("docs/seo-dominio.md");
-  for (const route of ["/ruta", "/recursos", "/metodologia", "/changelog"]) {
+  for (const route of ["/ruta", "/recursos", "/glosario", "/metodologia", "/changelog"]) {
     assert.ok(sitemap.includes(`entry("${route}"`), `sitemap missing ${route}`);
   }
   assert.match(sitemap, /lesson\.id/u);
   assert.match(docs, /lakehouselab\.es/u);
   assert.match(docs, /NEXT_PUBLIC_SITE_URL/u);
   assert.match(docs, /canonical/u);
+  assert.match(read("docs/arquitectura.md"), /app\/curriculum\/glossary\.ts/u);
+});
+
+test("english curriculum projection covers every module without pending placeholders", () => {
+  const i18n = read("app/i18n/curriculum.ts");
+  assert.doesNotMatch(i18n, /translation pending|pending for this|Switch to Spanish|Option 1/u);
+  for (let index = 1; index <= 32; index += 1) {
+    const moduleId = `m${String(index).padStart(2, "0")}`;
+    assert.match(i18n, new RegExp(`${moduleId}: \\[`, "u"), `missing English lesson titles for ${moduleId}`);
+  }
+  for (const required of ["englishDeepDive", "englishLab", "localizeQuizQuestion", "localizeGlossaryEntry", "localizeNotebookPreview"]) {
+    assert.ok(i18n.includes(required) || read("app/components/enterprise/CourseWorkspace.tsx").includes(required), `missing ${required}`);
+  }
 });

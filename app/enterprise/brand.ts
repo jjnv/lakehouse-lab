@@ -11,6 +11,14 @@ export const DEFAULT_BRAND_CONFIG: BrandConfig = Object.freeze({
   privacyUrl: null,
 });
 
+export function localizeBrandConfig(brand: BrandConfig, locale: "es" | "en"): BrandConfig {
+  if (locale === "es" || brand.productName !== DEFAULT_BRAND_CONFIG.productName) return brand;
+  return {
+    ...brand,
+    productName: "Databricks Data Engineer preparation",
+  };
+}
+
 const HEX_COLOR = /^#[0-9a-f]{6}$/i;
 
 function isRecord(value: unknown): value is Record<string, unknown> {

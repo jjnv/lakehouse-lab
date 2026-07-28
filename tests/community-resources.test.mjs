@@ -155,6 +155,17 @@ function loadCurriculumModule() {
     },
     "../progress": { CONTENT_VERSION: "test" },
     "../curriculum/community-resources": registry,
+    "../curriculum/glossary": { glossaryCategoryLabels: {}, glossaryEntries: [] },
+    "../i18n/config": {},
+    "../i18n/curriculum": {
+      localizeModule: (module) => module,
+      localizeModuleSummary: (summary) => summary,
+      localizeReviewDate: (value) => value,
+      localizeResourceCatalog: (catalog) => catalog,
+      localizeSearchLocation: (location) => location,
+      localizeText: (value) => value,
+      moduleCopyEn: {},
+    },
     "./assessment-private": { prepareAssessment: () => ({}) },
     "./search-anchor": { conceptAnchor: () => "concept" },
   });

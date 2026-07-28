@@ -105,7 +105,7 @@ export type LearnerPreferences = {
 
 export type CurriculumSearchResult = {
   id: string;
-  kind: "concept" | "lesson" | "module" | "resource";
+  kind: "concept" | "glossary" | "lesson" | "module" | "resource";
   label: string;
   description: string;
   location: string;

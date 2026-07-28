@@ -23,6 +23,13 @@ export const EDITORIAL_UPDATE_FREQUENCY = "Revisión planificada cuando cambian 
 export const editorialChangelog: EditorialChange[] = [
   {
     date: "2026-07-24",
+    target: "Glosario Databricks",
+    type: "contenido",
+    description: "Añadida una ruta pública con conceptos comunes de plataforma, gobierno, Delta Lake, Lakeflow, streaming, rendimiento, seguridad y coste, integrada en búsqueda y sitemap.",
+    reference: null,
+  },
+  {
+    date: "2026-07-24",
     target: "Portada, navegación y rutas de entrada",
     type: "producto",
     description: "Reposicionamiento hacia aprendizaje práctico de ingeniería de datos con Databricks y certificaciones como resultado del itinerario.",

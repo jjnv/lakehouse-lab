@@ -33,9 +33,10 @@ test("the compiled v2 client contains the real-route enterprise shell", () => {
     assert.ok(clientJavaScript.includes(contract), `compiled shell is missing ${contract}`);
   }
   assert.ok(
-    clientJavaScript.includes("Ingeniería de datos con Databricks") ||
-      clientJavaScript.includes("Preparación Databricks Data Engineer"),
-    "compiled shell is missing the public brand tagline",
+    clientJavaScript.includes("Language") &&
+      clientJavaScript.includes("English") &&
+      clientJavaScript.includes("Español"),
+    "compiled shell is missing the language switcher",
   );
   assert.doesNotMatch(clientJavaScript, /codex-preview/iu);
 });
@@ -74,12 +75,12 @@ test("the compiled UI retains keyboard, announcement and high-contrast affordanc
 
 test("the server bundle contains the complete public launch surface", () => {
   for (const contract of [
-    "Domina la ingeniería de datos|Prepara Databricks Data Engineer",
+    "Domina|Data engineering with Databricks",
     "Associate",
     "Professional",
     "Simulacros",
     "Condiciones de uso",
-    "Proyecto independiente|Preparación independiente",
+    "Proyecto independiente|PreparaciÃ³n independiente",
     "og-public.png",
   ]) {
     assert.ok(new RegExp(contract, "u").test(serverJavaScript), `public launch surface is missing ${contract}`);

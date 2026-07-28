@@ -1,10 +1,10 @@
 # Lakehouse Lab
 
-Plataforma educativa open source en español para aprender ingeniería de datos sobre Databricks mediante una ruta de 20 semanas, 32 módulos, laboratorios, evaluaciones y progreso persistente.
+Plataforma educativa open source en español para aprender ingeniería de datos sobre Databricks mediante una ruta de 32 módulos, 160 lecciones, laboratorios, evaluaciones, glosario y progreso persistente opcional.
 
 > Proyecto comunitario e independiente. No está afiliado, patrocinado ni avalado por Databricks.
 
-[Explorar el código](https://github.com/jjnv/lakehouse-lab) · [Contribuir](CONTRIBUTING.md) · [Roadmap](ROADMAP.md) · [Metodología](/metodologia) · [Changelog](/changelog) · [Reportar una incidencia](https://github.com/jjnv/lakehouse-lab/issues)
+[Explorar el código](https://github.com/jjnv/lakehouse-lab) · [Arquitectura](docs/arquitectura.md) · [Contribuir](CONTRIBUTING.md) · [Roadmap](ROADMAP.md) · [Metodología](/metodologia) · [Glosario](/glosario) · [Reportar una incidencia](https://github.com/jjnv/lakehouse-lab/issues)
 
 ![Vista de presentación de Lakehouse Lab](public/og-public.png)
 
@@ -14,10 +14,10 @@ Plataforma educativa open source en español para aprender ingeniería de datos 
 - Rutas de entrada por objetivo: Associate, Professional, Databricks desde cero, streaming/CDC y práctica con laboratorios.
 - URLs estables por lección en `/curso/[modulo]/[leccion]`, con compatibilidad para enlaces antiguos con `?lesson=`.
 - Metadatos editoriales visibles por módulo y lección: revisión, nivel, dominios, fuentes, estado y reporte de errores.
-- Páginas públicas de metodología editorial y changelog de contenido.
+- Páginas públicas de metodología editorial, changelog de contenido y glosario Databricks.
 - Espacio personal anónimo, sin pedir nombre ni correo.
 - 160 lecciones, 32 laboratorios y simulacros Associate y Professional.
-- Búsqueda global de módulos, lecciones y conceptos con navegación al punto exacto del temario.
+- Búsqueda global de módulos, lecciones, conceptos, notebooks y términos del glosario.
 - Progreso persistente en Turso y repasos espaciados.
 - Evaluaciones corregidas en el servidor sin enviar claves de respuesta al cliente.
 - Exportación y eliminación del progreso.
@@ -26,7 +26,7 @@ Plataforma educativa open source en español para aprender ingeniería de datos 
 
 ## Arquitectura
 
-- Next.js 16, React 19 y TypeScript.
+- Next.js 16.2, React 19.2 y TypeScript 5.9.
 - Vercel Functions con el runtime de Node.js.
 - Turso Serverless SQLite y Drizzle ORM.
 - Sesión anónima mediante una cookie privada, aleatoria, `HttpOnly` y `SameSite`.
@@ -41,7 +41,7 @@ Las páginas públicas no requieren identidad. La aplicación solo crea un espac
 3. Opcionalmente define `NEXT_PUBLIC_SITE_URL` con el dominio definitivo para canonical, sitemap y metadatos sociales.
 4. Ejecuta un nuevo despliegue. El proceso aplica las migraciones pendientes y compila la aplicación automáticamente.
 
-La configuración incluida fija el preset de Next.js, la región europea y el flujo de compilación. Los secretos permanecen en Vercel y nunca se guardan en el repositorio. La preparación para dominio propio está documentada en [docs/seo-dominio.md](docs/seo-dominio.md).
+La configuración incluida fija el preset de Next.js, la región europea y el flujo de compilación. Los secretos permanecen en Vercel y nunca se guardan en el repositorio. La arquitectura está resumida en [docs/arquitectura.md](docs/arquitectura.md) y la preparación para dominio propio en [docs/seo-dominio.md](docs/seo-dominio.md).
 
 ## Desarrollo local
 
@@ -104,7 +104,7 @@ La lectura pública no guarda progreso. El espacio personal informa de los datos
 - Las vulnerabilidades se comunican siguiendo [SECURITY.md](SECURITY.md), no mediante una issue pública.
 - Las normas de participación están en [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md).
 
-Versión editorial: **2026.07**. Última revisión: **22 de julio de 2026**.
+Versión editorial: **2026.07**. Última revisión: **24 de julio de 2026**.
 
 ## Licencias
 

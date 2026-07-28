@@ -17,8 +17,8 @@ const routes = [
 ] as const;
 
 const publicRoutes = [
-  { path: "/", heading: "Domina la ingeniería de datos con Databricks." },
-  { path: "/ruta", heading: "Elige el punto de entrada que encaja con tu objetivo." },
+  { path: "/", heading: "Empieza con fundamentos lakehouse." },
+  { path: "/ruta", heading: "Empieza desde cero si no sabes qué elegir." },
   { path: "/metodologia", heading: "Cómo validamos el contenido." },
   { path: "/changelog", heading: "Qué ha cambiado en el contenido." },
   { path: "/acerca-de", heading: "Preparación independiente para Data Engineers." },
@@ -272,7 +272,7 @@ test("el catálogo abre el notebook en el visor lateral mediante un enlace profu
   await page.keyboard.press("Escape");
   await expect(viewer).toBeHidden();
   await expect(page).toHaveURL(/\/curso\/change-data-feed-cdc-auto-cdc-y-scd\?section=resources$/);
-  await expect(page.locator("#community-resource-delta-cdf").getByRole("button", { name: /Ver notebook/ })).toBeFocused();
+  await expect(page.locator("#community-resource-delta-cdf").getByRole("button", { name: /Abrir visor interno/ })).toBeFocused();
 });
 
 test("el visor interno renderiza celdas y Escape restaura el foco al botón que lo abrió", async ({ page }) => {
@@ -293,8 +293,8 @@ test("el visor interno renderiza celdas y Escape restaura el foco al botón que 
   await waitForWorkspace(page);
 
   const resourceCard = page.locator("#community-resource-delta-cdf");
-  const opener = resourceCard.getByRole("button", { name: /Ver notebook/ });
-  await expect(page.locator(".ent-community-card").getByRole("button", { name: /Ver notebook/ })).toHaveCount(3);
+  const opener = resourceCard.getByRole("button", { name: /Abrir visor interno/ });
+  await expect(page.locator(".ent-community-card").getByRole("button", { name: /Abrir visor interno/ })).toHaveCount(3);
   await opener.click();
   const viewer = page.locator("dialog#community-preview");
   await expect(viewer).toBeVisible();
@@ -327,7 +327,7 @@ for (const mismatch of previewIdentityMismatches) {
     });
     await page.goto("/curso/delta-lake-acid-esquema-historial-y-dml?section=resources");
     await waitForWorkspace(page);
-    await page.locator("#community-resource-delta-cdf").getByRole("button", { name: /Ver notebook/ }).click();
+    await page.locator("#community-resource-delta-cdf").getByRole("button", { name: /Abrir visor interno/ }).click();
     const viewer = page.locator("dialog#community-preview");
     await expect(viewer.getByRole("alert")).toContainText("La vista previa recibida no corresponde al recurso solicitado.");
     await expect(viewer.locator(".ent-notebook-cells")).toHaveCount(0);
@@ -344,7 +344,7 @@ test("el recurso externo usa el mismo visor y ofrece GitHub sin solicitar la API
   await waitForWorkspace(page);
 
   const resourceCard = page.locator("#community-resource-free-pipelines");
-  const opener = resourceCard.getByRole("button", { name: /Ver notebook/ });
+  const opener = resourceCard.getByRole("button", { name: /Abrir visor interno/ });
   await opener.click();
   const viewer = page.locator("dialog#community-preview");
   await expect(viewer).toBeVisible();
@@ -538,7 +538,8 @@ test("un visitante crea un espacio anónimo con una cookie privada", async ({ br
     await page.goto(`${baseURL}/`);
     await page.getByRole("link", { name: "Temario" }).first().click();
     await expect(page).toHaveURL(/\/catalogo$/u);
-    await expect(page.getByText("Contenido abierto").first()).toBeVisible();
+    await expect(page.getByRole("heading", { level: 1, name: "Temario" })).toBeVisible();
+    await expect(page.getByRole("link", { name: "Crear espacio para guardar" })).toBeVisible();
     expect((await context.cookies()).some((item) => item.name === "lakehouse_session")).toBe(false);
 
     await page.goto(`${baseURL}/curso/data-intelligence-platform-y-arquitectura-lakehouse`);

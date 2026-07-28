@@ -12,6 +12,9 @@ decisiones concretas se debaten en incidencias y pull requests.
 - [x] Plantillas para incidencias y pull requests.
 - [x] Exploración pública del catálogo y los módulos sin crear progreso.
 - [x] Separación formal entre currículo canónico y extensiones comunitarias.
+- [x] Documentación actualizada de arquitectura, despliegue y flujo local.
+- [x] Glosario público de conceptos comunes de Databricks integrado con la
+      búsqueda.
 
 ## P1 · Contribución sostenible
 
@@ -21,14 +24,15 @@ decisiones concretas se debaten en incidencias y pull requests.
 - [x] Publicar CI para lint, tipos, pruebas, build y accesibilidad.
 - [ ] Registrar reproducciones independientes de laboratorios por cloud y runtime.
 - [x] Formalizar la propuesta y revisión periódica de recursos comunitarios.
-- [ ] Documentar arquitectura y despliegue autocontenido además de Vercel.
+- [x] Documentar arquitectura y despliegue autocontenido además de Vercel.
 
 ## P2 · Ecosistema
 
 - [ ] Admitir rutas y colecciones comunitarias instalables.
 - [ ] Añadir traducciones sin duplicar IDs ni progreso.
 - [ ] Mostrar atribución y contribuciones por módulo.
-- [ ] Publicar releases editoriales y notas de compatibilidad.
+- [ ] Publicar releases editoriales descargables y notas de compatibilidad por
+      versión.
 - [ ] Facilitar datasets sintéticos y laboratorios reproducibles.
 - [x] Mejorar descubrimiento, comparación y seguimiento de recursos.
 

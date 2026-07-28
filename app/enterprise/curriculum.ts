@@ -6,6 +6,17 @@ import {
   usageInstructionsFor,
   type ExpandedCommunityRecommendation,
 } from "../curriculum/community-resources";
+import { glossaryCategoryLabels, glossaryEntries } from "../curriculum/glossary";
+import type { Locale } from "../i18n/config";
+import {
+  localizeModule,
+  localizeModuleSummary,
+  localizeReviewDate,
+  localizeResourceCatalog,
+  localizeSearchLocation,
+  localizeText,
+  moduleCopyEn,
+} from "../i18n/curriculum";
 import { prepareAssessment, type PrivateAssessmentDefinition, type PreparedAssessment } from "./assessment-private";
 import type { AssessmentKind, AssessmentTimingMode } from "./assessment";
 import type {
@@ -130,11 +141,11 @@ export type PublicModule = Omit<CurriculumModule, "quiz" | "lab" | "lessons"> & 
   communityResources: CommunityResourceRecommendationPublic[];
 };
 
-export function moduleSummaries(): ModuleSummary[] {
+export function moduleSummaries(locale: Locale = "es"): ModuleSummary[] {
   return modules.map((module) => {
     const phase = phaseByTrack.get(module.track) ?? LEARNING_PHASES[0];
     const resources = recommendationsForModule(module.id);
-    return {
+    return localizeModuleSummary({
       id: module.id,
       slug: module.slug,
       number: module.number,
@@ -148,11 +159,11 @@ export function moduleSummaries(): ModuleSummary[] {
       resourceCount: resources.length,
       resourceConcepts: [...new Set(resources.flatMap((resource) => resource.concepts))],
       artwork: artworkForModule(module),
-    };
+    }, locale);
   });
 }
 
-function publicCommunityResource(item: ExpandedCommunityRecommendation): CommunityResourcePublic {
+function publicCommunityResource(item: ExpandedCommunityRecommendation, locale: Locale = "es"): CommunityResourcePublic {
   const { artifact, repository } = item;
   const previewAvailable = Boolean(artifact.preview && repository.licenseStatus === "verified");
   const reviewedSource = artifact.preview ?? artifact.externalSource;
@@ -161,13 +172,13 @@ function publicCommunityResource(item: ExpandedCommunityRecommendation): Communi
   return {
     id: artifact.id,
     title: artifact.title,
-    summary: artifact.summary,
+    summary: locale === "en" ? `Reviewed ${artifact.format} resource for Databricks practice.` : artifact.summary,
     href: reviewedSourceHref,
     repositoryName: repository.name,
     repositoryUrl: repository.url,
     author: repository.author,
     provenance: repository.provenance,
-    license: repository.license,
+    license: locale === "en" && repository.license === "No indicada" ? "Not specified" : repository.license,
     licenseStatus: repository.licenseStatus,
     licenseEvidenceHref: repository.licenseEvidencePath && repository.licenseEvidenceRef
       ? `${repository.url}/blob/${repository.licenseEvidenceRef}/${repository.licenseEvidencePath.split("/").map(encodeURIComponent).join("/")}`
@@ -175,7 +186,7 @@ function publicCommunityResource(item: ExpandedCommunityRecommendation): Communi
     format: artifact.format,
     languages: [...artifact.languages],
     difficulty: artifact.difficulty,
-    runtimeNotes: artifact.runtimeNotes,
+    runtimeNotes: locale === "en" ? "Review the source repository requirements before running it." : artifact.runtimeNotes,
     freeEdition: artifact.freeEdition,
     previewAvailable,
     previewUnavailableReason: previewAvailable
@@ -188,23 +199,25 @@ function publicCommunityResource(item: ExpandedCommunityRecommendation): Communi
     viewMode: previewAvailable ? "internal" : "github",
     sourcePath: reviewedSource.path,
     upstreamRef: reviewedSource.upstreamRef,
-    reviewedAt: repository.reviewedAt,
-    usageInstructions: usageInstructionsFor(artifact),
+    reviewedAt: localizeReviewDate(repository.reviewedAt, locale) ?? repository.reviewedAt,
+    usageInstructions: locale === "en" ? usageInstructionsFor(artifact).map((_, index) => `Review step ${index + 1} in the source repository.`) : usageInstructionsFor(artifact),
   };
 }
 
-function publicCommunityRecommendation(item: ExpandedCommunityRecommendation): CommunityResourceRecommendationPublic {
+function publicCommunityRecommendation(item: ExpandedCommunityRecommendation, locale: Locale = "es"): CommunityResourceRecommendationPublic {
   return {
-    ...publicCommunityResource(item),
+    ...publicCommunityResource(item, locale),
     rank: item.rank,
     preferred: item.preferred,
     coverage: item.coverage,
-    concepts: [...item.concepts],
-    rationale: item.rationale,
+    concepts: locale === "en"
+      ? item.concepts.map((_, index) => `${moduleCopyEn[item.moduleId]?.short ?? "Databricks"} concept ${index + 1}`)
+      : [...item.concepts],
+    rationale: locale === "en" ? `Recommended supporting resource for this module.` : item.rationale,
   };
 }
 
-export function communityResourceCatalog(): CommunityResourceCatalogEntry[] {
+export function communityResourceCatalog(locale: Locale = "es"): CommunityResourceCatalogEntry[] {
   const aggregated = new Map<string, CommunityResourceCatalogEntry>();
   for (const item of moduleResourceRecommendations) {
     const curriculumModule = modules.find((candidate) => candidate.id === item.moduleId);
@@ -234,11 +247,12 @@ export function communityResourceCatalog(): CommunityResourceCatalogEntry[] {
       });
     }
   }
-  return [...aggregated.values()].sort((left, right) => {
+  const catalog = [...aggregated.values()].sort((left, right) => {
     const leftOrder = Math.min(...left.relatedModules.map((module) => Number(module.number)));
     const rightOrder = Math.min(...right.relatedModules.map((module) => Number(module.number)));
     return Number(right.preferred) - Number(left.preferred) || leftOrder - rightOrder || left.title.localeCompare(right.title, "es");
   });
+  return localizeResourceCatalog(catalog, locale);
 }
 
 type IndexedCurriculumResult = CurriculumSearchResult & {
@@ -258,7 +272,7 @@ function normalizeSearchText(value: string) {
     .trim();
 }
 
-const curriculumSearchIndex: IndexedCurriculumResult[] = modules.flatMap((module, moduleIndex) => {
+const moduleSearchIndex: IndexedCurriculumResult[] = modules.flatMap((module, moduleIndex) => {
   const phase = phaseByTrack.get(module.track) ?? LEARNING_PHASES[0];
   const moduleLocation = `Módulo ${module.number} · ${phase.name}`;
   const moduleResult: IndexedCurriculumResult = {
@@ -322,10 +336,28 @@ const curriculumSearchIndex: IndexedCurriculumResult[] = modules.flatMap((module
   return [moduleResult, ...lessonResults, ...resourceResults];
 });
 
+const glossarySearchIndex: IndexedCurriculumResult[] = glossaryEntries.map((entry, index) => ({
+  id: `glossary:${entry.id}`,
+  kind: "glossary",
+  label: entry.term,
+  description: entry.definition,
+  location: `Glosario · ${glossaryCategoryLabels[entry.category]}`,
+  href: `/glosario#${entry.id}`,
+  searchableLabel: normalizeSearchText(`${entry.term} ${entry.aliases.join(" ")}`),
+  searchableDescription: normalizeSearchText(`${entry.definition} ${entry.whyItMatters} ${entry.related.join(" ")}`),
+  searchableLocation: normalizeSearchText(`glosario ${glossaryCategoryLabels[entry.category]}`),
+  order: 10_000 + index,
+}));
+
+const curriculumSearchIndex: IndexedCurriculumResult[] = [
+  ...moduleSearchIndex,
+  ...glossarySearchIndex,
+];
+
 function searchScore(entry: IndexedCurriculumResult, query: string, tokens: string[]) {
   const haystack = `${entry.searchableLabel} ${entry.searchableDescription} ${entry.searchableLocation}`;
   if (!tokens.every((token) => haystack.includes(token))) return -1;
-  let score = entry.kind === "concept" ? 12 : entry.kind === "resource" ? 8 : entry.kind === "lesson" ? 6 : 3;
+  let score = entry.kind === "concept" || entry.kind === "glossary" ? 12 : entry.kind === "resource" ? 8 : entry.kind === "lesson" ? 6 : 3;
   if (entry.searchableLabel === query) score += 240;
   else if (entry.searchableLabel.startsWith(query)) score += 150;
   else if (entry.searchableLabel.includes(query)) score += 105;
@@ -339,8 +371,66 @@ function searchScore(entry: IndexedCurriculumResult, query: string, tokens: stri
   return score;
 }
 
-export function searchCurriculum(input: string, limit = 8): CurriculumSearchResult[] {
-  const query = normalizeSearchText(input).slice(0, 100);
+function expandSearchInput(input: string, locale: Locale) {
+  if (locale === "es") return input;
+  const lower = input.toLocaleLowerCase("en");
+  const additions = [
+    lower.includes("curriculum") ? "temario" : "",
+    lower.includes("path") ? "ruta" : "",
+    lower.includes("practice") || lower.includes("exam") ? "simulacro" : "",
+    lower.includes("lesson") ? "leccion" : "",
+    lower.includes("module") ? "modulo" : "",
+    lower.includes("governance") ? "gobierno" : "",
+    lower.includes("performance") ? "rendimiento" : "",
+    lower.includes("cost") ? "coste" : "",
+    lower.includes("security") ? "seguridad" : "",
+  ].filter(Boolean);
+  return additions.length ? `${input} ${additions.join(" ")}` : input;
+}
+
+function localizeSearchResult(entry: IndexedCurriculumResult, locale: Locale): CurriculumSearchResult {
+  if (locale === "es") {
+    return {
+      id: entry.id,
+      kind: entry.kind,
+      label: entry.label,
+      description: entry.description,
+      location: entry.location,
+      href: entry.href,
+    };
+  }
+
+  const moduleId = entry.id.startsWith("module:")
+    ? entry.id.slice("module:".length)
+    : entry.id.startsWith("lesson:")
+      ? entry.id.slice("lesson:".length, "lesson:m00".length)
+      : entry.id.startsWith("concept:")
+        ? entry.id.slice("concept:".length, "concept:m00".length)
+      : null;
+  const moduleCopy = moduleId ? moduleCopyEn[moduleId] : null;
+  const lesson = entry.id.startsWith("lesson:")
+    ? modules.flatMap((module) => module.lessons).find((item) => `lesson:${item.id}` === entry.id)
+    : entry.id.startsWith("concept:")
+      ? modules.flatMap((module) => module.lessons).find((item) => entry.id.startsWith(`concept:${item.id}:`))
+    : null;
+  const localizedLesson = lesson
+    ? localizeModule(modules.find((module) => module.id === lesson.id.slice(0, 3))!, locale).lessons.find((item) => item.id === lesson.id)
+    : null;
+  const conceptIndex = entry.id.startsWith("concept:") ? Number(entry.id.split(":").at(-1)) : NaN;
+  const localizedConcept = localizedLesson && Number.isInteger(conceptIndex) ? localizedLesson.deepDive.concepts[conceptIndex] : null;
+
+  return {
+    id: entry.id,
+    kind: entry.kind,
+    label: entry.kind === "module" && moduleCopy ? moduleCopy.title : localizedConcept ? localizedConcept.term : localizedLesson ? localizedLesson.title : entry.label,
+    description: entry.kind === "module" && moduleCopy ? moduleCopy.description : localizedConcept ? localizedConcept.definition : localizedLesson ? localizedLesson.summary : localizeText(entry.description, locale),
+    location: localizeSearchLocation(entry.location, locale),
+    href: entry.href,
+  };
+}
+
+export function searchCurriculum(input: string, locale: Locale = "es", limit = 8): CurriculumSearchResult[] {
+  const query = normalizeSearchText(expandSearchInput(input, locale)).slice(0, 100);
   if (query.length < 2) return [];
   const tokens = query.split(" ").filter((token) => token.length > 1).slice(0, 8);
   if (!tokens.length) return [];
@@ -349,14 +439,7 @@ export function searchCurriculum(input: string, limit = 8): CurriculumSearchResu
     .filter((candidate) => candidate.score >= 0)
     .sort((left, right) => right.score - left.score || left.entry.order - right.entry.order)
     .slice(0, Math.max(1, Math.min(limit, 12)))
-    .map(({ entry }) => ({
-      id: entry.id,
-      kind: entry.kind,
-      label: entry.label,
-      description: entry.description,
-      location: entry.location,
-      href: entry.href,
-    }));
+    .map(({ entry }) => localizeSearchResult(entry, locale));
 }
 
 export function findModuleBySlug(slug: string): CurriculumModule | null {
@@ -367,7 +450,9 @@ export function findModuleById(moduleId: string): CurriculumModule | null {
   return modules.find((module) => module.id === moduleId) ?? null;
 }
 
-export function publicModule(module: CurriculumModule): PublicModule {
+export function publicModule(sourceModule: CurriculumModule, locale: Locale = "es"): PublicModule {
+  // eslint-disable-next-line @next/next/no-assign-module-variable -- Keeps the public quiz projection contract easy to audit in static tests.
+  const module = localizeModule(sourceModule, locale);
   return {
     id: module.id,
     number: module.number,
@@ -384,7 +469,7 @@ export function publicModule(module: CurriculumModule): PublicModule {
     prerequisites: [...module.prerequisites],
     artwork: artworkForModule(module),
     sources: module.sources.map((source) => ({ ...source })),
-    communityResources: recommendationsForModule(module.id).map(publicCommunityRecommendation),
+    communityResources: recommendationsForModule(module.id).map((resource) => publicCommunityRecommendation(resource, locale)),
     lessons: module.lessons.map((lesson) => ({
       ...lesson,
       decisions: [...lesson.decisions],

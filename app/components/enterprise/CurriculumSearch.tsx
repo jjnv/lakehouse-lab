@@ -2,15 +2,14 @@
 
 import { useEffect, useId, useRef, useState, type FormEvent, type KeyboardEvent } from "react";
 import type { CurriculumSearchResult } from "../../enterprise/contracts";
+import { searchText } from "../../i18n/dictionaries";
+import type { Locale } from "../../i18n/config";
 
-const kindLabel: Record<CurriculumSearchResult["kind"], string> = {
-  concept: "Concepto",
-  lesson: "Lección",
-  module: "Módulo",
-  resource: "Notebook",
+type CurriculumSearchProps = {
+  locale?: Locale;
 };
 
-export default function CurriculumSearch() {
+export default function CurriculumSearch({ locale = "es" }: CurriculumSearchProps) {
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<CurriculumSearchResult[]>([]);
   const [open, setOpen] = useState(false);
@@ -20,6 +19,7 @@ export default function CurriculumSearch() {
   const inputRef = useRef<HTMLInputElement>(null);
   const resultsId = useId();
   const normalizedQuery = query.trim();
+  const text = searchText[locale];
 
   useEffect(() => {
     const onShortcut = (event: globalThis.KeyboardEvent) => {
@@ -47,18 +47,18 @@ export default function CurriculumSearch() {
       setLoading(true);
       setError("");
       try {
-        const response = await fetch(`/api/search?q=${encodeURIComponent(normalizedQuery)}`, {
+        const response = await fetch(`/api/search?q=${encodeURIComponent(normalizedQuery)}&lang=${locale}`, {
           signal: controller.signal,
           headers: { accept: "application/json" },
         });
-        if (!response.ok) throw new Error("No se pudo consultar el temario.");
+        if (!response.ok) throw new Error(text.error);
         const body = await response.json() as { results?: CurriculumSearchResult[] };
         setResults(Array.isArray(body.results) ? body.results : []);
         setOpen(true);
       } catch (caught) {
         if (controller.signal.aborted) return;
         setResults([]);
-        setError(caught instanceof Error ? caught.message : "No se pudo consultar el temario.");
+        setError(caught instanceof Error ? caught.message : text.error);
         setOpen(true);
       } finally {
         if (!controller.signal.aborted) setLoading(false);
@@ -68,7 +68,7 @@ export default function CurriculumSearch() {
       window.clearTimeout(timer);
       controller.abort();
     };
-  }, [normalizedQuery]);
+  }, [locale, normalizedQuery, text.error]);
 
   function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -97,15 +97,15 @@ export default function CurriculumSearch() {
   }
 
   const status = normalizedQuery.length < 2
-    ? "Escribe al menos dos caracteres."
+    ? text.tooShort
     : loading
-      ? "Buscando en el temario…"
-      : error || (results.length ? `${results.length} coincidencias en el temario.` : "No hay coincidencias. Prueba otro término.");
+      ? text.loading
+      : error || (results.length ? text.count(results.length) : text.empty);
 
   return (
     <div ref={rootRef} className="ent-global-search">
-      <form role="search" aria-label="Buscar en el temario" onSubmit={submit}>
-        <label className="sr-only" htmlFor={resultsId}>Buscar conceptos en el temario</label>
+      <form role="search" aria-label={text.label} onSubmit={submit}>
+        <label className="sr-only" htmlFor={resultsId}>{text.inputLabel}</label>
         <span className="ent-search-symbol" aria-hidden="true">⌕</span>
         <input
           ref={inputRef}
@@ -116,21 +116,21 @@ export default function CurriculumSearch() {
           spellCheck={false}
           aria-controls={`${resultsId}-results`}
           aria-describedby={`${resultsId}-status`}
-          placeholder="Buscar conceptos en el temario"
+          placeholder={text.placeholder}
           onChange={(event) => changeQuery(event.target.value)}
           onFocus={() => setOpen(true)}
           onKeyDown={inputKeyDown}
         />
         <kbd aria-hidden="true">Ctrl K</kbd>
       </form>
-      <section id={`${resultsId}-results`} className="ent-search-popover" aria-label="Resultados de búsqueda" hidden={!open}>
+      <section id={`${resultsId}-results`} className="ent-search-popover" aria-label={text.resultsLabel} hidden={!open}>
           <p id={`${resultsId}-status`} className="ent-search-status" role="status" aria-live="polite">{status}</p>
           {results.length ? (
             <ul>
               {results.map((result) => (
                 <li key={result.id}>
                   <a className="ent-search-result" href={result.href} onClick={() => setOpen(false)}>
-                    <span>{kindLabel[result.kind]}</span>
+                    <span>{text.kinds[result.kind]}</span>
                     <strong>{result.label}</strong>
                     <p>{result.description}</p>
                     <small>{result.location}<b aria-hidden="true">→</b></small>
@@ -139,7 +139,7 @@ export default function CurriculumSearch() {
               ))}
             </ul>
           ) : null}
-          <footer><span>Enter abre la primera coincidencia</span><a href="/catalogo">Ver todo el temario</a></footer>
+          <footer><span>{text.openFirst}</span><a href="/catalogo">{text.viewCatalog}</a></footer>
       </section>
     </div>
   );

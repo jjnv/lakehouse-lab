@@ -24,6 +24,7 @@ export default function sitemap(): MetadataRoute.Sitemap {
     entry("/simulacro/professional", 0.75),
     entry("/catalogo", 0.8),
     entry("/recursos", 0.75),
+    entry("/glosario", 0.72),
     entry("/metodologia", 0.65),
     entry("/changelog", 0.55),
     entry("/acerca-de", 0.45),

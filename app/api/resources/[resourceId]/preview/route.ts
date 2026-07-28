@@ -3,7 +3,8 @@ import { loadCommunityNotebookPreview, NotebookPreviewError } from "../../../../
 
 export const dynamic = "force-dynamic";
 
-export async function GET(_request: Request, { params }: { params: Promise<{ resourceId: string }> }) {
+export async function GET(request: Request, { params }: { params: Promise<{ resourceId: string }> }) {
+  void request;
   const { resourceId } = await params;
   try {
     return json(await loadCommunityNotebookPreview(resourceId), {
