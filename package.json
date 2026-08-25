@@ -44,7 +44,7 @@
     "drizzle-orm": "0.45.2",
     "next": "16.2.6",
     "pdf-lib": "1.17.1",
-    "react": "19.2.6",
+    "react": "19.2.8",
     "react-dom": "19.2.6"
   },
   "devDependencies": {
@@ -52,7 +52,7 @@
     "@playwright/test": "^1.61.1",
     "@tailwindcss/postcss": "4.2.1",
     "@types/node": "22.19.19",
-    "@types/react": "19.2.14",
+    "@types/react": "19.2.17",
     "@types/react-dom": "19.2.3",
     "drizzle-kit": "0.31.10",
     "eslint": "9.39.4",
