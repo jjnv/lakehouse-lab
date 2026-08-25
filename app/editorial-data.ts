@@ -1,13 +1,15 @@
-export const SITE_VERSION = "2.0.0";
-export const PUBLISHED_AT = "22 jul 2026";
-export const REVIEWED_AT = "22 jul 2026";
+export const SITE_VERSION = "2.1.0";
+export const PUBLISHED_AT = "25 ago 2026";
+export const REVIEWED_AT = "25 ago 2026";
 
 export const OFFICIAL_BLUEPRINTS = {
   Associate: {
+    id: "blueprint-associate-2026-05-04",
     label: "Data Engineer Associate · mayo de 2026",
     href: "https://www.databricks.com/sites/default/files/2026-03/databricks-certified-data-engineer-associate-exam-guide-may-4-2026.pdf",
   },
   Professional: {
+    id: "blueprint-professional-2025-11-30",
     label: "Data Engineer Professional · 30 de noviembre de 2025",
     href: "https://www.databricks.com/sites/default/files/2025-11/databricks-certified-data-engineer-professional-exam-guide-november-30-2025_0.pdf",
   },
@@ -21,7 +23,7 @@ export const PLATFORM_REFERENCES = {
     publisher: "Databricks",
     reviewedAt: REVIEWED_AT,
     cloud: "Multinube",
-    version: "Free Edition · julio de 2026",
+    version: "Free Edition · agosto de 2026",
   },
   runtime: {
     id: "runtime-support",
@@ -39,7 +41,7 @@ export const PLATFORM_REFERENCES = {
     publisher: "Databricks",
     reviewedAt: REVIEWED_AT,
     cloud: "AWS · Azure · GCP",
-    version: "Precios consultados en julio de 2026",
+    version: "Precios consultados en agosto de 2026",
   },
 } as const;
 
@@ -100,7 +102,7 @@ export const blueprintObjectives: BlueprintObjective[] = [
   objective("a-govern-tables", "Associate", "Governance and Security", "Diferenciar y operar tablas managed y external.", ["m06", "m11"]),
   objective("a-govern-grants", "Associate", "Governance and Security", "Aplicar GRANT, REVOKE y DENY en la jerarquía adecuada.", ["m11", "m30"]),
   objective("a-govern-masks", "Associate", "Governance and Security", "Configurar column masks y row-level security según grupos de usuarios.", ["m30"]),
-  objective("a-govern-abac", "Associate", "Governance and Security", "Aplicar políticas ABAC de Unity Catalog para centralizar filtros de fila y máscaras de columna.", ["m30"]),
+  objective("a-govern-abac", "Associate", "Governance and Security", "Aplicar políticas ABAC de Unity Catalog para centralizar filtros de fila y máscaras de columna.", ["m11"]),
 
   objective("p-code-project", "Professional", "Developing Code", "Diseñar proyectos Python modulares preparados para Bundles y CI/CD.", ["m28", "m29"]),
   objective("p-code-deps", "Professional", "Developing Code", "Gestionar y resolver dependencias PyPI, wheels y source archives.", ["m28"]),
@@ -148,6 +150,24 @@ export const blueprintObjectives: BlueprintObjective[] = [
   objective("p-model-layout", "Professional", "Data Modelling", "Explicar beneficios de liquid clustering frente a particionado y Z-Ordering.", ["m24"]),
   objective("p-model-dimensional", "Professional", "Data Modelling", "Diseñar modelos dimensionales eficientes para analítica.", ["m07"]),
 ];
+
+/** ID estable y derivable del objetivo observable de cada módulo. */
+export function performanceObjectiveId(moduleId: string) {
+  return `${moduleId}-performance`;
+}
+
+/**
+ * Devuelve la trazabilidad editorial de un módulo sin duplicar el mapa del
+ * blueprint en bancos, overlays o componentes de presentación.
+ */
+export function objectiveIdsForModule(moduleId: string, level?: CertificationLevel): string[] {
+  return [
+    performanceObjectiveId(moduleId),
+    ...blueprintObjectives
+      .filter((item) => item.moduleIds.includes(moduleId) && (!level || item.level === level))
+      .map((item) => item.id),
+  ];
+}
 
 export function coverageFor(level: CertificationLevel) {
   const items = blueprintObjectives.filter((item) => item.level === level);

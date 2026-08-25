@@ -38,6 +38,7 @@ const sources = Object.fromEntries(await Promise.all([
   "app/enterprise/curriculum.ts",
   "app/enterprise/assessment.ts",
   "app/enterprise/assessment-private.ts",
+  "app/enterprise/credential-version-policy.ts",
   "app/enterprise/learning-service.ts",
   "app/enterprise/store.ts",
   "app/api/_shared.ts",
@@ -72,11 +73,11 @@ const enterpriseComponentSources = Object.fromEntries(await Promise.all(
 const clientComponentSources = Object.entries(enterpriseComponentSources)
   .filter(([, source]) => /^\s*["']use client["'];/u.test(source));
 
-test("declares the enterprise release as version 2.0.0 everywhere that identifies content", () => {
+test("declares the enterprise release as version 2.1.0 everywhere that identifies content", () => {
   const packageJson = JSON.parse(sources["package.json"]);
-  assert.equal(packageJson.version, "2.0.0");
-  assert.match(sources["app/editorial-data.ts"], /SITE_VERSION = "2\.0\.0"/u);
-  assert.match(sources["app/progress.ts"], /CONTENT_VERSION = "lakehouse-lab-v2\.0\.0"/u);
+  assert.equal(packageJson.version, "2.1.0");
+  assert.match(sources["app/editorial-data.ts"], /SITE_VERSION = "2\.1\.0"/u);
+  assert.match(sources["app/progress.ts"], /CONTENT_VERSION = "lakehouse-lab-v2\.1\.0"/u);
   assert.match(sources["app/page.tsx"], /getSessionUser\(\)/u);
   assert.match(sources["app/page.tsx"], /href="\/ruta"/u);
   assert.match(sources["app/page.tsx"], /firstLessonHref/u);
@@ -204,7 +205,8 @@ test("imports legacy progress once, sanitizes it and requires a new native Profe
   assert.match(service, /provenance:\s*"legacy_client"/u);
   assert.match(service, /requiresProfessionalRevalidation:\s*true/u);
   assert.match(service, /action:\s*"learner\.legacy_import\.completed"/u);
-  assert.match(service, /professionalAttempt\.provenance !== "server_graded"/u);
+  assert.match(service, /evaluateCredentialVersionPolicy/u);
+  assert.match(sources["app/enterprise/credential-version-policy.ts"], /attempt\.provenance === "server_graded"/u);
   assert.doesNotMatch(service, /delete\(legacyImports\)/u, "the permanent import marker must survive progress deletion");
 });
 
@@ -269,8 +271,8 @@ test("persists enterprise learning in Turso and generates protected PDF credenti
   assert.match(service, /const pdf = await PDFDocument\.create\(\)/u);
   assert.match(service, /pdf\.addPage\(\[841\.89, 595\.28\]\)/u);
   assert.match(service, /return pdf\.save\(\{ useObjectStreams: false, addDefaultPage: false \}\)/u);
-  assert.match(service, /professionalAttempt\.kind !== "professional_exam"/u);
-  assert.match(service, /professionalAttempt\.provenance !== "server_graded"/u);
+  assert.match(service, /!versionPolicy\.hasEligibleSimulatorPair/u);
+  assert.match(sources["app/enterprise/credential-version-policy.ts"], /attempt\.assessmentVersion === input\.currentAssessmentVersion/u);
   assert.match(service, /progress\.every\(\(item\) => item\.completed\)/u);
 
   const pdfRoute = sources["app/api/credentials/[id]/pdf/route.ts"];

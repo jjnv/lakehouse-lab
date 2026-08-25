@@ -39,6 +39,7 @@ import {
   type PrivateAssessmentDefinition,
 } from "./assessment-private";
 import { INTERNAL_CERTIFICATE_DISCLAIMER as CERTIFICATE_DISCLAIMER } from "./certificate";
+import { evaluateCredentialVersionPolicy } from "./credential-version-policy";
 import type {
   AssessmentAttemptPublic,
   Credential,
@@ -299,7 +300,11 @@ function parseAttemptMetadata(value: string | null): StoredAttemptMetadata {
 
 function privateQuestion(question: QuizQuestion, index: number, fallbackModuleId?: string) {
   return {
-    sourceId: question.officialSampleId ?? `${fallbackModuleId ?? "exam"}:${index}`,
+    sourceId: question.editorialId || question.officialSampleId || `${fallbackModuleId ?? "exam"}:${index}`,
+    editorialId: question.editorialId,
+    objectiveIds: question.objectiveIds,
+    refIds: question.refIds,
+    scope: question.scope,
     question: question.question,
     options: question.options,
     answer: question.answer,
@@ -529,12 +534,14 @@ export async function getLearnerDashboard(learner: LearnerContext): Promise<Lear
     return scores.length ? Math.max(...scores) : null;
   };
   const imported = Boolean(legacyImport);
-  const passed = (kind: "associate_exam" | "professional_exam") => attempts.some((row) => row.kind === kind && row.passed === true);
-  const nativeProfessionalPassed = attempts.some((attempt) => attempt.kind === "professional_exam"
-    && attempt.provenance === "server_graded"
-    && attempt.passed === true
-    && (!legacyImport || (attempt.submittedAt !== null && Date.parse(attempt.submittedAt) > Date.parse(legacyImport.importedAt))));
-  const requiresProfessionalRevalidation = imported && !nativeProfessionalPassed;
+  const credentialVersionPolicy = evaluateCredentialVersionPolicy({
+    attempts,
+    currentAssessmentVersion: CONTENT_VERSION,
+    existingCredentialStatus: credentialRows[0]?.status ?? null,
+  });
+  const associateSimulatorStatus = credentialVersionPolicy.simulatorStatus.associate;
+  const professionalSimulatorStatus = credentialVersionPolicy.simulatorStatus.professional;
+  const requiresProfessionalRevalidation = imported && professionalSimulatorStatus === "revalidation-required";
   const completed = new Set(progress.filter((item) => item.completed).map((item) => item.moduleId));
   const dueReview = reviews.find((review) => review.dueOn <= todayUtc());
   const nextModuleProgress = progress.find((item) => item.unlocked && !item.completed);
@@ -551,12 +558,14 @@ export async function getLearnerDashboard(learner: LearnerContext): Promise<Lear
       : !nextModuleProgress.labAttested
         ? { kind: "lab", moduleId: nextModule.id, lessonId: null, label: learner.user.locale === "en" ? `Complete lab · ${localizedNextModule?.short ?? nextModule.short}` : `Completar laboratorio · ${nextModule.short}`, reason: learner.user.locale === "en" ? "You have read all five lessons; practice is the next step before the module assessment." : "Ya has leído las cinco lecciones; la práctica es el siguiente paso antes de evaluar el módulo.", href: `/curso/${nextModule.slug}?view=lab` }
         : { kind: "quiz", moduleId: nextModule.id, lessonId: null, label: learner.user.locale === "en" ? `Take quiz · ${localizedNextModule?.short ?? nextModule.short}` : `Realizar test · ${nextModule.short}`, reason: nextModuleProgress.quizBestPercent === null ? (learner.user.locale === "en" ? "Lessons and lab are complete: the module understanding check remains." : "Lecciones y laboratorio completos: falta comprobar la comprensión del módulo.") : (learner.user.locale === "en" ? `Your best score is ${nextModuleProgress.quizBestPercent}%; the module target is 75%.` : `Tu mejor resultado es ${nextModuleProgress.quizBestPercent} %; el objetivo del módulo es 75 %.`), href: `/curso/${nextModule.slug}?view=quiz` };
-  } else if (!passed("associate_exam")) {
+  } else if (associateSimulatorStatus !== "passed") {
     const score = best("associate_exam");
-    nextActivity = { kind: "associate_simulator", moduleId: null, lessonId: null, label: learner.user.locale === "en" ? "Take Associate practice exam" : "Realizar simulacro Associate", reason: score === null ? (learner.user.locale === "en" ? "You completed the Associate section; the practice exam shows which domains to reinforce." : "Has completado el tramo Associate; el simulacro mide qué dominios conviene reforzar.") : (learner.user.locale === "en" ? `Your best score is ${score}% and the target is 80%.` : `Tu mejor resultado es ${score} % y el objetivo es 80 %.`), href: "/simulacro/associate" };
-  } else if (!passed("professional_exam") || requiresProfessionalRevalidation) {
+    const requiresRevalidation = associateSimulatorStatus === "revalidation-required";
+    nextActivity = { kind: "associate_simulator", moduleId: null, lessonId: null, label: learner.user.locale === "en" ? "Take Associate practice exam" : "Realizar simulacro Associate", reason: requiresRevalidation ? (learner.user.locale === "en" ? "Your historical result is preserved, but a new credential requires an Associate attempt from the current version graded by this server." : "Tu resultado histórico se conserva, pero una credencial nueva requiere un intento Associate de la versión actual corregido por este servidor.") : score === null ? (learner.user.locale === "en" ? "You completed the Associate section; the practice exam shows which domains to reinforce." : "Has completado el tramo Associate; el simulacro mide qué dominios conviene reforzar.") : (learner.user.locale === "en" ? `Your best score is ${score}% and the target is 80%.` : `Tu mejor resultado es ${score} % y el objetivo es 80 %.`), href: "/simulacro/associate" };
+  } else if (professionalSimulatorStatus !== "passed") {
     const score = best("professional_exam");
-    nextActivity = { kind: "professional_simulator", moduleId: null, lessonId: null, label: learner.user.locale === "en" ? "Take Professional practice exam" : "Realizar simulacro Professional", reason: requiresProfessionalRevalidation ? (learner.user.locale === "en" ? "The import is preserved, but an internal credential requires a Professional attempt graded by this server." : "La importación se conserva, pero una constancia interna requiere un intento Professional corregido por este servidor.") : score === null ? (learner.user.locale === "en" ? "The path is complete; the final practice exam checks cross-domain readiness." : "La ruta está completa; el simulacro final comprueba la preparación transversal.") : (learner.user.locale === "en" ? `Your best score is ${score}% and the target is 80%.` : `Tu mejor resultado es ${score} % y el objetivo es 80 %.`), href: "/simulacro/professional" };
+    const requiresRevalidation = professionalSimulatorStatus === "revalidation-required";
+    nextActivity = { kind: "professional_simulator", moduleId: null, lessonId: null, label: learner.user.locale === "en" ? "Take Professional practice exam" : "Realizar simulacro Professional", reason: requiresRevalidation ? (learner.user.locale === "en" ? "Your historical result is preserved, but a new credential requires a Professional attempt from the current version graded by this server." : "Tu resultado histórico se conserva, pero una credencial nueva requiere un intento Professional de la versión actual corregido por este servidor.") : score === null ? (learner.user.locale === "en" ? "The path is complete; the final practice exam checks cross-domain readiness." : "La ruta está completa; el simulacro final comprueba la preparación transversal.") : (learner.user.locale === "en" ? `Your best score is ${score}% and the target is 80%.` : `Tu mejor resultado es ${score} % y el objetivo es 80 %.`), href: "/simulacro/professional" };
   } else {
     nextActivity = { kind: "certificate", moduleId: null, lessonId: null, label: learner.user.locale === "en" ? "Review results and internal credential" : "Consultar resultados y constancia interna", reason: learner.user.locale === "en" ? "All requirements are complete; review the evidence and share the public link if you want." : "Todos los requisitos están completos; revisa la evidencia y comparte el enlace público si lo deseas.", href: "/expediente" };
   }
@@ -581,7 +590,7 @@ export async function getLearnerDashboard(learner: LearnerContext): Promise<Lear
   };
   const startedAt = learner.professionalAssignment.assignedAt;
   const allModulesComplete = completed.size === modules.length;
-  const routeComplete = allModulesComplete && passed("associate_exam") && passed("professional_exam");
+  const routeComplete = allModulesComplete && associateSimulatorStatus === "passed" && professionalSimulatorStatus === "passed";
   const preferences = preferenceRows[0];
 
   return {
@@ -618,6 +627,11 @@ export async function getLearnerDashboard(learner: LearnerContext): Promise<Lear
     }).filter((review) => Boolean(review.moduleId)),
     motivation: { xp: motivationRows[0]?.xp ?? snapshot[0]?.xp ?? 0, streakDays: motivationRows[0]?.streakDays ?? snapshot[0]?.streak ?? 0, badges },
     bestSimulatorScores: { associate: best("associate_exam"), professional: best("professional_exam") },
+    simulatorStatus: {
+      assessmentVersion: CONTENT_VERSION,
+      associate: associateSimulatorStatus,
+      professional: professionalSimulatorStatus,
+    },
     nextActivity,
     credential: credentialRows[0] ? publicCredential(credentialRows[0]) : null,
     preferences: {
@@ -1169,16 +1183,32 @@ export async function saveAssessmentSelections(learner: LearnerContext, attemptI
   return envelope(await publicAttempt(updated), revision, false);
 }
 
-async function maybeIssueCredential(learner: LearnerContext, professionalAttempt: typeof assessmentAttempts.$inferSelect) {
-  if (professionalAttempt.kind !== "professional_exam" || professionalAttempt.passed !== true || professionalAttempt.provenance !== "server_graded") return null;
+async function maybeIssueCredential(learner: LearnerContext) {
   const db = getDb();
+  const [existingCredential] = await db.select({ id: credentials.id, status: credentials.status }).from(credentials).where(and(
+    eq(credentials.userId, learner.user.id),
+    eq(credentials.assignmentId, learner.professionalAssignment.id),
+    eq(credentials.organizationId, learner.organization.id),
+  )).limit(1);
+  if (existingCredential) return null;
+
   const legacyImport = await getLegacyImportRecord(learner);
-  if (legacyImport && (!professionalAttempt.submittedAt || Date.parse(professionalAttempt.submittedAt) <= Date.parse(legacyImport.importedAt))) return null;
   const progress = await calculateModuleProgress(learner);
   if (!progress.every((item) => item.completed)) return null;
-  const submitted = await db.select().from(assessmentAttempts).where(and(eq(assessmentAttempts.userId, learner.user.id), eq(assessmentAttempts.status, "submitted")));
-  const associatePassed = submitted.some((item) => item.kind === "associate_exam" && item.passed === true);
-  if (!associatePassed) return null;
+  const submitted = await db.select().from(assessmentAttempts).where(and(
+    eq(assessmentAttempts.userId, learner.user.id),
+    eq(assessmentAttempts.assignmentId, learner.professionalAssignment.id),
+    eq(assessmentAttempts.curriculumVersionId, PROFESSIONAL_CURRICULUM_VERSION_ID),
+    eq(assessmentAttempts.status, "submitted"),
+  ));
+  const versionPolicy = evaluateCredentialVersionPolicy({
+    attempts: submitted,
+    currentAssessmentVersion: CONTENT_VERSION,
+    existingCredentialStatus: null,
+  });
+  const associateAttempt = versionPolicy.currentPassingAttempts.associate;
+  const professionalAttempt = versionPolicy.currentPassingAttempts.professional;
+  if (!versionPolicy.hasEligibleSimulatorPair || !associateAttempt || !professionalAttempt || !professionalAttempt.submittedAt) return null;
   const issuedAt = professionalAttempt.submittedAt ?? nowIso();
   const credentialId = await opaqueId("credential", `${learner.professionalAssignment.id}:${learner.user.id}`);
   const certificateNumber = `LL-${issuedAt.slice(0, 4)}-${(await sha256(credentialId)).slice(0, 10).toUpperCase()}`;
@@ -1198,6 +1228,9 @@ async function maybeIssueCredential(learner: LearnerContext, professionalAttempt
       associateSimulatorPercent: 80,
       professionalSimulatorPercent: 80,
       capstone: true,
+      assessmentVersion: CONTENT_VERSION,
+      associateAttemptId: associateAttempt.id,
+      associateSubmittedAt: associateAttempt.submittedAt,
       professionalAttemptId: professionalAttempt.id,
       professionalSubmittedAt: professionalAttempt.submittedAt,
       postImportRevalidated: Boolean(legacyImport),
@@ -1263,7 +1296,7 @@ export async function submitAssessment(learner: LearnerContext, attemptId: strin
   }
   await db.delete(assessmentResponses).where(eq(assessmentResponses.attemptId, attemptId));
   const updated = await ownAttempt(learner, attemptId);
-  const credential = await maybeIssueCredential(learner, updated);
+  const credential = await maybeIssueCredential(learner);
   const revision = await recordMutation(learner, guard, "assessment.submitted", "assessment_attempt", attemptId, { kind: row.kind, scorePercent: result.scorePercent, passed: result.passed, credentialIssued: Boolean(credential) });
   return envelope({
     ...assessmentResultPublic(updated),
@@ -1280,6 +1313,7 @@ function assessmentResultPublic(row: typeof assessmentAttempts.$inferSelect) {
   return {
     id: row.id,
     kind: unmapAssessmentKind(row.kind),
+    assessmentVersion: row.assessmentVersion,
     status: row.status === "submitted" ? (metadata.result?.status ?? "graded") : "in-progress",
     score: row.score,
     maxScore: row.maxScore,

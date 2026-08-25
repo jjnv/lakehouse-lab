@@ -75,8 +75,8 @@ Sin `TURSO_DATABASE_URL` y `TURSO_AUTH_TOKEN`, el desarrollo local usa SQLite en
 
 ## Contenido editorial
 
-La version editorial actual es `2026.07` y la revision global es
-`24 de julio de 2026`. El contenido enlaza fuentes oficiales de Databricks,
+La version editorial actual es `2026.08` y la revision global es
+`25 de agosto de 2026`. El contenido enlaza fuentes oficiales de Databricks,
 Delta Lake o Apache Spark cuando corresponde. El glosario se mantiene en
 `app/curriculum/glossary.ts` y se expone en `/glosario`, sitemap y busqueda
 global.

@@ -11,7 +11,6 @@ import {
 } from "react";
 import type { PublicModule } from "../../enterprise/curriculum";
 import type { CommunityResourceRecommendationPublic, NotebookPreviewPayload } from "../../enterprise/contracts";
-import { conceptAnchor } from "../../enterprise/search-anchor";
 import AssessmentPanel from "./AssessmentPanel";
 import { SaveState, useDashboard } from "./useDashboard";
 import { courseWorkspaceText } from "../../i18n/dictionaries";
@@ -709,6 +708,8 @@ export default function CourseWorkspace({
           <div>
             {singleLessonMode ? <><h3>{module.title}</h3><p>{module.description}</p></> : null}
             <div className="ent-course-outcomes">
+              <span>{text.performanceObjectiveTitle}</span>
+              <p>{module.performanceObjective}</p>
               <span>{text.outcomesTitle}</span>
               <ul>{module.outcomes.map((outcome) => <li key={outcome}>{outcome}</li>)}</ul>
             </div>
@@ -837,7 +838,7 @@ export default function CourseWorkspace({
                       <h4>{lesson.deepDive.mentalModel}</h4>
                       <div>
                         {lesson.deepDive.concepts.map((concept) => (
-                          <article id={conceptAnchor(lesson.id, concept.term)} key={concept.term} tabIndex={-1}>
+                          <article id={concept.anchor} key={concept.anchor} tabIndex={-1}>
                             <strong>{concept.term}</strong>
                             <p>{concept.definition}</p>
                             <small>{concept.whyItMatters}</small>

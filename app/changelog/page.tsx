@@ -48,6 +48,11 @@ const changelogText: Record<Locale, {
 };
 
 const changelogCopyEn: Record<string, { target: string; description: string; type: string }> = {
+  "Currículo v2.1.0": {
+    target: "Curriculum v2.1.0",
+    description: "Aligned the Spanish and English paths with observable objectives, specific failure-and-recovery labs, traceable assessment items, locale-aware search, and current-version credential validation.",
+    type: "Content",
+  },
   "Glosario Databricks": {
     target: "Databricks glossary",
     description: "Added a public route with common platform, governance, Delta Lake, Lakeflow, streaming, performance, security, and cost concepts, integrated with search and sitemap.",

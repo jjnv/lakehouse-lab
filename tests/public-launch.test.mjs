@@ -78,7 +78,7 @@ test("public and signed-in navigation share the curriculum concept search", () =
   assert.match(curriculum, /glossaryEntries/);
   assert.match(curriculum, /normalize\("NFD"\)/);
   assert.match(course, /requestedConcept/);
-  assert.match(course, /conceptAnchor\(lesson\.id, concept\.term\)/);
+  assert.match(course, /id=\{concept\.anchor\}/);
 });
 
 test("the Databricks glossary is public, sourced and searchable", () => {

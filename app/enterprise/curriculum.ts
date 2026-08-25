@@ -9,12 +9,12 @@ import {
 import { glossaryCategoryLabels, glossaryEntries } from "../curriculum/glossary";
 import type { Locale } from "../i18n/config";
 import {
+  localizeGlossaryCategory,
+  localizeGlossaryEntry,
   localizeModule,
   localizeModuleSummary,
   localizeReviewDate,
   localizeResourceCatalog,
-  localizeSearchLocation,
-  localizeText,
   moduleCopyEn,
 } from "../i18n/curriculum";
 import { prepareAssessment, type PrivateAssessmentDefinition, type PreparedAssessment } from "./assessment-private";
@@ -23,6 +23,7 @@ import type {
   CommunityResourceCatalogEntry,
   CommunityResourcePublic,
   CommunityResourceRecommendationPublic,
+  CurriculumConceptPublic,
   CurriculumSearchResult,
   ModuleArtwork,
   ModuleArtworkMotif,
@@ -125,8 +126,11 @@ export function artworkForModule(module: Pick<CurriculumModule, "id" | "track" |
   };
 }
 
-export type PublicLesson = Omit<CurriculumModule["lessons"][number], "checkpoint"> & {
+export type PublicLesson = Omit<CurriculumModule["lessons"][number], "checkpoint" | "deepDive"> & {
   checkpoint: { question: string; answer: string };
+  deepDive: Omit<CurriculumModule["lessons"][number]["deepDive"], "concepts"> & {
+    concepts: [CurriculumConceptPublic, CurriculumConceptPublic, CurriculumConceptPublic];
+  };
 };
 
 export type PublicLab = Omit<CurriculumModule["lab"], "checks"> & {
@@ -262,97 +266,117 @@ type IndexedCurriculumResult = CurriculumSearchResult & {
   order: number;
 };
 
-function normalizeSearchText(value: string) {
+function normalizeSearchText(value: string, locale: Locale) {
   return value
     .normalize("NFD")
     .replace(/[\u0300-\u036f]/g, "")
-    .toLocaleLowerCase("es")
+    .toLocaleLowerCase(locale)
     .replace(/[^a-z0-9+#./-]+/g, " ")
     .replace(/\s+/g, " ")
     .trim();
 }
 
-const moduleSearchIndex: IndexedCurriculumResult[] = modules.flatMap((module, moduleIndex) => {
-  const phase = phaseByTrack.get(module.track) ?? LEARNING_PHASES[0];
-  const moduleLocation = `Módulo ${module.number} · ${phase.name}`;
-  const moduleResult: IndexedCurriculumResult = {
-    id: `module:${module.id}`,
-    kind: "module",
-    label: module.title,
-    description: module.description,
-    location: moduleLocation,
-    href: `/curso/${module.slug}`,
-    searchableLabel: normalizeSearchText(`${module.title} ${module.short}`),
-    searchableDescription: normalizeSearchText(`${module.description} ${module.outcomes.join(" ")} ${module.examDomains.join(" ")}`),
-    searchableLocation: normalizeSearchText(moduleLocation),
-    order: moduleIndex * 100,
-  };
-
-  const lessonResults = module.lessons.flatMap((lesson, lessonIndex): IndexedCurriculumResult[] => {
-    const lessonLocation = `${moduleLocation} · Lección ${lessonIndex + 1}`;
-    const lessonResult: IndexedCurriculumResult = {
-      id: `lesson:${lesson.id}`,
-      kind: "lesson",
-      label: lesson.title,
-      description: lesson.summary,
-      location: lessonLocation,
-      href: `/curso/${module.slug}/${lesson.id}`,
-      searchableLabel: normalizeSearchText(`${lesson.title} ${lesson.kicker}`),
-      searchableDescription: normalizeSearchText(`${lesson.summary} ${lesson.explanation.join(" ")} ${lesson.keyPoints.join(" ")} ${lesson.decisions.join(" ")}`),
-      searchableLocation: normalizeSearchText(`${lessonLocation} ${module.title}`),
-      order: moduleIndex * 100 + lessonIndex * 10 + 1,
+function buildModuleSearchIndex(locale: Locale): IndexedCurriculumResult[] {
+  const phaseByModule = new Map(moduleSummaries(locale).map((summary) => [summary.id, summary.phase]));
+  return modules.flatMap((sourceModule, moduleIndex) => {
+    const localizedModule = localizeModule(sourceModule, locale);
+    const phase = phaseByModule.get(localizedModule.id)
+      ?? (phaseByTrack.get(localizedModule.track) ?? LEARNING_PHASES[0]).name;
+    const moduleLocation = `${locale === "en" ? "Module" : "Módulo"} ${localizedModule.number} · ${phase}`;
+    const moduleResult: IndexedCurriculumResult = {
+      id: `module:${localizedModule.id}`,
+      kind: "module",
+      label: localizedModule.title,
+      description: localizedModule.description,
+      location: moduleLocation,
+      href: `/curso/${localizedModule.slug}`,
+      searchableLabel: normalizeSearchText(`${localizedModule.title} ${localizedModule.short}`, locale),
+      searchableDescription: normalizeSearchText(`${localizedModule.description} ${localizedModule.performanceObjective} ${localizedModule.outcomes.join(" ")} ${localizedModule.examDomains.join(" ")}`, locale),
+      searchableLocation: normalizeSearchText(moduleLocation, locale),
+      order: moduleIndex * 100,
     };
-    const conceptResults = lesson.deepDive.concepts.map((concept, conceptIndex): IndexedCurriculumResult => {
-      const anchor = conceptAnchor(lesson.id, concept.term);
+
+    const lessonResults = localizedModule.lessons.flatMap((lesson, lessonIndex): IndexedCurriculumResult[] => {
+      const lessonLocation = `${moduleLocation} · ${locale === "en" ? "Lesson" : "Lección"} ${lessonIndex + 1}`;
+      const lessonResult: IndexedCurriculumResult = {
+        id: `lesson:${lesson.id}`,
+        kind: "lesson",
+        label: lesson.title,
+        description: lesson.summary,
+        location: lessonLocation,
+        href: `/curso/${localizedModule.slug}/${lesson.id}`,
+        searchableLabel: normalizeSearchText(`${lesson.title} ${lesson.kicker}`, locale),
+        searchableDescription: normalizeSearchText(`${lesson.summary} ${lesson.explanation.join(" ")} ${lesson.keyPoints.join(" ")} ${lesson.decisions.join(" ")}`, locale),
+        searchableLocation: normalizeSearchText(`${lessonLocation} ${localizedModule.title}`, locale),
+        order: moduleIndex * 100 + lessonIndex * 10 + 1,
+      };
+      const canonicalLesson = sourceModule.lessons[lessonIndex];
+      const conceptResults = lesson.deepDive.concepts.map((concept, conceptIndex): IndexedCurriculumResult => {
+        const canonicalTerm = canonicalLesson?.deepDive.concepts[conceptIndex]?.term ?? concept.term;
+        const anchor = conceptAnchor(lesson.id, canonicalTerm);
+        return {
+          id: `concept:${lesson.id}:${conceptIndex}`,
+          kind: "concept",
+          label: concept.term,
+          description: concept.definition,
+          location: `${lessonLocation} · ${lesson.title}`,
+          href: `/curso/${localizedModule.slug}/${lesson.id}?concept=${encodeURIComponent(anchor)}#${anchor}`,
+          searchableLabel: normalizeSearchText(concept.term, locale),
+          searchableDescription: normalizeSearchText(`${concept.definition} ${concept.whyItMatters}`, locale),
+          searchableLocation: normalizeSearchText(`${lessonLocation} ${lesson.title} ${localizedModule.title}`, locale),
+          order: moduleIndex * 100 + lessonIndex * 10 + conceptIndex + 2,
+        };
+      });
+      return [lessonResult, ...conceptResults];
+    });
+
+    const resourceResults = recommendationsForModule(localizedModule.id).map((sourceResource): IndexedCurriculumResult => {
+      const resource = publicCommunityRecommendation(sourceResource, locale);
+      const resourceKind = locale === "en" ? "community notebook resource" : "notebook recurso comunitario";
       return {
-        id: `concept:${lesson.id}:${conceptIndex}`,
-        kind: "concept",
-        label: concept.term,
-        description: concept.definition,
-        location: `${lessonLocation} · ${lesson.title}`,
-        href: `/curso/${module.slug}/${lesson.id}?concept=${encodeURIComponent(anchor)}#${anchor}`,
-        searchableLabel: normalizeSearchText(concept.term),
-        searchableDescription: normalizeSearchText(`${concept.definition} ${concept.whyItMatters}`),
-        searchableLocation: normalizeSearchText(`${lessonLocation} ${lesson.title} ${module.title}`),
-        order: moduleIndex * 100 + lessonIndex * 10 + conceptIndex + 2,
+        id: `resource:${localizedModule.id}:${resource.id}`,
+        kind: "resource",
+        label: resource.title,
+        description: resource.rationale,
+        location: `${moduleLocation} · ${locale === "en" ? "Community notebook" : "Notebook comunitario"}`,
+        href: `/curso/${localizedModule.slug}?section=resources&resource=${encodeURIComponent(resource.id)}`,
+        searchableLabel: normalizeSearchText(`${resource.title} ${resource.repositoryName} ${sourceResource.repository.author}`, locale),
+        searchableDescription: normalizeSearchText(`${resource.summary} ${resource.rationale} ${resource.concepts.join(" ")} ${resource.runtimeNotes}`, locale),
+        searchableLocation: normalizeSearchText(`${moduleLocation} ${resourceKind} ${localizedModule.title}`, locale),
+        order: moduleIndex * 100 + 80 + resource.rank,
       };
     });
-    return [lessonResult, ...conceptResults];
+
+    return [moduleResult, ...lessonResults, ...resourceResults];
   });
+}
 
-  const resourceResults = recommendationsForModule(module.id).map((resource): IndexedCurriculumResult => ({
-    id: `resource:${module.id}:${resource.artifact.id}`,
-    kind: "resource",
-    label: resource.artifact.title,
-    description: resource.rationale,
-    location: `${moduleLocation} · Notebook comunitario`,
-    href: `/curso/${module.slug}?section=resources&resource=${encodeURIComponent(resource.artifact.id)}`,
-    searchableLabel: normalizeSearchText(`${resource.artifact.title} ${resource.repository.name} ${resource.repository.author}`),
-    searchableDescription: normalizeSearchText(`${resource.artifact.summary} ${resource.rationale} ${resource.concepts.join(" ")} ${resource.artifact.runtimeNotes}`),
-    searchableLocation: normalizeSearchText(`${moduleLocation} notebook recurso ${module.title}`),
-    order: moduleIndex * 100 + 80 + resource.rank,
-  }));
+function buildGlossarySearchIndex(locale: Locale): IndexedCurriculumResult[] {
+  return glossaryEntries.map((sourceEntry, index) => {
+    const entry = localizeGlossaryEntry(sourceEntry, locale);
+    const category = locale === "en"
+      ? localizeGlossaryCategory(sourceEntry.category, locale)
+      : glossaryCategoryLabels[sourceEntry.category];
+    const location = `${locale === "en" ? "Glossary" : "Glosario"} · ${category}`;
+    return {
+      id: `glossary:${entry.id}`,
+      kind: "glossary",
+      label: entry.term,
+      description: entry.definition,
+      location,
+      href: `/glosario#${entry.id}`,
+      searchableLabel: normalizeSearchText(`${entry.term} ${entry.aliases.join(" ")}`, locale),
+      searchableDescription: normalizeSearchText(`${entry.definition} ${entry.whyItMatters} ${entry.related.join(" ")}`, locale),
+      searchableLocation: normalizeSearchText(location, locale),
+      order: 10_000 + index,
+    };
+  });
+}
 
-  return [moduleResult, ...lessonResults, ...resourceResults];
-});
-
-const glossarySearchIndex: IndexedCurriculumResult[] = glossaryEntries.map((entry, index) => ({
-  id: `glossary:${entry.id}`,
-  kind: "glossary",
-  label: entry.term,
-  description: entry.definition,
-  location: `Glosario · ${glossaryCategoryLabels[entry.category]}`,
-  href: `/glosario#${entry.id}`,
-  searchableLabel: normalizeSearchText(`${entry.term} ${entry.aliases.join(" ")}`),
-  searchableDescription: normalizeSearchText(`${entry.definition} ${entry.whyItMatters} ${entry.related.join(" ")}`),
-  searchableLocation: normalizeSearchText(`glosario ${glossaryCategoryLabels[entry.category]}`),
-  order: 10_000 + index,
-}));
-
-const curriculumSearchIndex: IndexedCurriculumResult[] = [
-  ...moduleSearchIndex,
-  ...glossarySearchIndex,
-];
+const curriculumSearchIndexes: Record<Locale, IndexedCurriculumResult[]> = {
+  es: [...buildModuleSearchIndex("es"), ...buildGlossarySearchIndex("es")],
+  en: [...buildModuleSearchIndex("en"), ...buildGlossarySearchIndex("en")],
+};
 
 function searchScore(entry: IndexedCurriculumResult, query: string, tokens: string[]) {
   const haystack = `${entry.searchableLabel} ${entry.searchableDescription} ${entry.searchableLocation}`;
@@ -371,75 +395,28 @@ function searchScore(entry: IndexedCurriculumResult, query: string, tokens: stri
   return score;
 }
 
-function expandSearchInput(input: string, locale: Locale) {
-  if (locale === "es") return input;
-  const lower = input.toLocaleLowerCase("en");
-  const additions = [
-    lower.includes("curriculum") ? "temario" : "",
-    lower.includes("path") ? "ruta" : "",
-    lower.includes("practice") || lower.includes("exam") ? "simulacro" : "",
-    lower.includes("lesson") ? "leccion" : "",
-    lower.includes("module") ? "modulo" : "",
-    lower.includes("governance") ? "gobierno" : "",
-    lower.includes("performance") ? "rendimiento" : "",
-    lower.includes("cost") ? "coste" : "",
-    lower.includes("security") ? "seguridad" : "",
-  ].filter(Boolean);
-  return additions.length ? `${input} ${additions.join(" ")}` : input;
-}
-
-function localizeSearchResult(entry: IndexedCurriculumResult, locale: Locale): CurriculumSearchResult {
-  if (locale === "es") {
-    return {
-      id: entry.id,
-      kind: entry.kind,
-      label: entry.label,
-      description: entry.description,
-      location: entry.location,
-      href: entry.href,
-    };
-  }
-
-  const moduleId = entry.id.startsWith("module:")
-    ? entry.id.slice("module:".length)
-    : entry.id.startsWith("lesson:")
-      ? entry.id.slice("lesson:".length, "lesson:m00".length)
-      : entry.id.startsWith("concept:")
-        ? entry.id.slice("concept:".length, "concept:m00".length)
-      : null;
-  const moduleCopy = moduleId ? moduleCopyEn[moduleId] : null;
-  const lesson = entry.id.startsWith("lesson:")
-    ? modules.flatMap((module) => module.lessons).find((item) => `lesson:${item.id}` === entry.id)
-    : entry.id.startsWith("concept:")
-      ? modules.flatMap((module) => module.lessons).find((item) => entry.id.startsWith(`concept:${item.id}:`))
-    : null;
-  const localizedLesson = lesson
-    ? localizeModule(modules.find((module) => module.id === lesson.id.slice(0, 3))!, locale).lessons.find((item) => item.id === lesson.id)
-    : null;
-  const conceptIndex = entry.id.startsWith("concept:") ? Number(entry.id.split(":").at(-1)) : NaN;
-  const localizedConcept = localizedLesson && Number.isInteger(conceptIndex) ? localizedLesson.deepDive.concepts[conceptIndex] : null;
-
+function publicSearchResult(entry: IndexedCurriculumResult): CurriculumSearchResult {
   return {
     id: entry.id,
     kind: entry.kind,
-    label: entry.kind === "module" && moduleCopy ? moduleCopy.title : localizedConcept ? localizedConcept.term : localizedLesson ? localizedLesson.title : entry.label,
-    description: entry.kind === "module" && moduleCopy ? moduleCopy.description : localizedConcept ? localizedConcept.definition : localizedLesson ? localizedLesson.summary : localizeText(entry.description, locale),
-    location: localizeSearchLocation(entry.location, locale),
+    label: entry.label,
+    description: entry.description,
+    location: entry.location,
     href: entry.href,
   };
 }
 
 export function searchCurriculum(input: string, locale: Locale = "es", limit = 8): CurriculumSearchResult[] {
-  const query = normalizeSearchText(expandSearchInput(input, locale)).slice(0, 100);
+  const query = normalizeSearchText(input, locale).slice(0, 100);
   if (query.length < 2) return [];
   const tokens = query.split(" ").filter((token) => token.length > 1).slice(0, 8);
   if (!tokens.length) return [];
-  return curriculumSearchIndex
+  return curriculumSearchIndexes[locale]
     .map((entry) => ({ entry, score: searchScore(entry, query, tokens) }))
     .filter((candidate) => candidate.score >= 0)
     .sort((left, right) => right.score - left.score || left.entry.order - right.entry.order)
     .slice(0, Math.max(1, Math.min(limit, 12)))
-    .map(({ entry }) => localizeSearchResult(entry, locale));
+    .map(({ entry }) => publicSearchResult(entry));
 }
 
 export function findModuleBySlug(slug: string): CurriculumModule | null {
@@ -464,21 +441,40 @@ export function publicModule(sourceModule: CurriculumModule, locale: Locale = "e
     level: module.level,
     minutes: module.minutes,
     description: module.description,
+    performanceObjective: module.performanceObjective,
     outcomes: [...module.outcomes],
     examDomains: [...module.examDomains],
     prerequisites: [...module.prerequisites],
     artwork: artworkForModule(module),
     sources: module.sources.map((source) => ({ ...source })),
     communityResources: recommendationsForModule(module.id).map((resource) => publicCommunityRecommendation(resource, locale)),
-    lessons: module.lessons.map((lesson) => ({
-      ...lesson,
-      decisions: [...lesson.decisions],
-      explanation: [...lesson.explanation] as [string, string],
-      keyPoints: [...lesson.keyPoints] as [string, string, string],
-      pitfalls: [...lesson.pitfalls] as [string, string],
-      refIds: [...lesson.refIds],
-      checkpoint: { question: lesson.checkpoint.question, answer: lesson.checkpoint.answer },
-    })),
+    lessons: module.lessons.map((lesson, lessonIndex) => {
+      const canonicalLesson = sourceModule.lessons[lessonIndex];
+      return {
+        ...lesson,
+        decisions: [...lesson.decisions],
+        explanation: [...lesson.explanation] as [string, string],
+        deepDive: {
+          ...lesson.deepDive,
+          mechanics: [...lesson.deepDive.mechanics] as [string, string],
+          concepts: lesson.deepDive.concepts.map((concept, conceptIndex) => ({
+            ...concept,
+            anchor: conceptAnchor(
+              lesson.id,
+              canonicalLesson?.deepDive.concepts[conceptIndex]?.term ?? concept.term,
+            ),
+          })) as [CurriculumConceptPublic, CurriculumConceptPublic, CurriculumConceptPublic],
+          workedScenario: {
+            ...lesson.deepDive.workedScenario,
+            reasoning: [...lesson.deepDive.workedScenario.reasoning] as [string, string, string],
+          },
+        },
+        keyPoints: [...lesson.keyPoints] as [string, string, string],
+        pitfalls: [...lesson.pitfalls] as [string, string],
+        refIds: [...lesson.refIds],
+        checkpoint: { question: lesson.checkpoint.question, answer: lesson.checkpoint.answer },
+      };
+    }),
     lab: {
       ...module.lab,
       prerequisites: [...module.lab.prerequisites],
@@ -530,7 +526,11 @@ function assessmentDefinition(kind: AssessmentKind, moduleId: string | undefined
 
 function privateQuestion(question: QuizQuestion, sourceId: string) {
   return {
-    sourceId,
+    sourceId: question.editorialId || sourceId,
+    editorialId: question.editorialId,
+    objectiveIds: question.objectiveIds,
+    refIds: question.refIds,
+    scope: question.scope,
     question: question.question,
     options: question.options,
     answer: question.answer,

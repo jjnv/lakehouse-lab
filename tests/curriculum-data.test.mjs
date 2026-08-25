@@ -15,10 +15,11 @@ const [courseSource, progressSource, pageSource, packageSource, ...contentSource
   read("app/curriculum/advanced-content-a.ts"),
   read("app/curriculum/advanced-content-b.ts"),
 ]);
-const [enterpriseStoreSource, learningServiceSource, enterpriseCurriculumSource] = await Promise.all([
+const [enterpriseStoreSource, learningServiceSource, enterpriseCurriculumSource, credentialVersionPolicySource] = await Promise.all([
   read("app/enterprise/store.ts"),
   read("app/enterprise/learning-service.ts"),
   read("app/enterprise/curriculum.ts"),
+  read("app/enterprise/credential-version-policy.ts"),
 ]);
 
 function parse(source, name) {
@@ -392,7 +393,7 @@ test("dependency and enterprise completion gates cannot be bypassed by stale sta
   assert.match(courseSource, /previous\.track === track \? \[previous\.id\] : \["m12"\]/);
   assert.match(courseSource, /return \["m17", "m22", "m27", "m31"\]/);
   assert.match(progressSource, /STORAGE_KEY = "lakehouse-lab-progress-v2"/);
-  assert.match(progressSource, /CONTENT_VERSION = "lakehouse-lab-v2\.0\.0"/);
+  assert.match(progressSource, /CONTENT_VERSION = "lakehouse-lab-v2\.1\.0"/);
   assert.match(progressSource, /export function sanitizeProgress\(value: unknown\)/);
   assert.match(progressSource, /gamification: sanitizeGamification\(value\.gamification\)/);
 
@@ -404,8 +405,10 @@ test("dependency and enterprise completion gates cannot be bypassed by stale sta
   assert.match(learningServiceSource, /"MODULE_ACTIVITY_REQUIRED"/);
   assert.match(learningServiceSource, /"PROGRAM_ACTIVITY_REQUIRED"/);
   assert.match(learningServiceSource, /completedLessonIds\.length !== curriculumModule\.lessons\.length \|\| !moduleProgress\.labAttested/);
-  assert.match(learningServiceSource, /professionalAttempt\.kind !== "professional_exam"/);
-  assert.match(learningServiceSource, /professionalAttempt\.provenance !== "server_graded"/);
+  assert.match(learningServiceSource, /evaluateCredentialVersionPolicy/);
+  assert.match(learningServiceSource, /!versionPolicy\.hasEligibleSimulatorPair/);
+  assert.match(credentialVersionPolicySource, /attempt\.assessmentVersion === input\.currentAssessmentVersion/);
+  assert.match(credentialVersionPolicySource, /attempt\.provenance === "server_graded"/);
   assert.match(learningServiceSource, /if \(!progress\.every\(\(item\) => item\.completed\)\) return null/);
 
   const publicQuizStart = enterpriseCurriculumSource.indexOf("quiz: module.quiz.map");

@@ -2,9 +2,9 @@ export const PROJECT_NAME = "Lakehouse Lab";
 export const PROJECT_TAGLINE = "Ingeniería de datos con Databricks";
 export const PROJECT_DESCRIPTION =
   "Ruta práctica e independiente en español para aprender ingeniería de datos con Databricks, con lecciones, laboratorios, evaluaciones y simulacros alineados con Data Engineer Associate y Professional.";
-export const CONTENT_VERSION_LABEL = "2026.07";
-export const CONTENT_REVIEW_DATE = "24 de julio de 2026";
-export const CONTENT_REVIEW_DATE_EN = "July 24, 2026";
+export const CONTENT_VERSION_LABEL = "2026.08";
+export const CONTENT_REVIEW_DATE = "25 de agosto de 2026";
+export const CONTENT_REVIEW_DATE_EN = "August 25, 2026";
 export const RECOMMENDED_CUSTOM_DOMAIN = "lakehouselab.es";
 export const RECOMMENDED_CONTACT_EMAIL = "hola@lakehouselab.es";
 function optionalHttpsUrl(value: string | undefined) {

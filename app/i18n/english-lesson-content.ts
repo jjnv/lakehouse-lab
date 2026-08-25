@@ -4,6 +4,14 @@ export type EnglishLessonContent = Pick<Lesson, "summary" | "explanation" | "dee
   example: Pick<Lesson["example"], "title" | "note">;
 };
 
+type ModuleNumber =
+  | "01" | "02" | "03" | "04" | "05" | "06" | "07" | "08"
+  | "09" | "10" | "11" | "12" | "13" | "14" | "15" | "16"
+  | "17" | "18" | "19" | "20" | "21" | "22" | "23" | "24"
+  | "25" | "26" | "27" | "28" | "29" | "30" | "31" | "32";
+
+export type CanonicalLessonId = `m${ModuleNumber}-l${1 | 2 | 3 | 4 | 5}`;
+
 /**
  * Full English editorial projection of the Spanish lesson source. Generated from
  * the versioned curriculum so English learners receive the same concepts,
@@ -10090,4 +10098,11 @@ export const englishLessonContent = {
       "answer": "Classify the reasoning error, return to the weak domain, and produce practical evidence before the next attempt."
     }
   }
-} as unknown as Record<string, EnglishLessonContent>;
+} satisfies Record<CanonicalLessonId, EnglishLessonContent>;
+
+export function englishLessonContentFor(lessonId: string): EnglishLessonContent {
+  if (!Object.hasOwn(englishLessonContent, lessonId)) {
+    throw new Error(`Missing English lesson overlay for ${lessonId}`);
+  }
+  return englishLessonContent[lessonId as CanonicalLessonId];
+}

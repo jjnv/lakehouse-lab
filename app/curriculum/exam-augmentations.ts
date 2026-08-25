@@ -1,6 +1,13 @@
+import { OFFICIAL_BLUEPRINTS, objectiveIdsForModule } from "../editorial-data";
+import type { QuestionEditorialScope } from "./content-types";
+
 export type ExamQuestionOrigin = "official-retired-sample" | "augmented-official-sample" | "original-course";
 
 export type AugmentedExamQuestion = {
+  editorialId: string;
+  objectiveIds: readonly string[];
+  refIds: readonly string[];
+  scope: QuestionEditorialScope;
   question: string;
   options: string[];
   answer: number;
@@ -39,6 +46,10 @@ export const officialSampleCatalog = {
   ],
 } as const;
 
+// Los IDs quedan ligados a la muestra y a la secuencia editorial. Añade nuevas
+// variantes al final de cada grupo para no desplazar identificadores publicados.
+const augmentationCounters = new Map<string, number>();
+
 function augmented(
   level: "Associate" | "Professional",
   sample: number,
@@ -54,7 +65,14 @@ function augmented(
   options.splice(answerPosition, 0, correct);
   const sourceUrl = level === "Associate" ? associateGuide : professionalGuide;
   const prefix = level.toLowerCase();
+  const counterKey = `${prefix}-${sample}`;
+  const variant = (augmentationCounters.get(counterKey) ?? 0) + 1;
+  augmentationCounters.set(counterKey, variant);
   return {
+    editorialId: `${prefix}-aug-${String(sample).padStart(2, "0")}-${String(variant).padStart(2, "0")}`,
+    objectiveIds: objectiveIdsForModule(moduleId, level),
+    refIds: [OFFICIAL_BLUEPRINTS[level].id],
+    scope: "blueprint",
     question,
     options,
     answer: answerPosition,

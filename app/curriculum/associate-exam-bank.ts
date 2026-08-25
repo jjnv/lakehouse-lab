@@ -407,7 +407,7 @@ export const associateExamBank: AssociateExamQuestion[] = [
     answer: 0,
     explanation: "Las policies de máscara y filtro restringen datos sobre permisos ya concedidos; no sustituyen SELECT ni los privilegios de recorrido en catálogo y esquema.",
     domain: "Governance and Security",
-    moduleId: "m30",
+    moduleId: "m11",
     sourceLabel: "Databricks · ABAC frente a filtros y máscaras de tabla",
     sourceUrl: "https://docs.databricks.com/aws/en/data-governance/unity-catalog/abac/abac-vs-rls-cm",
   },

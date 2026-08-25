@@ -1,6 +1,6 @@
 {
   "name": "lakehouse-lab",
-  "version": "2.0.0",
+  "version": "2.1.0",
   "private": true,
   "description": "Ruta práctica e independiente en español para aprender ingeniería de datos y arquitectura lakehouse.",
   "repository": {

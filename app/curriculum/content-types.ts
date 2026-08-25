@@ -41,6 +41,8 @@ export type ContentCheck = {
   pattern: string;
 };
 
+export type QuestionEditorialScope = "blueprint" | "professional-extension";
+
 export type LabContent = {
   title: string;
   goal: string;
@@ -63,6 +65,14 @@ export type ContentQuizQuestion = {
   answer: 0 | 1 | 2 | 3;
   explanation: string;
   domain: string;
+  /**
+   * Los packs históricos pueden omitir estos campos durante la transición.
+   * `course-data.ts` los completa de forma determinista antes de exponerlos.
+   */
+  editorialId?: string;
+  objectiveIds?: readonly string[];
+  refIds?: readonly string[];
+  scope?: QuestionEditorialScope;
 };
 
 export type ContentSource = {

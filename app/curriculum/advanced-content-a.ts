@@ -1,6 +1,6 @@
 import type { LessonDeepDive, ModuleContentPack } from "./content-types";
 
-const reviewedAt = "21 jul 2026";
+const reviewedAt = "25 ago 2026";
 
 function deepDive(
   mentalModel: string,
@@ -2795,16 +2795,16 @@ def customer_order_metrics():
         },
       },
       {
-        summary: "Los flows permiten varias entradas hacia un target y distinguen append, AUTO CDC y cargas `ONCE` dentro del mismo modelo declarativo.",
+        summary: "Los flows estables cubren append, AUTO CDC y cargas `ONCE`; los sinks Python amplían destinos y `update_flow` sigue etiquetado como Public Preview.",
         deepDive: deepDives.m18l4,
         explanation: [
-          "Un default flow acompaña la definición normal de un dataset. Flows adicionales pueden unir feeds regionales en una misma streaming table sin construir un `union` monolítico. Un append flow añade filas; AUTO CDC aplica cambios ordenados; `ONCE` ejecuta una carga batch una sola vez salvo full refresh.",
-          "Cada flow debe tener identidad y semántica compatibles con el target. Un target de AUTO CDC solo recibe flows AUTO CDC. Para backfill histórico, un append flow `ONCE` aislado puede coexistir con la ingesta continua, siempre que no duplique rangos ya procesados.",
+          "Un default flow acompaña la definición normal de un dataset. Flows adicionales pueden unir feeds regionales en una misma streaming table sin construir un `union` monolítico. Un append flow añade filas; AUTO CDC aplica cambios ordenados; `ONCE` ejecuta una carga batch una sola vez salvo full refresh. Éstas son las rutas principales del módulo.",
+          "Los sinks permiten que un flow Python envíe registros a tablas, buses como Kafka/Event Hubs o un destino personalizado mediante `ForEachBatch`. Para agregados streaming globales sin watermark, `@dp.update_flow` emite sólo filas cambiadas hacia un sink, pero a 25 de agosto de 2026 es Public Preview y sólo Python: debe quedar como extensión opt-in, no como requisito del laboratorio o del blueprint.",
         ],
         keyPoints: [
           "Varios append flows pueden escribir en una misma streaming table.",
           "AUTO CDC targets solo aceptan flows AUTO CDC.",
-          "`ONCE` sirve para una carga finita y vuelve a ejecutarse en un full refresh.",
+          "Sinks son Python; `update_flow` es Public Preview y se etiqueta explícitamente.",
         ],
         example: {
           language: "SQL",
@@ -2822,12 +2822,12 @@ FROM STREAM(main.raw.orders_us);`,
         },
         pitfalls: [
           "Mezclar append y AUTO CDC sobre el mismo target sin respetar las restricciones del flow.",
-          "Usar `ONCE` para datos que seguirán llegando y dejar de ingerir silenciosamente después de la primera actualización.",
+          "Presentar `update_flow` Preview como núcleo estable o usar `ONCE` para datos que seguirán llegando.",
         ],
-        examDecision: "Cuando varias fuentes compatibles alimentan el mismo target, usa flows separados; para cambios de estado usa AUTO CDC, no un append de updates.",
+        examDecision: "Blueprint: varias fuentes compatibles usan append flows separados y los cambios de estado usan AUTO CDC. Extensión profesional: sinks Python y `update_flow` Public Preview requieren una decisión explícita de madurez.",
         checkpoint: {
-          question: "¿Cuándo volvería a ejecutarse un flow marcado `ONCE`?",
-          answer: "En la primera actualización y de nuevo si se realiza un full refresh del target o pipeline, según la semántica documentada.",
+          question: "¿Qué madurez debe declararse al proponer `@dp.update_flow` para un agregado global hacia un sink?",
+          answer: "Public Preview y sólo Python a la fecha de revisión; no debe tratarse como requisito estable ni confundirse con append/AUTO CDC.",
         },
       },
       {
@@ -2984,16 +2984,20 @@ def daily_orders():
         domain: "Spark Declarative Pipelines en Lakeflow · materialized views",
       },
       {
-        question: "Tres regiones alimentan una misma streaming table con el mismo contrato. ¿Qué diseño evita un `union` monolítico?",
+        question: "Un agregado streaming global sin watermark debe emitir hacia un sink sólo las filas que cambian. ¿Qué propuesta describe correctamente la capacidad actual?",
         options: [
-          "Tres catálogos sin dependencias",
-          "Un full refresh por cada archivo",
-          "Tres Jobs que sobrescriben el target",
-          "Flows append separados hacia el mismo target",
+          "Usar AUTO CDC, que calcula cualquier agregado global sin secuencia",
+          "Usar un append flow SQL y asumir que actualiza filas anteriores",
+          "Usar `@dp.update_flow` en Python, declarando que es Public Preview",
+          "Usar `ONCE`, que vuelve a ejecutar cada microbatch",
         ],
-        answer: 3,
-        explanation: "Múltiples append flows pueden alimentar una streaming table y mantienen separada la operación de cada fuente.",
-        domain: "Spark Declarative Pipelines en Lakeflow · flows",
+        answer: 2,
+        explanation: "`update_flow` emite cambios de un agregado global hacia un sink, pero permanece en Public Preview y sólo está disponible en Python.",
+        domain: "Extensión profesional · flows y sinks",
+        editorialId: "m18-q3",
+        objectiveIds: ["m18-performance"],
+        refIds: ["m18-source-1", "m18-source-4"],
+        scope: "professional-extension",
       },
       {
         question: "¿Qué combinación debe mantenerse igual al promover de test a prod?",
@@ -3022,6 +3026,11 @@ def daily_orders():
       {
         label: "Spark Declarative Pipelines · Databricks",
         href: "https://docs.databricks.com/aws/en/ldp/",
+        reviewedAt,
+      },
+      {
+        label: "Sinks en Lakeflow pipelines · Databricks",
+        href: "https://docs.databricks.com/aws/en/ldp/ldp-sinks",
         reviewedAt,
       },
     ],
@@ -3182,16 +3191,16 @@ business_observations = {
         },
       },
       {
-        summary: "La operación de calidad convierte métricas del event log en tasas, alertas sostenidas y decisiones de detener, degradar o remediar.",
+        summary: "La operación combina enforcement en el pipeline con Data Quality Monitoring para observar frescura, completitud, distribución y drift en activos de Unity Catalog.",
         deepDive: deepDives.m19l5,
         explanation: [
-          "Un conteo absoluto de inválidos confunde crecimiento de volumen con degradación. La tasa `failed / (passed + failed)` por expectation, flow y ventana permite comparar. Para reglas críticas, una sola violación puede fallar; para calidad gradual, un umbral sostenido durante varias actualizaciones evita ruido.",
-          "La alerta incluye filas de muestra seguras, enlace al update y owner. Si la tasa aumenta después de un despliegue, se decide rollback; si procede de un productor concreto, se aísla por `source_system`. La remediación se verifica con el mismo indicador hasta cerrar el incidente.",
+          "Un conteo absoluto de inválidos confunde crecimiento de volumen con degradación. La tasa `failed / (passed + failed)` por expectation, flow y ventana permite comparar. Expectations observan, descartan o fallan registros dentro del pipeline: son enforcement vinculado al código y al update.",
+          "Data Quality Monitoring complementa ese contrato sin modificar las tablas monitorizadas ni añadir trabajo al job productor: anomaly detection aprende patrones históricos para freshness y completeness, y data profiling calcula estadísticas y drift. Se ejecuta en serverless con coste propio. Úsalo para descubrir degradaciones transversales; conserva expectations o reconciliaciones cuando una regla debe bloquear o aislar datos.",
         ],
         keyPoints: [
-          "Normaliza por volumen y conserva numerador/denominador.",
-          "Segmenta por fuente o versión para localizar el origen de una regresión.",
-          "Una alerta se cierra cuando el indicador y los datos reparados vuelven al objetivo.",
+          "Expectations aplican acciones; Data Quality Monitoring observa activos.",
+          "Anomaly detection cubre frescura/completitud; profiling, estadísticas y drift.",
+          "Cada alerta conserva owner, coste, contexto y criterio de cierre.",
         ],
         example: {
           language: "SQL",
@@ -3209,13 +3218,13 @@ ORDER BY failure_rate DESC;`,
           note: "Define el umbral y la duración mínima de incumplimiento en el runbook, no dentro de una consulta ad hoc.",
         },
         pitfalls: [
-          "Alertar solo por conteo y generar falsos positivos cuando el volumen crece.",
-          "Mostrar payload con PII en la notificación en vez de enlazar a una vista restringida.",
+          "Sustituir una regla crítica de enforcement por una anomalía observacional que no bloquea publicación.",
+          "Activar profiling masivo sin owner, coste serverless o control de acceso a sus tablas métricas.",
         ],
-        examDecision: "Para una alerta de calidad operable, usa tasa por regla y ventana, segmentación de origen y owner; una captura manual del UI no es monitorización.",
+        examDecision: "Blueprint: expectations y event log para acción por regla. Extensión profesional: Data Quality Monitoring descubre anomalías y drift; no reemplaza cuarentena, FAIL ni reconciliación autoritativa.",
         checkpoint: {
-          question: "¿Por qué es mejor alertar por tasa que solo por número de fallos?",
-          answer: "Porque relaciona fallos con volumen total y permite distinguir crecimiento normal de una degradación proporcional real.",
+          question: "¿Qué diferencia operacional separa Data Quality Monitoring de una expectation crítica?",
+          answer: "Monitoring observa frescura, completitud, estadísticas o drift; una expectation puede descartar o fallar el flow y por tanto aplicar el contrato.",
         },
       },
     ],
@@ -3337,16 +3346,20 @@ def orders_silver():
         domain: "Lakeflow pipelines · event log",
       },
       {
-        question: "Los fallos pasan de 100 a 150, pero el volumen crece de 10.000 a 100.000. ¿Qué indicador evita concluir erróneamente que la calidad empeoró?",
+        question: "Se quiere detectar automáticamente una tabla que dejó de actualizarse y cambios de distribución, sin modificar el job productor. ¿Qué capacidad encaja?",
         options: [
-          "El número de workers",
-          "La versión de Photon",
-          "El tamaño de cada archivo",
-          "La tasa de fallos sobre registros evaluados",
+          "`expect_or_fail` para cualquier tabla, aunque no forme parte del pipeline",
+          "Data Quality Monitoring: anomaly detection para frescura/completitud y data profiling para distribución/drift",
+          "Un `VACUUM` diario como monitor",
+          "Un screenshot manual del catálogo",
         ],
-        answer: 3,
-        explanation: "La tasa cae del 1% al 0,15%; el conteo absoluto por sí solo ocultaría la mejora proporcional.",
-        domain: "Data quality · observabilidad",
+        answer: 1,
+        explanation: "Data Quality Monitoring observa activos de Unity Catalog sin modificar la tabla o añadir overhead al job productor; no aplica por sí solo acciones de DROP o FAIL.",
+        domain: "Extensión profesional · Data Quality Monitoring",
+        editorialId: "m19-q4",
+        objectiveIds: ["m19-performance"],
+        refIds: ["m19-source-4"],
+        scope: "professional-extension",
       },
     ],
     sources: [
@@ -3363,6 +3376,11 @@ def orders_silver():
       {
         label: "Monitor Lakeflow pipelines event logs · Databricks",
         href: "https://docs.databricks.com/aws/en/ldp/monitor-event-logs",
+        reviewedAt,
+      },
+      {
+        label: "Data Quality Monitoring · Databricks",
+        href: "https://docs.databricks.com/aws/en/data-governance/unity-catalog/data-quality-monitoring/",
         reviewedAt,
       },
     ],

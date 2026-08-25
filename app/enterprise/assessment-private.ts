@@ -26,6 +26,10 @@ import {
 export type PrivateAssessmentQuestionInput = Readonly<{
   sourceId?: string;
   officialSampleId?: string;
+  editorialId?: string;
+  objectiveIds?: readonly string[];
+  refIds?: readonly string[];
+  scope?: "blueprint" | "professional-extension";
   question: string;
   options: readonly string[];
   answer: number;
@@ -54,6 +58,10 @@ export type AssessmentKeyQuestion = Readonly<{
   explanation: string;
   domain: string;
   moduleId?: string;
+  editorialId?: string;
+  objectiveIds?: readonly string[];
+  refIds?: readonly string[];
+  scope?: "blueprint" | "professional-extension";
 }>;
 
 export type AssessmentAnswerKey = Readonly<{
@@ -149,8 +157,15 @@ export function prepareAssessment(
     if (!Number.isInteger(source.answer) || source.answer < 0 || source.answer >= source.options.length) {
       throw new RangeError(`Invalid correct option for question: ${source.question}`);
     }
+    if (source.editorialId !== undefined) assertRequiredText(source.editorialId, "editorialId");
+    if (source.objectiveIds !== undefined) assertRequiredTextList(source.objectiveIds, "objectiveIds");
+    if (source.refIds !== undefined) assertRequiredTextList(source.refIds, "refIds");
+    if (source.scope !== undefined && source.scope !== "blueprint" && source.scope !== "professional-extension") {
+      throw new TypeError("scope must be blueprint or professional-extension");
+    }
 
-    const sourceIdentity = source.sourceId
+    const sourceIdentity = source.editorialId
+      ?? source.sourceId
       ?? source.officialSampleId
       ?? `${source.moduleId ?? "global"}:${source.question}`;
     const questionId = stableQuestionId(assessmentId, sourceIdentity, source.question);
@@ -183,6 +198,10 @@ export function prepareAssessment(
       explanation: source.explanation,
       domain: source.domain?.trim() || "Sin dominio",
       ...(source.moduleId ? { moduleId: source.moduleId } : {}),
+      ...(source.editorialId ? { editorialId: source.editorialId } : {}),
+      ...(source.objectiveIds ? { objectiveIds: [...source.objectiveIds] } : {}),
+      ...(source.refIds ? { refIds: [...source.refIds] } : {}),
+      ...(source.scope ? { scope: source.scope } : {}),
     };
   }
 
@@ -372,6 +391,11 @@ function percent(value: number, total: number): number {
 
 function assertRequiredText(value: string, field: string): void {
   if (!value.trim()) throw new TypeError(`${field} is required`);
+}
+
+function assertRequiredTextList(value: readonly string[], field: string): void {
+  if (!value.length) throw new TypeError(`${field} must contain at least one value`);
+  for (const item of value) assertRequiredText(item, field);
 }
 
 function parseIsoInstant(value: string, field: string): string {

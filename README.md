@@ -104,7 +104,7 @@ La lectura pública no guarda progreso. El espacio personal informa de los datos
 - Las vulnerabilidades se comunican siguiendo [SECURITY.md](SECURITY.md), no mediante una issue pública.
 - Las normas de participación están en [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md).
 
-Versión editorial: **2026.07**. Última revisión: **24 de julio de 2026**.
+Versión editorial: **2026.08**. Última revisión: **25 de agosto de 2026**.
 
 ## Licencias
 

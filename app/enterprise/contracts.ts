@@ -1,4 +1,5 @@
 import type { AssessmentKind, AssessmentTimingMode, PublicAssessmentPayload } from "./assessment";
+import type { SimulatorCredentialStatus } from "./credential-version-policy";
 
 export type TenantBrandConfig = {
   organizationName: string;
@@ -110,6 +111,13 @@ export type CurriculumSearchResult = {
   description: string;
   location: string;
   href: string;
+};
+
+export type CurriculumConceptPublic = {
+  term: string;
+  definition: string;
+  whyItMatters: string;
+  anchor: string;
 };
 
 export type CommunityResourceFormat = "ipynb" | "databricks-source" | "dbc" | "bundle" | "repository" | "project";
@@ -304,6 +312,11 @@ export type LearnerDashboard = {
   reviews: ReviewSchedulePublic[];
   motivation: PersonalMotivation;
   bestSimulatorScores: { associate: number | null; professional: number | null };
+  simulatorStatus: {
+    assessmentVersion: string;
+    associate: SimulatorCredentialStatus;
+    professional: SimulatorCredentialStatus;
+  };
   nextActivity: {
     kind: "lesson" | "review" | "lab" | "quiz" | "associate_simulator" | "professional_simulator" | "certificate";
     moduleId: string | null;

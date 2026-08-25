@@ -15,6 +15,7 @@ async function loadEnterpriseRuntime() {
     "app/enterprise/assessment.ts",
     "app/enterprise/assessment-private.ts",
     "app/enterprise/certificate.ts",
+    "app/enterprise/credential-version-policy.ts",
   ];
 
   for (const sourcePath of sources) {
@@ -38,12 +39,13 @@ async function loadEnterpriseRuntime() {
     assessment: require(join(temporary, "assessment.js")),
     privateAssessment: require(join(temporary, "assessment-private.js")),
     certificate: require(join(temporary, "certificate.js")),
+    credentialVersionPolicy: require(join(temporary, "credential-version-policy.js")),
   };
   await rm(temporary, { recursive: true, force: true });
   return runtime;
 }
 
-const { assessment, privateAssessment, certificate } = await loadEnterpriseRuntime();
+const { assessment, privateAssessment, certificate, credentialVersionPolicy } = await loadEnterpriseRuntime();
 
 function definition(kind, count, sourceId = `source-${kind}`) {
   return {
@@ -55,6 +57,10 @@ function definition(kind, count, sourceId = `source-${kind}`) {
     baseDurationMinutes: 60,
     questions: Array.from({ length: count }, (_, index) => ({
       sourceId: `${sourceId}-q${index + 1}`,
+      editorialId: `${kind}-editorial-${index + 1}`,
+      objectiveIds: [`${kind}-objective-${index + 1}`],
+      refIds: [`${kind}-reference-${index + 1}`],
+      scope: kind === "professional-simulator" ? "professional-extension" : "blueprint",
       question: `Pregunta ${index + 1} de ${kind}`,
       options: [`Correcta ${index + 1}`, `Distractor A ${index + 1}`, `Distractor B ${index + 1}`, `Distractor C ${index + 1}`],
       answer: 0,
@@ -102,12 +108,17 @@ test("the public payload never exposes keys, answers or explanations", () => {
   const prepared = privateAssessment.prepareAssessment(definition("associate-simulator", 5), "1x");
   const names = allPropertyNames(prepared.publicPayload);
 
-  for (const forbidden of ["answer", "explanation", "correctOptionId", "optionIds"]) {
+  for (const forbidden of ["answer", "explanation", "correctOptionId", "optionIds", "editorialId", "objectiveIds", "refIds", "scope"]) {
     assert.equal(names.includes(forbidden), false, `El payload público expone ${forbidden}`);
   }
   assert.equal(JSON.stringify(prepared.publicPayload).includes("Explicación privada"), false);
   assert.equal(Object.keys(prepared.answerKey.questions).length, 5);
-  assert.ok(prepared.answerKey.questions[prepared.answerKey.questionOrder[0]].correctOptionId);
+  const privateQuestion = prepared.answerKey.questions[prepared.answerKey.questionOrder[0]];
+  assert.ok(privateQuestion.correctOptionId);
+  assert.equal(privateQuestion.editorialId, "associate-simulator-editorial-1");
+  assert.deepEqual(privateQuestion.objectiveIds, ["associate-simulator-objective-1"]);
+  assert.deepEqual(privateQuestion.refIds, ["associate-simulator-reference-1"]);
+  assert.equal(privateQuestion.scope, "blueprint");
 });
 
 test("assessment and question ids remain stable independently of presentation order", () => {
@@ -130,6 +141,27 @@ test("timing supports untimed, 1x, 1.5x and 2x without hidden defaults", () => {
   assert.equal(assessment.resolveAssessmentTiming(60, "1x").durationSeconds, 3_600);
   assert.equal(assessment.resolveAssessmentTiming(60, "1.5x").durationSeconds, 5_400);
   assert.equal(assessment.resolveAssessmentTiming(60, "2x").durationSeconds, 7_200);
+});
+
+test("a late submission expires even when every answer is correct", () => {
+  const prepared = privateAssessment.prepareAssessment(definition("associate-simulator", 5), "1x");
+  const attempt = assessment.createAssessmentAttempt({
+    attemptId: "expired-perfect-attempt",
+    payload: prepared.publicPayload,
+    startedAt: "2026-07-22T10:00:00.000Z",
+  });
+  const result = privateAssessment.gradeAssessment(prepared.answerKey, attempt, {
+    attemptId: attempt.id,
+    assessmentId: prepared.publicPayload.id,
+    selections: selectionsFor(prepared.answerKey, 5),
+    submittedAt: "2026-07-22T11:00:01.000Z",
+  });
+
+  assert.equal(result.scorePercent, 100);
+  assert.equal(result.status, "expired");
+  assert.equal(result.timingCompliant, false);
+  assert.equal(result.passed, false);
+  assert.equal(privateAssessment.evaluateAssessmentForCredential(result).status, "expired");
 });
 
 test("module quizzes use an exact 75 percent pass policy", () => {
@@ -180,6 +212,79 @@ test("a legacy passing score is historical evidence and always requires revalida
   assert.equal(legacy.requiresRevalidation, true);
   assert.equal(failedLegacy.status, "failed");
   assert.equal(failedLegacy.requiresRevalidation, false);
+});
+
+test("new credentials require passing both simulators in the current assessment version", () => {
+  const historicalAttempt = (id, kind) => ({
+    id,
+    kind,
+    assessmentVersion: "lakehouse-lab-v2.0.0",
+    provenance: "server_graded",
+    passed: true,
+    submittedAt: "2026-07-24T10:00:00.000Z",
+  });
+  const currentAttempt = (id, kind, submittedAt) => ({
+    id,
+    kind,
+    assessmentVersion: "lakehouse-lab-v2.1.0",
+    provenance: "server_graded",
+    passed: true,
+    submittedAt,
+  });
+
+  const historicalOnly = credentialVersionPolicy.evaluateCredentialVersionPolicy({
+    attempts: [historicalAttempt("associate-v2", "associate_exam"), historicalAttempt("professional-v2", "professional_exam")],
+    currentAssessmentVersion: "lakehouse-lab-v2.1.0",
+    existingCredentialStatus: null,
+  });
+  assert.deepEqual(historicalOnly.simulatorStatus, {
+    associate: "revalidation-required",
+    professional: "revalidation-required",
+  });
+  assert.equal(historicalOnly.hasEligibleSimulatorPair, false);
+
+  const currentPair = credentialVersionPolicy.evaluateCredentialVersionPolicy({
+    attempts: [
+      historicalAttempt("associate-v2", "associate_exam"),
+      currentAttempt("associate-v21-old", "associate_exam", "2026-08-25T09:00:00.000Z"),
+      currentAttempt("associate-v21-new", "associate_exam", "2026-08-25T10:00:00.000Z"),
+      currentAttempt("professional-v21", "professional_exam", "2026-08-25T11:00:00.000Z"),
+      { ...currentAttempt("legacy-client-v21", "professional_exam", "2026-08-25T12:00:00.000Z"), provenance: "legacy_client" },
+    ],
+    currentAssessmentVersion: "lakehouse-lab-v2.1.0",
+    existingCredentialStatus: null,
+  });
+  assert.deepEqual(currentPair.simulatorStatus, { associate: "passed", professional: "passed" });
+  assert.equal(currentPair.currentPassingAttempts.associate.id, "associate-v21-new");
+  assert.equal(currentPair.currentPassingAttempts.professional.id, "professional-v21");
+  assert.equal(currentPair.hasEligibleSimulatorPair, true);
+});
+
+test("an issued credential stays valid while a revoked credential is never treated as issued", () => {
+  const historicalAttempts = [
+    { id: "associate-v2", kind: "associate_exam", assessmentVersion: "lakehouse-lab-v2.0.0", provenance: "server_graded", passed: true, submittedAt: "2026-07-24T10:00:00.000Z" },
+    { id: "professional-v2", kind: "professional_exam", assessmentVersion: "lakehouse-lab-v2.0.0", provenance: "server_graded", passed: true, submittedAt: "2026-07-24T11:00:00.000Z" },
+  ];
+  const issued = credentialVersionPolicy.evaluateCredentialVersionPolicy({
+    attempts: [],
+    currentAssessmentVersion: "lakehouse-lab-v2.1.0",
+    existingCredentialStatus: "issued",
+  });
+  assert.deepEqual(issued.simulatorStatus, { associate: "passed", professional: "passed" });
+  assert.equal(issued.credentialAlreadyExists, true);
+  assert.equal(issued.hasEligibleSimulatorPair, false);
+
+  const revoked = credentialVersionPolicy.evaluateCredentialVersionPolicy({
+    attempts: historicalAttempts,
+    currentAssessmentVersion: "lakehouse-lab-v2.1.0",
+    existingCredentialStatus: "revoked",
+  });
+  assert.deepEqual(revoked.simulatorStatus, {
+    associate: "revalidation-required",
+    professional: "revalidation-required",
+  });
+  assert.equal(revoked.credentialAlreadyExists, true);
+  assert.equal(revoked.hasEligibleSimulatorPair, false);
 });
 
 test("certificate specifications are deterministic, minimal and reject legacy attempts", () => {

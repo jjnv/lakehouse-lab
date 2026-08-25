@@ -1,6 +1,6 @@
 import { modules, type CurriculumModule, type Lesson, type SourceReference } from "./course-data";
-import { CONTENT_REVIEW_DATE, PROJECT_ISSUES_URL } from "./project-info";
-import { OFFICIAL_BLUEPRINTS, REVIEWED_AT } from "./editorial-data";
+import { PROJECT_ISSUES_URL } from "./project-info";
+import { OFFICIAL_BLUEPRINTS, REVIEWED_AT, objectiveIdsForModule, performanceObjectiveId } from "./editorial-data";
 import { learningPathProfiles } from "./learning-paths";
 
 export type EditorialChange = {
@@ -21,6 +21,13 @@ export const EDITORIAL_REVIEW_STATUS = "Revisión editorial interna";
 export const EDITORIAL_UPDATE_FREQUENCY = "Revisión planificada cuando cambian blueprints, documentación oficial o dependencias del currículo.";
 
 export const editorialChangelog: EditorialChange[] = [
+  {
+    date: "2026-08-25",
+    target: "Currículo v2.1.0",
+    type: "contenido",
+    description: "Refresco coordinado ES/EN con objetivos de desempeño observables, fallos deliberados específicos por laboratorio, actualización técnica 2026 y trazabilidad estable entre preguntas, objetivos y fuentes; las extensiones profesionales quedan separadas del blueprint.",
+    reference: null,
+  },
   {
     date: "2026-07-24",
     target: "Glosario Databricks",
@@ -69,10 +76,13 @@ export function moduleEditorialMetadata(module: CurriculumModule) {
     .filter((path) => path.moduleIds.includes(module.id))
     .map((path) => path.shortTitle);
   return {
-    reviewedAt: CONTENT_REVIEW_DATE,
+    reviewedAt: REVIEWED_AT,
     level: module.level,
     relatedPaths,
     blueprintDomains: module.examDomains,
+    performanceObjective: module.performanceObjective,
+    performanceObjectiveId: performanceObjectiveId(module.id),
+    objectiveIds: objectiveIdsForModule(module.id),
     sources: primarySources(module).slice(0, 4),
     reviewStatus: EDITORIAL_REVIEW_STATUS,
     reportHref: issueHref(`Módulo ${module.number}: ${module.title}`),

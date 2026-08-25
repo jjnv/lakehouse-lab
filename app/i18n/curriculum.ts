@@ -2,7 +2,7 @@ import type { CurriculumModule, Lesson, QuizQuestion } from "../course-data";
 import type { GlossaryEntry } from "../curriculum/glossary";
 import type { CommunityResourceCatalogEntry, ModuleSummary } from "../enterprise/contracts";
 import type { Locale } from "./config";
-import { englishLessonContent } from "./english-lesson-content";
+import { englishLessonContentFor } from "./english-lesson-content";
 
 type ModuleCopy = {
   title: string;
@@ -621,7 +621,7 @@ function localizeLesson(lesson: Lesson, locale: Locale, moduleCopy: ModuleCopy, 
   const moduleId = lesson.id.slice(0, 3);
   const copy = englishLessonCopy(moduleId, moduleCopy, index);
   const narrative = englishLessonNarratives[moduleId]?.[index];
-  const fullContent = englishLessonContent[lesson.id];
+  const fullContent = englishLessonContentFor(lesson.id);
   return {
     ...lesson,
     kicker: `Lesson ${index + 1}`,

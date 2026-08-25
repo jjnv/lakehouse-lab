@@ -4,8 +4,8 @@ import { advancedContentB } from "./curriculum/advanced-content-b";
 import { associateExamBank } from "./curriculum/associate-exam-bank";
 import { professionalExamBank } from "./curriculum/professional-exam-bank";
 import { associateOfficialAugmentations, professionalOfficialAugmentations, officialSampleCatalog, type ExamQuestionOrigin } from "./curriculum/exam-augmentations";
-import type { CodeLanguage, LessonDeepDive, ModuleContentPack } from "./curriculum/content-types";
-import { OFFICIAL_BLUEPRINTS, PLATFORM_REFERENCES, REVIEWED_AT } from "./editorial-data";
+import type { CodeLanguage, LessonDeepDive, ModuleContentPack, QuestionEditorialScope } from "./curriculum/content-types";
+import { OFFICIAL_BLUEPRINTS, PLATFORM_REFERENCES, REVIEWED_AT, blueprintObjectives, objectiveIdsForModule, performanceObjectiveId } from "./editorial-data";
 
 export type TrackId = "core" | "streaming" | "pipelines" | "performance" | "delivery" | "final";
 export type ExamLevel = "Associate" | "Associate + Professional" | "Professional";
@@ -43,6 +43,10 @@ export type Lesson = {
 };
 
 export type QuizQuestion = {
+  editorialId: string;
+  objectiveIds: readonly string[];
+  refIds: readonly string[];
+  scope: QuestionEditorialScope;
   question: string;
   options: string[];
   answer: number;
@@ -133,6 +137,7 @@ export type CurriculumModule = {
   level: ExamLevel;
   minutes: number;
   description: string;
+  performanceObjective: string;
   outcomes: string[];
   lessons: Lesson[];
   lab: Lab;
@@ -149,7 +154,7 @@ export type ExamMapping = {
   moduleIds: string[];
 };
 
-type ModuleSeed = Omit<CurriculumModule, "number" | "slug" | "kind" | "lessons" | "lab" | "quiz" | "prerequisites" | "sources"> & {
+type ModuleSeed = Omit<CurriculumModule, "number" | "slug" | "kind" | "performanceObjective" | "lessons" | "lab" | "quiz" | "prerequisites" | "sources"> & {
   topics: string[];
   practice: string;
   snippet: string;
@@ -164,6 +169,41 @@ export const trackMeta: Record<TrackId, { name: string; eyebrow: string; color: 
   performance: { name: "Rendimiento y FinOps", eyebrow: "23—27", color: "gold", description: "Tuning, observabilidad, fiabilidad y coste." },
   delivery: { name: "Entrega y gobierno", eyebrow: "28—31", color: "green", description: "Pruebas, CI/CD, seguridad e interoperabilidad." },
   final: { name: "Convergencia Professional", eyebrow: "32", color: "ink", description: "Proyecto final y simulacro Professional." },
+};
+
+const performanceObjectives: Record<string, string> = {
+  m01: "Ante un caso de negocio, dibuja una arquitectura lakehouse que separe almacenamiento, cómputo y gobierno, y justifica cada superficie con una decisión verificable.",
+  m02: "Para tres workloads con SLA y presupuesto, selecciona y dimensiona compute, y entrega una matriz comparativa con latencia, aislamiento y coste esperados.",
+  m03: "Dado un notebook con estado oculto, refactorízalo en código parametrizado y demuestra que una ejecución limpia reproduce la misma salida.",
+  m04: "Dado un dataset semiestructurado, publica una tabla normalizada con esquema explícito y demuestra unicidad de claves, cardinalidad y tratamiento de registros inválidos.",
+  m05: "Ante una consulta con shuffle o skew, localiza la causa en plan y métricas, aplica un único cambio y demuestra una mejora sin alterar el resultado.",
+  m06: "Implementa una escritura Delta idempotente y demuestra con historial, claves y un segundo run que el reintento conserva el mismo estado lógico.",
+  m07: "Diseña un producto bronze-silver-gold con grain, contratos y objeto de consumo explícitos, y reconcilia conteos e importes entre capas.",
+  m08: "Carga dos veces el mismo lote gobernado, conserva procedencia y cuarentena, y demuestra que el segundo run no duplica entidades ni archivos.",
+  m09: "Implementa una ingesta incremental con estado y evolución controlados, y justifica Auto Loader o Lakeflow Connect mediante volumen, frescura y operación.",
+  m10: "Define un DAG parametrizado con trigger, retry y dependencias, y demuestra una recuperación parcial que no repite efectos ya confirmados.",
+  m11: "Aplica mínimo privilegio y promociona el mismo artefacto entre dev y prod, aportando pruebas positivas y negativas de acceso y configuración.",
+  m12: "Entrega un mini-lakehouse Associate end-to-end y demuestra cada criterio de aceptación con una matriz de evidencias y decisiones defendibles.",
+  m13: "Reinicia una consulta streaming desde su checkpoint y demuestra mediante offsets, conteos y claves que no pierde ni duplica eventos.",
+  m14: "Configura ventanas y watermark para un SLA temporal, e identifica con datos de frontera qué eventos se actualizan, descartan y mantienen en estado.",
+  m15: "Integra un bus de eventos preservando offsets y claves, y demuestra replay, cuarentena de mensajes inválidos y lag dentro del objetivo.",
+  m16: "Materializa CDC ordenado con inserciones, actualizaciones y borrados, y reconcilia el estado final y el historial para eventos fuera de orden.",
+  m17: "Opera un pipeline streaming contra un SLO y ejecuta un game day que demuestre recuperación dentro de RTO/RPO sin pérdida ni duplicados.",
+  m18: "Declara un grafo bronze-silver-gold sin efectos imperativos y demuestra dependencias, actualización incremental y estrategia observada en el event log.",
+  m19: "Implementa reglas con acciones de observar, aislar y fallar, y demuestra tasas, cuarentena trazable y remediación mediante el event log.",
+  m20: "Diseña control flow acotado y repara únicamente el subconjunto fallido, demostrando idempotencia y preservación de tareas ya correctas.",
+  m21: "Planifica un backfill de 90 días compatible con la carga diaria y demuestra ausencia de solapamientos, duplicados y ventanas sin procesar.",
+  m22: "Entrega un pipeline declarativo productivo con calidad, CDC y operación, y demuestra despliegue, backfill, fallo controlado y recuperación.",
+  m23: "Optimiza un workload sesgado con una hipótesis medible y presenta plan, shuffle, spill, duración y corrección antes y después.",
+  m24: "Elige y aplica un layout Delta a partir de patrones de filtro, y demuestra reducción de archivos o bytes leídos sin sobreparticionar.",
+  m25: "Construye un informe de coste atribuible y propone tres guardrails cuantificados que reduzcan gasto sin incumplir el SLA.",
+  m26: "Investiga un incidente correlacionando al menos tres superficies y entrega una hipótesis reproducible con IDs, evidencia, nivel de confianza y siguiente prueba.",
+  m27: "Recupera un workload degradado y entrega un postmortem que demuestre mejora de fiabilidad y coste y asigne acciones preventivas.",
+  m28: "Empaqueta una transformación con dependencias fijadas y demuestra su contrato mediante pruebas unitarias, de esquema e integración.",
+  m29: "Promociona el mismo artefacto mediante un bundle, conserva plan y hash, y demuestra smoke test, identidad de ejecución y rollback documentado.",
+  m30: "Protege un dominio sensible con mínimo privilegio y políticas centralizadas, y demuestra allow, masked/filtered, deny, retención y auditoría.",
+  m31: "Selecciona sharing, federation o ingesta para dos consumidores, y demuestra contrato mínimo, pushdown o lectura y revocación según el patrón.",
+  m32: "Entrega y defiende una plataforma Professional completa, supera un game day y traza cada NFR a una evidencia técnica, operativa y de coste.",
 };
 
 const seeds: ModuleSeed[] = [
@@ -205,6 +245,12 @@ const seeds: ModuleSeed[] = [
 
   { id:"m32", title:"Proyecto Professional y simulacro de 59 preguntas", short:"Hito Professional", track:"final", level:"Professional", minutes:210, description:"Converge las cuatro ramas en una solución production-grade y mide la preparación final.", outcomes:["Diseñar y defender una plataforma completa","Responder a fallos, costes y cumplimiento","Completar un simulacro Professional original"], topics:["Brief, NFRs y arquitectura","Pipeline batch y streaming","Seguridad, interoperabilidad y CI/CD","Game day, FinOps y postmortem","Defensa técnica y simulacro Professional"], practice:"Entrega una plataforma de pedidos omnicanal con CDC, SLO, CI/CD, gobierno y runbook.", snippet:"-- CAPSTONE PROFESSIONAL\nSELECT 'ready' AS status, current_timestamp() AS reviewed_at;", checkTerms:["CAPSTONE PROFESSIONAL","reviewed_at"], examDomains:["Todos los dominios Professional"], sourcePath:"https://www.databricks.com/sites/default/files/2025-11/databricks-certified-data-engineer-professional-exam-guide-november-30-2025_0.pdf" },
 ];
+
+function performanceObjectiveFor(moduleId: string) {
+  const performanceObjective = performanceObjectives[moduleId];
+  if (!performanceObjective) throw new Error(`Falta objetivo observable para ${moduleId}`);
+  return performanceObjective;
+}
 
 const lessonKickers = ["Modelo mental", "Implementación", "Operación", "Diagnóstico", "Decisión de diseño"];
 const contentPacks: Record<string, ModuleContentPack> = { ...coreContent, ...advancedContentA, ...advancedContentB };
@@ -249,6 +295,41 @@ function makeLessons(seed: ModuleSeed, pack: ModuleContentPack): Lesson[] {
   });
 }
 
+const deliberateFailuresByModule: Record<string, Lab["deliberateFailure"]> = {
+  m01: { scenario: "Conecta una superficie de cómputo directamente a un almacenamiento no gobernado y comprueba qué identidad, linaje y límite de red quedan ambiguos.", recovery: "Redibuja control plane, compute plane, storage y Unity Catalog; elimina la ruta lateral y aporta una matriz componente → identidad → dato → evidencia." },
+  m02: { scenario: "Ejecuta el workload interactivo en compute con tamaño o modo inadecuado hasta observar cola, arranque o coste fuera del SLA.", recovery: "Compara métricas con la alternativa adecuada, ajusta tamaño/auto-stop y documenta el trade-off con la misma carga." },
+  m03: { scenario: "Ejecuta celdas fuera de orden para que una variable residual produzca una salida aparentemente correcta.", recovery: "Reinicia el entorno, ejecuta todo en orden, extrae parámetros y dependencias, y conserva la evidencia de una segunda ejecución limpia." },
+  m04: { scenario: "Explota el array antes de deduplicar pedidos y provoca multiplicación de líneas o pérdida de la clave padre.", recovery: "Fija el esquema, deduplica con orden total, conserva claves padre y reconcilia cardinalidad y suma antes/después." },
+  m05: { scenario: "Fuerza broadcast sobre un lado que no cabe o deja una clave dominante sin tratamiento y registra spill o stragglers.", recovery: "Retira el hint, mide distribución y plan, trata skew o cambia estrategia y compara shuffle, tarea máxima y resultado." },
+  m06: { scenario: "Reintenta un append o un MERGE con duplicados en la fuente y observa claves repetidas o coincidencias ambiguas.", recovery: "Deduplica por clave/secuencia, aplica una condición idempotente y demuestra con el historial que el segundo run no cambia el estado lógico." },
+  m07: { scenario: "Mezcla grain de pedido y línea en Gold y provoca doble conteo de ingresos.", recovery: "Declara el grain de cada objeto, corrige claves y medidas y reconcilia Silver y Gold por fecha y total." },
+  m08: { scenario: "Renombra o duplica un archivo y asume que el historial de COPY INTO deduplica entidades de negocio.", recovery: "Separa idempotencia de archivo y de negocio, conserva procedencia, aplica clave estable y repite el lote verificando conteos." },
+  m09: { scenario: "Reutiliza checkpoint o schemaLocation de otra consulta y provoca estado incompatible o reproceso.", recovery: "Aísla las rutas por pipeline/entorno, restaura desde el estado válido o ejecuta un backfill controlado y reconcilia archivos y filas." },
+  m10: { scenario: "Permite que una tarea downstream se ejecute sin su dependencia o reintenta una escritura no idempotente.", recovery: "Corrige el DAG y los límites de tarea, añade clave de reintento y usa repair para demostrar que no se repiten efectos confirmados." },
+  m11: { scenario: "Concede SELECT sin los privilegios de recorrido o aplica un grant excesivo para resolver el error.", recovery: "Calcula la cadena mínima USE CATALOG/USE SCHEMA/SELECT, prueba allow y deny, y registra el mismo artefacto con variables de entorno." },
+  m12: { scenario: "Revoca un privilegio o reenvía un lote justo antes de la publicación Gold.", recovery: "Sigue el runbook, restaura mínimo privilegio o reejecuta idempotentemente y completa la matriz de aceptación con evidencia de recuperación." },
+  m13: { scenario: "Interrumpe la consulta cerca de un commit de microbatch y reiníciala con el mismo checkpoint.", recovery: "Compara offsets, commits, conteos y claves con el baseline y corrige el sink si el reintento duplica o pierde eventos." },
+  m14: { scenario: "Inyecta eventos justo dentro y fuera del watermark y una clave que hace crecer el estado.", recovery: "Ajusta la política según el SLA, acota estado y documenta con casos frontera qué evento actualiza, se descarta o queda pendiente." },
+  m15: { scenario: "Introduce un mensaje inválido y reinicia desde un offset anterior para provocar replay.", recovery: "Preserva topic/partition/offset, aísla el mensaje, aplica una clave idempotente en el sink y demuestra recuperación del lag sin duplicados." },
+  m16: { scenario: "Entrega un update antiguo después de uno nuevo y un delete sin secuencia válida.", recovery: "Ordena por secuencia, define semántica de delete y reconcilia estado actual e historial por clave." },
+  m17: { scenario: "Degrada el sink o detén el compute durante la ventana de mayor tráfico.", recovery: "Ejecuta el runbook, recupera desde checkpoint, mide backlog y demuestra RTO/RPO, frescura y cero duplicados." },
+  m18: { scenario: "Añade una acción o escritura externa dentro de una función declarativa y rompe la reevaluación del grafo.", recovery: "Devuelve sólo DataFrames, mueve el efecto a Jobs, corrige dependencias y verifica grafo y event log en dos actualizaciones." },
+  m19: { scenario: "Configura FAIL para una anomalía reparable o DROP sin conservar evidencia.", recovery: "Reclasifica la acción, materializa cuarentena con motivo/procedencia y demuestra publicación válida, tasa y replay de la fila corregida." },
+  m20: { scenario: "Reintenta como transitorio un fallo determinista después de que una rama haya escrito parcialmente.", recovery: "Clasifica la causa, hace idempotente la rama y ejecuta repair sólo sobre el subconjunto fallido verificando efectos previos." },
+  m21: { scenario: "Solapa backfill y proceso diario sobre la misma ventana y provoca carreras o duplicados.", recovery: "Aísla staging, serializa la publicación o aplica MERGE por ventana y reconcilia los 90 días sin huecos ni duplicados." },
+  m22: { scenario: "Introduce un cambio de esquema incompatible o una regla crítica fallida durante la publicación.", recovery: "Detén el avance, conserva el target anterior, corrige contrato o datos y demuestra rollback/replay y reconciliación." },
+  m23: { scenario: "Fuerza un join o número de particiones global que empeora una consulta sesgada.", recovery: "Vuelve al baseline, cambia una sola hipótesis basada en plan/métricas y conserva antes/después de duración, shuffle, spill y resultado." },
+  m24: { scenario: "Particiona por una clave de cardinalidad extrema o elige clustering ajeno a los filtros reales.", recovery: "Analiza perfiles de consulta, cambia el layout y demuestra pruning y reducción de archivos/bytes leídos." },
+  m25: { scenario: "Elimina una etiqueta de atribución o simula un pico de consumo que supera el presupuesto.", recovery: "Restaura la clasificación, localiza SKU/workload/owner y aplica un guardrail cuantificado verificando coste y SLA." },
+  m26: { scenario: "Presenta un run verde cuya salida está desactualizada para demostrar que estado de ejecución no equivale a salud del dato.", recovery: "Correlaciona run, statement, calidad/frescura y coste; formula una hipótesis con IDs, nivel de confianza y siguiente prueba." },
+  m27: { scenario: "Combina skew, archivos pequeños y aumento de coste durante un incidente con SLA incumplido.", recovery: "Contén sin destruir evidencia, corrige una causa a la vez y entrega métricas de recuperación y postmortem con acciones asignadas." },
+  m28: { scenario: "Cambia una dependencia o esquema esperado y provoca una prueba reproducible fallida.", recovery: "Fija versiones, reconstruye la wheel y corrige contrato o código hasta que unit, esquema e integración vuelvan a demostrar el comportamiento." },
+  m29: { scenario: "Introduce drift manual o un plan que reemplaza un recurso productivo inesperadamente.", recovery: "Detén el deploy, establece fuente de verdad, migra/bind el estado cuando proceda y repite plan, smoke test y aprobación con el mismo hash." },
+  m30: { scenario: "Ejecuta como identidad restringida una consulta que revela PII o prueba un cliente que elude la política esperada.", recovery: "Revoca exposición, simplifica policy/mask o publica un producto minimizado y repite allow, masked/filtered, deny y auditoría." },
+  m31: { scenario: "Revoca un recipient o aplica un filtro federado y comprueba que el consumidor aún accede o que no hubo pushdown.", recovery: "Corrige recipient/política o materializa por ingesta, y repite la prueba desde el receptor conservando plan, egress y evidencia de revocación." },
+  m32: { scenario: "Durante el game day combina checkpoint dañado, regla de calidad crítica y presión de coste.", recovery: "Prioriza seguridad del dato, ejecuta el runbook, demuestra RTO/RPO y reconciliación, y defiende decisiones y prevención ante la matriz de NFRs." },
+};
+
 function makeLab(seed: ModuleSeed, pack: ModuleContentPack): Lab {
   const paidOnly = new Set(["m02", "m15", "m25", "m30", "m31"]).has(seed.id);
   const paidRange = seed.id === "m12" || seed.id === "m32"
@@ -260,6 +341,8 @@ function makeLab(seed: ModuleSeed, pack: ModuleContentPack): Lab {
   const requiresClassic = new Set(["m05", "m15", "m23", "m25", "m26"]).has(seed.id);
   const usesSqlWarehouse = new Set(["m02", "m06", "m07", "m11", "m24", "m30", "m31"]).has(seed.id);
   const permissions = ["USE CATALOG sobre el catálogo de aprendizaje", "USE SCHEMA y CREATE TABLE sobre el esquema aislado del laboratorio"];
+  const deliberateFailure = deliberateFailuresByModule[seed.id];
+  if (!deliberateFailure) throw new Error(`Falta fallo deliberado para ${seed.id}`);
   if (usesSqlWarehouse) permissions.push("CAN USE sobre el SQL warehouse asignado");
   if (requiresClassic) permissions.push("CAN ATTACH TO sobre el compute clásico asignado; no se requiere permiso de creación");
   return {
@@ -295,10 +378,7 @@ function makeLab(seed: ModuleSeed, pack: ModuleContentPack): Lab {
       independentRuns: 0,
       note: "Procedimiento especificado y autocomprobado; ejecución independiente documentada todavía pendiente.",
     },
-    deliberateFailure: {
-      scenario: "Ejecuta una vez con el catálogo o esquema equivocado para observar un fallo de resolución o privilegios.",
-      recovery: "Corrige USE CATALOG/USE SCHEMA, verifica privilegios mínimos y repite desde el cleanup idempotente.",
-    },
+    deliberateFailure,
     estimatedCost: {
       free: "0 USD · sujeto a fair use y cuotas diarias",
       paid: { AWS: paidRange, Azure: paidRange, GCP: paidRange },
@@ -322,19 +402,29 @@ function makeLab(seed: ModuleSeed, pack: ModuleContentPack): Lab {
 
 export const modules: CurriculumModule[] = seeds.map((seed, index) => ({
   ...seed,
+  performanceObjective: performanceObjectiveFor(seed.id),
   number: String(index + 1).padStart(2, "0"),
   slug: slugify(seed.title),
   kind: moduleKind(seed),
   lessons: makeLessons(seed, packFor(seed)),
   lab: makeLab(seed, packFor(seed)),
-  quiz: packFor(seed).quiz.map((question) => ({ ...question, moduleId: seed.id })),
+  quiz: packFor(seed).quiz.map((question, questionIndex) => ({
+    ...question,
+    editorialId: question.editorialId ?? `${seed.id}-q${questionIndex + 1}`,
+    objectiveIds: question.objectiveIds?.length ? [...question.objectiveIds] : objectiveIdsForModule(seed.id),
+    refIds: question.refIds?.length
+      ? [...question.refIds]
+      : packFor(seed).sources.map((_, sourceIndex) => `${seed.id}-source-${sourceIndex + 1}`),
+    scope: question.scope ?? "blueprint",
+    moduleId: seed.id,
+  })),
   prerequisites: prerequisitesFor(index, seed.track),
   sources: [...packFor(seed).sources.map((source, sourceIndex) => ({
     ...source,
     id: `${seed.id}-source-${sourceIndex + 1}`,
     publisher: "Databricks" as const,
     cloud: "Multinube",
-    version: "Documentación vigente en julio de 2026",
+    version: "Documentación vigente en agosto de 2026",
   })), ...(specificSourcesByModule[seed.id] ?? []).map((source) => ({ ...source, reviewedAt: REVIEWED_AT }))],
 }));
 
@@ -380,19 +470,83 @@ function shuffled<T>(items: T[], random: () => number): T[] {
   return copy;
 }
 
+const associateAuthoredQuestions: QuizQuestion[] = associateExamBank.map((question, index) => ({
+  ...question,
+  editorialId: question.editorialId ?? `associate-bank-${String(index + 1).padStart(3, "0")}`,
+  objectiveIds: question.objectiveIds?.length ? [...question.objectiveIds] : objectiveIdsForModule(question.moduleId, "Associate"),
+  refIds: question.refIds?.length ? [...question.refIds] : [OFFICIAL_BLUEPRINTS.Associate.id],
+  scope: question.scope ?? "blueprint",
+  options: [...question.options],
+  origin: question.origin ?? "original-course",
+  originLabel: question.originLabel ?? "Original del curso",
+}));
+
+const professionalAuthoredQuestions: QuizQuestion[] = professionalExamBank.map(({ id, scenario, ...question }) => ({
+  ...question,
+  editorialId: id,
+  objectiveIds: objectiveIdsForModule(question.moduleId, "Professional"),
+  refIds: [OFFICIAL_BLUEPRINTS.Professional.id],
+  scope: "blueprint",
+  question: `${scenario} ${question.question}`,
+  options: [...question.options],
+  origin: "original-course",
+  originLabel: "Original del curso",
+}));
+
+export type QuestionTraceability = Pick<QuizQuestion, "editorialId" | "objectiveIds" | "refIds" | "scope" | "moduleId">;
+
+const allEditorialQuestions: QuizQuestion[] = [
+  ...modules.flatMap((courseModule) => courseModule.quiz),
+  ...associateAuthoredQuestions,
+  ...professionalAuthoredQuestions,
+  ...associateOfficialAugmentations,
+  ...professionalOfficialAugmentations,
+];
+
+const knownObjectiveIds = new Set([
+  ...modules.map((courseModule) => performanceObjectiveId(courseModule.id)),
+  ...blueprintObjectives.map((objective) => objective.id),
+]);
+const knownRefIds = new Set([
+  ...modules.flatMap((courseModule) => courseModule.sources.map((source) => source.id)),
+  OFFICIAL_BLUEPRINTS.Associate.id,
+  OFFICIAL_BLUEPRINTS.Professional.id,
+]);
+const seenEditorialIds = new Set<string>();
+
+for (const question of allEditorialQuestions) {
+  if (seenEditorialIds.has(question.editorialId)) throw new Error(`editorialId duplicado: ${question.editorialId}`);
+  seenEditorialIds.add(question.editorialId);
+  if (!question.objectiveIds.length) throw new Error(`objectiveIds vacío: ${question.editorialId}`);
+  if (!question.refIds.length) throw new Error(`refIds vacío: ${question.editorialId}`);
+  for (const objectiveId of question.objectiveIds) {
+    if (!knownObjectiveIds.has(objectiveId)) throw new Error(`objectiveId desconocido en ${question.editorialId}: ${objectiveId}`);
+  }
+  for (const refId of question.refIds) {
+    if (!knownRefIds.has(refId)) throw new Error(`refId desconocido en ${question.editorialId}: ${refId}`);
+  }
+}
+
+export const professionalExtensionQuestionIds = allEditorialQuestions
+  .filter((question) => question.scope === "professional-extension")
+  .map((question) => question.editorialId);
+if (!professionalExtensionQuestionIds.length) throw new Error("El currículo debe declarar al menos una extensión profesional fuera del blueprint");
+
+export const questionTraceability: readonly QuestionTraceability[] = allEditorialQuestions.map((question) => ({
+  editorialId: question.editorialId,
+  objectiveIds: question.objectiveIds,
+  refIds: question.refIds,
+  scope: question.scope,
+  moduleId: question.moduleId,
+}));
+
 export function buildExamQuestions(level: "associate" | "professional", attempt = 1): QuizQuestion[] {
   const random = seededRandom((level === "associate" ? 1709 : 2909) + attempt * 7919);
-  const authored: QuizQuestion[] = level === "associate"
-    ? associateExamBank.map((question) => ({ ...question, options: [...question.options], origin: question.origin ?? "original-course", originLabel: question.originLabel ?? "Original del curso" }))
-    : professionalExamBank.map(({ scenario, ...question }) => ({
-        ...question,
-        question: `${scenario} ${question.question}`,
-        options: [...question.options],
-        origin: "original-course",
-        originLabel: "Original del curso",
-      }));
+  const authored = level === "associate" ? associateAuthoredQuestions : professionalAuthoredQuestions;
   const augmented = level === "associate" ? associateOfficialAugmentations : professionalOfficialAugmentations;
-  const bank: QuizQuestion[] = [...authored, ...augmented];
+  // Las extensiones modernas se evalúan en quizzes de módulo, nunca se mezclan
+  // con el simulador alineado al blueprint oficial.
+  const bank: QuizQuestion[] = [...authored, ...augmented].filter((question) => question.scope === "blueprint");
   const itemCount = level === "associate" ? 45 : 59;
   return shuffled(bank, random).slice(0, itemCount).map((question) => {
     const indexed = question.options.map((option, index) => ({ option, index }));
@@ -406,13 +560,13 @@ export function buildExamQuestions(level: "associate" | "professional", attempt 
 }
 
 export const examPoolSizes = {
-  associate: associateExamBank.length + associateOfficialAugmentations.length,
-  professional: professionalExamBank.length + professionalOfficialAugmentations.length,
+  associate: associateAuthoredQuestions.filter((question) => question.scope === "blueprint").length + associateOfficialAugmentations.filter((question) => question.scope === "blueprint").length,
+  professional: professionalAuthoredQuestions.filter((question) => question.scope === "blueprint").length + professionalOfficialAugmentations.filter((question) => question.scope === "blueprint").length,
 } as const;
 
 export const examOriginCounts = {
-  associate: { official: officialSampleCatalog.associate.length, augmented: associateOfficialAugmentations.length, original: associateExamBank.length },
-  professional: { official: officialSampleCatalog.professional.length, augmented: professionalOfficialAugmentations.length, original: professionalExamBank.length },
+  associate: { official: officialSampleCatalog.associate.length, augmented: associateOfficialAugmentations.filter((question) => question.scope === "blueprint").length, original: associateAuthoredQuestions.filter((question) => question.scope === "blueprint").length },
+  professional: { official: officialSampleCatalog.professional.length, augmented: professionalOfficialAugmentations.filter((question) => question.scope === "blueprint").length, original: professionalAuthoredQuestions.filter((question) => question.scope === "blueprint").length },
 } as const;
 
 export { officialSampleCatalog };
