@@ -76,8 +76,8 @@ export default async function GlosarioPage() {
                         <summary>
                           <span>{locale === "en" ? localizeGlossaryCategory(entry.category, locale) : glossaryCategoryLabels[entry.category]}</span>
                           <strong>{entry.term}</strong>
-                          <a href={`#${entry.id}`} aria-label={`${locale === "en" ? "Direct link to" : "Enlace directo a"} ${entry.term}`}>#</a>
                         </summary>
+                        <a className="public-glossary-permalink" href={`#${entry.id}`} aria-label={`${locale === "en" ? "Direct link to" : "Enlace directo a"} ${entry.term}`}>#</a>
                         {entry.aliases.length ? <p className="public-glossary-aliases">{text.aliasPrefix} {entry.aliases.join(", ")}</p> : null}
                         <p>{entry.definition}</p>
                         <p><strong>{text.whyItMatters}</strong> {entry.whyItMatters}</p>

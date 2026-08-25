@@ -765,12 +765,13 @@ test("the public UI exposes resources without adding them to completion math", (
   const catalog = read("app/components/enterprise/CatalogWorkspace.tsx");
   assert.match(curriculum, /kind:\s*"resource"/);
   assert.match(curriculum, /communityResources:/);
-  assert.match(course, /"lessons",\s*"lab",\s*"quiz",\s*"resources"/);
+  assert.match(course, /type CourseSection = "lessons" \| "lab" \| "quiz" \| "resources"/);
   assert.match(course, /Consultarlas no modifica el progreso/);
   assert.match(course, /completedLessons\.size\s*\+\s*Number\(progress\?\.labAttested\)/);
   assert.doesNotMatch(course, /Number\([^)]*communityResources/);
-  assert.match(catalog, /Módulos/);
-  assert.match(catalog, /Recursos/);
+  assert.match(catalog, /surface: CatalogSurface/);
+  assert.match(catalog, /href="\/catalogo"/);
+  assert.match(catalog, /href="\/recursos"/);
   assert.match(catalog, /previewOnly/);
 });
 

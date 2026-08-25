@@ -56,6 +56,7 @@ const routeContracts = [
   ...protectedRouteContracts,
   ["app/simulacro/[mode]/page.tsx", "/simulacro/"],
   ["app/catalogo/page.tsx", "/catalogo"],
+  ["app/recursos/page.tsx", "/recursos"],
   ["app/curso/[slug]/page.tsx", "/curso/"],
   ["app/certificados/[id]/page.tsx", "/certificados/"],
 ];
@@ -78,7 +79,7 @@ test("declares the enterprise release as version 2.0.0 everywhere that identifie
   assert.match(sources["app/progress.ts"], /CONTENT_VERSION = "lakehouse-lab-v2\.0\.0"/u);
   assert.match(sources["app/page.tsx"], /getSessionUser\(\)/u);
   assert.match(sources["app/page.tsx"], /href="\/ruta"/u);
-  assert.match(sources["app/page.tsx"], /sampleLessonHref/u);
+  assert.match(sources["app/page.tsx"], /firstLessonHref/u);
   assert.doesNotMatch(sources["app/page.tsx"], /href=["']\/demo/u);
   assert.match(sources["app/layout.tsx"], /PROJECT_NAME/u);
   assert.match(sources["app/layout.tsx"], /robots:\s*\{\s*index:\s*true,\s*follow:\s*true\s*\}/u);
@@ -94,14 +95,17 @@ test("protects private pages while exposing hybrid learning and public credentia
     assert.doesNotMatch(source, /href=["']#/u, `${path} must not replace navigation with an in-page hash`);
   }
 
-  for (const path of ["app/catalogo/page.tsx", "app/curso/[slug]/page.tsx"]) {
+  for (const path of ["app/catalogo/page.tsx", "app/recursos/page.tsx", "app/curso/[slug]/page.tsx"]) {
     const source = routeSources[path];
     assert.match(source, /getOptionalEnterprisePageContext\(/u, `${path} must support anonymous reading`);
-    assert.match(source, /publicMode=\{!personalized\}/u, `${path} must render the public shell without creating a session`);
+    assert.match(source, /authenticated=\{personalized\}/u, `${path} must expose authentication state without creating a session`);
     assert.doesNotMatch(source, /requireEnterprisePageContext\(/u);
   }
+  assert.match(routeSources["app/catalogo/page.tsx"], /variant=/u);
+  assert.match(routeSources["app/recursos/page.tsx"], /variant=/u);
+  assert.match(routeSources["app/curso/[slug]/page.tsx"], /variant="course"/u);
   assert.match(routeSources["app/certificados/[id]/page.tsx"], /getPublicCredentialVerification\(/u);
-  assert.match(routeSources["app/certificados/[id]/page.tsx"], /publicMode/u);
+  assert.match(routeSources["app/certificados/[id]/page.tsx"], /variant="explore" authenticated=\{false\}/u);
   assert.match(routeSources["app/simulacro/[mode]/page.tsx"], /getOptionalEnterprisePageContext\(/u);
   assert.match(routeSources["app/simulacro/[mode]/page.tsx"], /<PublicShell\b/u);
   assert.match(routeSources["app/simulacro/[mode]/page.tsx"], /<SimulatorWorkspace mode=\{mode\}/u);
@@ -123,9 +127,12 @@ test("protects private pages while exposing hybrid learning and public credentia
   assert.match(sources["app/api/_shared.ts"], /403, "ACCESS_DENIED"/u);
 
   const shell = sources["app/components/enterprise/AppShell.tsx"];
-  for (const route of ["/inicio", "/mi-aprendizaje", "/catalogo", "/expediente", "/ajustes"]) {
-    assert.ok(shell.includes(`href: "${route}"`) || shell.includes(`href="${route}"`), `missing shell route ${route}`);
+  for (const route of ["/inicio", "/mi-aprendizaje", "/catalogo", "/expediente"]) {
+    assert.ok(shell.includes(`href: "${route}"`), `missing workspace shell route ${route}`);
   }
+  assert.match(shell, /const accountHref = authenticated \? "\/ajustes"/u);
+  assert.match(shell, /AppShellVariant = "explore" \| "workspace" \| "course"/u);
+  assert.doesNotMatch(shell, /publicMode|courseMode|eyebrow/u);
 });
 
 test("course navigation remains reliable and dashboard reads avoid sequential database round trips", () => {
@@ -133,7 +140,7 @@ test("course navigation remains reliable and dashboard reads avoid sequential da
     assert.doesNotMatch(source, /from ["']next\/link["']/u, `${path} must use resilient document navigation`);
   }
   const catalog = sources["app/components/enterprise/CatalogWorkspace.tsx"];
-  assert.match(catalog, /className="ent-card-title-link"/u);
+  assert.match(catalog, /className="ent-module-row-action"/u);
   assert.match(catalog, /href=\{`\/curso\/\$\{module\.slug\}`\}/u);
   assert.match(catalog, /Number\(Boolean\(progress\?\.labAttested\)\)/u);
 
@@ -217,9 +224,11 @@ test("retains static accessibility contracts in the shell, course and assessment
   assert.match(shell, /event\.key !== "Tab"/u);
   assert.match(shell, /menuButton\?\.focus\(\)/u);
 
-  assert.match(course, /role="tablist"/u);
-  assert.match(course, /role="tabpanel"/u);
-  assert.match(course, /\["ArrowLeft", "ArrowRight", "Home", "End"\]/u);
+  assert.match(course, /aria-haspopup="dialog" aria-controls="module-contents"/u);
+  assert.match(course, /id="module-contents"/u);
+  assert.match(course, /aria-labelledby="module-contents-title"/u);
+  assert.match(course, /contentsOpenerRef\.current\?\.focus\(\)/u);
+  assert.match(course, /<nav aria-label=\{locale === "en" \? "Lessons and activities" : "Lecciones y actividades"\}>/u);
   assert.match(course, /<pre tabIndex=\{0\}>/u);
   assert.match(course, /role="status" aria-live="polite"/u);
   assert.match(assessment, /<fieldset key=\{question\.id\}>/u);

@@ -21,33 +21,31 @@ const simulatorListText: Record<Locale, {
   lead: string;
   available: string;
   open: string;
-  create: string;
+  privacyNote: string;
   cards: Array<{ label: string; title: string; body: string; href: string }>;
 }> = {
   es: {
-    kicker: "Evaluacion formativa",
-    title: "Simulacros internos Associate y Professional",
-    lead: "Mide preparacion por dominio con preguntas originales y correccion en servidor. Los resultados son privados y no garantizan aprobar un examen oficial.",
+    kicker: "Evaluación formativa",
+    title: "Elige un simulacro",
+    lead: "Practica con preguntas originales y revisa el resultado por dominio. Estos simulacros internos no equivalen a un examen oficial.",
     available: "Simulacros disponibles",
     open: "Ver simulacro",
-    create: "Crear espacio",
+    privacyNote: "Necesitas un espacio privado para responder. Las claves se corrigen en el servidor y no se muestran antes de enviar el intento.",
     cards: [
-      { label: "Associate", title: "Fundamentos de Data Engineering", body: "Para revisar el tramo Associate antes de avanzar o presentarte al examen.", href: "/simulacro/associate" },
-      { label: "Professional", title: "Arquitectura y operacion avanzada", body: "Para practicar decisiones transversales de streaming, rendimiento, gobierno y entrega.", href: "/simulacro/professional" },
-      { label: "Privacidad", title: "Intentos protegidos", body: "Para responder necesitas crear un espacio privado. Las claves no llegan al navegador antes de la correccion.", href: "/entrar?return_to=%2Fsimulacro%2Fprofessional" },
+      { label: "Associate", title: "Fundamentos de Data Engineering", body: "Revisa los dominios troncales antes de avanzar o decidir si necesitas más práctica.", href: "/simulacro/associate" },
+      { label: "Professional", title: "Arquitectura y operación avanzada", body: "Practica decisiones de streaming, rendimiento, gobierno, operación y entrega.", href: "/simulacro/professional" },
     ],
   },
   en: {
     kicker: "Formative assessment",
-    title: "Internal Associate and Professional practice exams",
-    lead: "Measure readiness by domain with original questions scored on the server. Results are private and do not guarantee passing an official exam.",
+    title: "Choose a practice exam",
+    lead: "Practice with original questions and review results by domain. These internal practice exams are not equivalent to an official exam.",
     available: "Available practice exams",
     open: "View practice exam",
-    create: "Create workspace",
+    privacyNote: "You need a private workspace to answer. Keys are scored on the server and are not shown before you submit the attempt.",
     cards: [
-      { label: "Associate", title: "Data Engineering fundamentals", body: "Review the Associate section before moving ahead or sitting the exam.", href: "/simulacro/associate" },
-      { label: "Professional", title: "Advanced architecture and operations", body: "Practice cross-domain decisions for streaming, performance, governance, and delivery.", href: "/simulacro/professional" },
-      { label: "Privacy", title: "Protected attempts", body: "Answering requires a private workspace. Answer keys never reach the browser before scoring.", href: "/entrar?return_to=%2Fsimulacro%2Fprofessional" },
+      { label: "Associate", title: "Data Engineering foundations", body: "Review the core domains before moving ahead or deciding whether you need more practice.", href: "/simulacro/associate" },
+      { label: "Professional", title: "Advanced architecture and operations", body: "Practice decisions across streaming, performance, governance, operations, and delivery.", href: "/simulacro/professional" },
     ],
   },
 };
@@ -55,23 +53,29 @@ const simulatorListText: Record<Locale, {
 export default async function SimulacrosPage() {
   const locale = await getRequestLocale();
   const text = simulatorListText[locale];
-  return <PublicShell active="simulacros" locale={locale}>
-    <main id="public-main" className="public-document-main public-cert-main" tabIndex={-1}>
-      <section className="public-cert-hero" aria-labelledby="simulacros-heading">
-        <p className="public-kicker">{text.kicker}</p>
-        <h1 id="simulacros-heading">{text.title}</h1>
-        <p className="public-document-lead">{text.lead}</p>
-      </section>
-      <section className="public-cert-grid" aria-label={text.available}>
-        {text.cards.map((card, index) => (
-          <article key={card.label}>
-            <span>{card.label}</span>
-            <strong>{card.title}</strong>
-            <p>{card.body}</p>
-            <Link className="public-secondary" href={card.href}>{index === 2 ? text.create : text.open}</Link>
-          </article>
-        ))}
-      </section>
-    </main>
-  </PublicShell>;
+
+  return (
+    <PublicShell active="simulacros" locale={locale}>
+      <main id="public-main" className="public-document-main public-cert-main" tabIndex={-1}>
+        <section className="public-cert-hero" aria-labelledby="simulacros-heading">
+          <p className="public-kicker">{text.kicker}</p>
+          <h1 id="simulacros-heading">{text.title}</h1>
+          <p className="public-document-lead">{text.lead}</p>
+        </section>
+        <section className="public-route-grid" aria-label={text.available}>
+          {text.cards.map((card) => (
+            <article key={card.label}>
+              <header>
+                <span>{card.label}</span>
+                <h2>{card.title}</h2>
+              </header>
+              <p>{card.body}</p>
+              <Link className="public-secondary" href={card.href}>{text.open}<span aria-hidden="true">→</span></Link>
+            </article>
+          ))}
+        </section>
+        <p className="public-trust">{text.privacyNote}</p>
+      </main>
+    </PublicShell>
+  );
 }

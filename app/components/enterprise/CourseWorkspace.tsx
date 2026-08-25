@@ -8,7 +8,6 @@ import {
   useEffect,
   useRef,
   useState,
-  type KeyboardEvent,
 } from "react";
 import type { PublicModule } from "../../enterprise/curriculum";
 import type { CommunityResourceRecommendationPublic, NotebookPreviewPayload } from "../../enterprise/contracts";
@@ -20,7 +19,6 @@ import { localizeReviewDate } from "../../i18n/curriculum";
 import type { Locale } from "../../i18n/config";
 
 type CourseSection = "lessons" | "lab" | "quiz" | "resources";
-const COURSE_SECTIONS: CourseSection[] = ["lessons", "lab", "quiz", "resources"];
 
 const sectionLabel: Record<Locale, Record<CourseSection, string>> = {
   es: {
@@ -290,11 +288,15 @@ export default function CourseWorkspace({
   const [previewLoading, setPreviewLoading] = useState(false);
   const [previewError, setPreviewError] = useState("");
   const [viewerOpen, setViewerOpen] = useState(false);
-  const tabRefs = useRef<Array<HTMLButtonElement | null>>([]);
+  const [contentsOpen, setContentsOpen] = useState(false);
   const previewRequestRef = useRef<AbortController | null>(null);
   const viewerRef = useRef<HTMLDialogElement | null>(null);
   const viewerCloseRef = useRef<HTMLButtonElement | null>(null);
   const viewerOpenerRef = useRef<HTMLElement | null>(null);
+  const contentsRef = useRef<HTMLDialogElement | null>(null);
+  const contentsCloseRef = useRef<HTMLButtonElement | null>(null);
+  const contentsOpenerRef = useRef<HTMLButtonElement | null>(null);
+  const contentsTargetRef = useRef<string | null>(null);
   const courseReady = personalized ? Boolean(!state.loading && state.dashboard) : true;
   const readOnly = !personalized;
 
@@ -324,8 +326,6 @@ export default function CourseWorkspace({
   const completedLessons = new Set(progress?.completedLessonIds ?? []);
   const moduleIndex =
     state.dashboard?.modules.findIndex((item) => item.id === module.id) ?? -1;
-  const previous =
-    moduleIndex > 0 ? state.dashboard?.modules[moduleIndex - 1] : navigation?.previous ?? null;
   const next =
     moduleIndex >= 0 ? state.dashboard?.modules[moduleIndex + 1] : navigation?.next ?? null;
   const selectedResource = module.communityResources.find((item) => item.id === selectedResourceId) ?? module.communityResources[0] ?? null;
@@ -396,6 +396,8 @@ export default function CourseWorkspace({
             target.open = true;
             requestAnimationFrame(() => {
               const conceptTarget = requestedConcept ? document.getElementById(requestedConcept) : null;
+              const conceptDisclosure = conceptTarget?.closest<HTMLDetailsElement>("details");
+              if (conceptDisclosure) conceptDisclosure.open = true;
               const focusTarget = conceptTarget ?? target.querySelector<HTMLElement>("summary");
               focusTarget?.scrollIntoView({ block: "center" });
               focusTarget?.focus();
@@ -433,6 +435,17 @@ export default function CourseWorkspace({
     }
   }, [viewerOpen]);
 
+  useEffect(() => {
+    const dialog = contentsRef.current;
+    if (!dialog) return;
+    if (contentsOpen && !dialog.open) {
+      dialog.showModal();
+      requestAnimationFrame(() => contentsCloseRef.current?.focus());
+    } else if (!contentsOpen && dialog.open) {
+      dialog.close();
+    }
+  }, [contentsOpen]);
+
   function changeSection(nextSection: CourseSection, focus = true) {
     setSection(nextSection);
     history.replaceState(
@@ -444,6 +457,12 @@ export default function CourseWorkspace({
       requestAnimationFrame(() =>
         document.getElementById(`course-panel-${nextSection}`)?.focus(),
       );
+  }
+
+  function chooseSection(nextSection: Exclude<CourseSection, "lessons">) {
+    contentsTargetRef.current = `course-panel-${nextSection}`;
+    setContentsOpen(false);
+    changeSection(nextSection, false);
   }
 
   function openLesson(lessonId: string) {
@@ -464,24 +483,6 @@ export default function CourseWorkspace({
       target.scrollIntoView({ block: "start", behavior: "smooth" });
       requestAnimationFrame(() => target.querySelector<HTMLElement>("summary")?.focus());
     });
-  }
-
-  function tabKey(event: KeyboardEvent<HTMLButtonElement>, index: number) {
-    if (
-      !(["ArrowLeft", "ArrowRight", "Home", "End"] as string[]).includes(
-        event.key,
-      )
-    )
-      return;
-    event.preventDefault();
-    const target =
-      event.key === "Home"
-        ? 0
-        : event.key === "End"
-          ? COURSE_SECTIONS.length - 1
-          : (index + (event.key === "ArrowRight" ? 1 : -1) + COURSE_SECTIONS.length) % COURSE_SECTIONS.length;
-    tabRefs.current[target]?.focus();
-    changeSection(COURSE_SECTIONS[target], false);
   }
 
   function selectResource(resourceId: string) {
@@ -661,17 +662,20 @@ export default function CourseWorkspace({
   return (
     <div className="ent-course-workspace">
       <article className="ent-course-reader">
-        <nav className="ent-breadcrumbs" aria-label={locale === "en" ? "Breadcrumbs" : "Migas de pan"}>
-          <a href="/ruta">{text.breadcrumbs.route}</a>
-          <a href="/catalogo">{text.breadcrumbs.catalog}</a>
-          <a href={`/curso/${module.slug}`}>{text.breadcrumbs.module(module.number)}</a>
-          {singleLessonMode && initialLessonId ? <span>{text.breadcrumbs.lesson(module.lessons.findIndex((lesson) => lesson.id === initialLessonId) + 1)}</span> : null}
-        </nav>
+        <div className="ent-course-toolbar">
+          <nav className="ent-breadcrumbs" aria-label={locale === "en" ? "Breadcrumbs" : "Migas de pan"}>
+            <a href="/catalogo">{text.breadcrumbs.catalog}</a>
+            <a href={`/curso/${module.slug}`}>{text.breadcrumbs.module(module.number)}</a>
+            {singleLessonMode && initialLessonId ? <span>{text.breadcrumbs.lesson(module.lessons.findIndex((lesson) => lesson.id === initialLessonId) + 1)}</span> : null}
+          </nav>
+          <button ref={contentsOpenerRef} type="button" className="ent-secondary-action ent-course-contents-trigger" aria-haspopup="dialog" aria-controls="module-contents" onClick={() => setContentsOpen(true)}>
+            {locale === "en" ? "Module content" : "Contenido del módulo"}
+          </button>
+        </div>
         {readOnly ? (
           <div className="ent-preview-notice is-public" role="note">
-            {/* Solo crearemos un perfil anónimo */}
-            <div><b>{text.openContentTitle}</b><p>{text.openContentBody}</p></div>
-            <div className="ent-inline-actions"><a className="ent-secondary-action" href="/privacidad">{text.privacyLink}</a><a className={singleLessonMode ? "ent-secondary-action" : "ent-primary-action"} href={`/entrar?return_to=${encodeURIComponent(currentCoursePath)}`}>{text.saveProgressBtn}</a></div>
+            <p>{locale === "en" ? "You can read without creating a workspace. Create one only when you want to save." : "Puedes leer sin crear un espacio. Créalo solo cuando quieras guardar."}</p>
+            <a className="ent-secondary-action" href={`/entrar?return_to=${encodeURIComponent(currentCoursePath)}`}>{text.saveProgressBtn}</a>
           </div>
         ) : null}
         {preview ? (
@@ -687,11 +691,7 @@ export default function CourseWorkspace({
             <p className="ent-kicker">{locale === "en" ? `Lesson ${focusedLesson.index + 1} of ${module.lessons.length}` : `Lección ${focusedLesson.index + 1} de ${module.lessons.length}`}</p>
             <h2>{focusedLesson.lesson.title}</h2>
             <p>{focusedLesson.lesson.summary}</p>
-            <dl>
-              <div><dt>{locale === "en" ? "Duration" : "Duración"}</dt><dd>{text.lessonBrief.duration(focusedLessonMinutes)}</dd></div>
-              <div><dt>{text.lessonBrief.objective}</dt><dd>{focusedLesson.lesson.summary}</dd></div>
-              <div><dt>{locale === "en" ? "Next step" : "Siguiente paso"}</dt><dd>{focusedLesson.index < module.lessons.length - 1 ? (locale === "en" ? "Continue to next lesson" : "Continuar con la siguiente lección") : (locale === "en" ? "Continue to lab" : "Continuar con el laboratorio")}</dd></div>
-            </dl>
+            <p className="ent-lesson-duration">{text.lessonBrief.duration(focusedLessonMinutes)}</p>
           </header>
         ) : (
           <>
@@ -700,40 +700,20 @@ export default function CourseWorkspace({
                 <h2>{module.title}</h2>
                 <p>{module.description}</p>
               </div>
-              {personalized ? <SaveState value={state.saveState} onRetry={state.refresh} /> : <span className="ent-open-source-label">{locale === "en" ? "Public reading" : "Lectura pública"}</span>}
+              {personalized ? <SaveState value={state.saveState} onRetry={state.refresh} locale={locale} /> : <span className="ent-open-source-label">{locale === "en" ? "Public reading" : "Lectura pública"}</span>}
             </header>
-            <div className="ent-course-outcomes">
-              <span>{text.outcomesTitle}</span>
-              <ul>
-                {module.outcomes.map((outcome) => (
-                  <li key={outcome}>{outcome}</li>
-                ))}
-              </ul>
-            </div>
           </>
         )}
-        {singleLessonMode ? (
-          <details className="ent-module-context">
-            <summary>{text.showModuleDetails}</summary>
-            <div>
-              <h3>{module.title}</h3>
-              <p>{module.description}</p>
-              <div className="ent-course-outcomes">
-                <span>{text.outcomesTitle}</span>
-                <ul>
-                  {module.outcomes.map((outcome) => (
-                    <li key={outcome}>{outcome}</li>
-                  ))}
-                </ul>
-              </div>
-            </div>
-          </details>
-        ) : null}
         <details className="ent-editorial-meta">
-          <summary>{text.showSourcesAndReview}</summary>
+          <summary>{locale === "en" ? "Details" : "Detalles"}</summary>
           <div>
-            <h3>{/* Metadatos editoriales */}{text.editorialMetaTitle}</h3>
+            {singleLessonMode ? <><h3>{module.title}</h3><p>{module.description}</p></> : null}
+            <div className="ent-course-outcomes">
+              <span>{text.outcomesTitle}</span>
+              <ul>{module.outcomes.map((outcome) => <li key={outcome}>{outcome}</li>)}</ul>
+            </div>
             <dl>
+              <div><dt>{text.lessonBrief.prereqs}</dt><dd>{module.prerequisites.length ? module.prerequisites.join(", ") : text.lessonBrief.none}</dd></div>
               <div><dt>{text.lastReview}</dt><dd>{module.sources[0]?.reviewedAt ?? "2026-07-22"}</dd></div>
               <div><dt>{text.level}</dt><dd>{module.level}</dd></div>
               <div><dt>{text.relatedPath}</dt><dd>{module.track}</dd></div>
@@ -744,53 +724,12 @@ export default function CourseWorkspace({
             <a href={`https://github.com/jjnv/lakehouse-lab/issues/new?labels=contenido&title=${encodeURIComponent(`Editorial correction: ${module.title}`)}`} rel="noreferrer">{text.reportError}</a>
           </div>
         </details>
-        {!singleLessonMode || section !== "lessons" ? <div
-          className="ent-course-tabs"
-          role="tablist"
-          aria-label={locale === "en" ? "Module activities" : "Actividades del módulo"}
-        >
-          {COURSE_SECTIONS.map(
-            (item, index) => (
-              <button
-                id={`course-tab-${item}`}
-                key={item}
-                ref={(element) => {
-                  tabRefs.current[index] = element;
-                }}
-                type="button"
-                role="tab"
-                aria-selected={section === item}
-                aria-controls={`course-panel-${item}`}
-                tabIndex={section === item ? 0 : -1}
-                onKeyDown={(event) => tabKey(event, index)}
-                onClick={() => changeSection(item)}
-              >
-                {labels[item]}
-                <span>
-                  {item === "lessons"
-                    ? `${completedLessons.size}/5`
-                    : item === "lab"
-                      ? progress?.labAttested
-                        ? "✓"
-                        : "1"
-                      : item === "quiz"
-                        ? progress?.quizBestPercent == null
-                          ? "4"
-                          : `${progress.quizBestPercent}%`
-                        : module.communityResources.length}
-                </span>
-              </button>
-            ),
-          )}
-        </div> : null}
 
         {section === "lessons" ? (
           <section
             id="course-panel-lessons"
-            role="tabpanel"
             tabIndex={-1}
-            aria-labelledby={!singleLessonMode || section !== "lessons" ? "course-tab-lessons" : undefined}
-            aria-label={singleLessonMode ? (locale === "en" ? "Lesson content" : "Contenido de la lección") : undefined}
+            aria-label={singleLessonMode ? (locale === "en" ? "Lesson content" : "Contenido de la lección") : labels.lessons}
             className="ent-lessons-panel"
           >
             {visibleLessons.map(({ lesson, index }) => (
@@ -817,30 +756,9 @@ export default function CourseWorkspace({
                   <i aria-hidden="true">+</i>
                 </summary>
                 <div className="ent-lesson-body">
-                  {singleLessonMode ? (
-                    <details className="ent-lesson-brief">
-                      <summary>{text.lessonBrief.showPrereqs}</summary>
-                      <dl>
-                        <div><dt>{text.lessonBrief.difficulty}</dt><dd>{module.level}</dd></div>
-                        <div><dt>{text.lessonBrief.prereqs}</dt><dd>{module.prerequisites.length ? module.prerequisites.join(", ") : text.lessonBrief.none}</dd></div>
-                      </dl>
-                    </details>
-                  ) : null}
                   {lesson.explanation.map((paragraph) => (
                     <p key={paragraph}>{paragraph}</p>
                   ))}
-                  <section className="ent-mental-model">
-                    <h4>{lesson.deepDive.mentalModel}</h4>
-                    <div>
-                      {lesson.deepDive.concepts.map((concept) => (
-                        <article id={conceptAnchor(lesson.id, concept.term)} key={concept.term} tabIndex={-1}>
-                          <strong>{concept.term}</strong>
-                          <p>{concept.definition}</p>
-                          <small>{concept.whyItMatters}</small>
-                        </article>
-                      ))}
-                    </div>
-                  </section>
                   <section className="ent-code-example">
                     <div>
                       <span>{lesson.example.language}</span>
@@ -851,24 +769,6 @@ export default function CourseWorkspace({
                     </pre>
                     <p>{lesson.example.note}</p>
                   </section>
-                  <div className="ent-learning-notes">
-                    <section>
-                      <h4>{locale === "en" ? "Key points" : "Puntos clave"}</h4>
-                      <ul>
-                        {lesson.keyPoints.map((item) => (
-                          <li key={item}>{item}</li>
-                        ))}
-                      </ul>
-                    </section>
-                    <section>
-                      <h4>{locale === "en" ? "Avoid" : "Evita"}</h4>
-                      <ul>
-                        {lesson.pitfalls.map((item) => (
-                          <li key={item}>{item}</li>
-                        ))}
-                      </ul>
-                    </section>
-                  </div>
                   <section className="ent-recall-card">
                     <div>
                       <h4>{lesson.checkpoint.question}</h4>
@@ -931,6 +831,34 @@ export default function CourseWorkspace({
                       </div>
                     ) : null}
                   </section>
+                  <details className="ent-lesson-disclosure">
+                    <summary>{locale === "en" ? "Go deeper" : "Profundiza"}</summary>
+                    <section className="ent-mental-model">
+                      <h4>{lesson.deepDive.mentalModel}</h4>
+                      <div>
+                        {lesson.deepDive.concepts.map((concept) => (
+                          <article id={conceptAnchor(lesson.id, concept.term)} key={concept.term} tabIndex={-1}>
+                            <strong>{concept.term}</strong>
+                            <p>{concept.definition}</p>
+                            <small>{concept.whyItMatters}</small>
+                          </article>
+                        ))}
+                      </div>
+                    </section>
+                  </details>
+                  <details className="ent-lesson-disclosure">
+                    <summary>{locale === "en" ? "Summary" : "Resumen"}</summary>
+                    <div className="ent-learning-notes">
+                      <section>
+                        <h4>{locale === "en" ? "Key points" : "Puntos clave"}</h4>
+                        <ul>{lesson.keyPoints.map((item) => <li key={item}>{item}</li>)}</ul>
+                      </section>
+                      <section>
+                        <h4>{locale === "en" ? "Avoid" : "Evita"}</h4>
+                        <ul>{lesson.pitfalls.map((item) => <li key={item}>{item}</li>)}</ul>
+                      </section>
+                    </div>
+                  </details>
                   <footer>
                     <span>
                       {completedLessons.has(lesson.id)
@@ -949,7 +877,6 @@ export default function CourseWorkspace({
                       </button>}
                   </footer>
                   <nav className="ent-lesson-navigation" aria-label={locale === "en" ? `Navigation from ${lesson.title}` : `Navegación desde ${lesson.title}`}>
-                    {index > 0 ? <button type="button" className="ent-secondary-action" onClick={() => openLesson(module.lessons[index - 1].id)}>← {module.lessons[index - 1].title}</button> : <span />}
                     {index < module.lessons.length - 1 ? <button type="button" className="ent-secondary-action" onClick={() => openLesson(module.lessons[index + 1].id)}>{module.lessons[index + 1].title} →</button> : <button type="button" className="ent-primary-action" onClick={() => changeSection("lab")}>{text.passToLabBtn} →</button>}
                   </nav>
                 </div>
@@ -961,9 +888,8 @@ export default function CourseWorkspace({
         {section === "lab" ? (
           <section
             id="course-panel-lab"
-            role="tabpanel"
             tabIndex={-1}
-            aria-labelledby="course-tab-lab"
+            aria-label={labels.lab}
             className="ent-lab-panel"
           >
             <div className="ent-lab-brief">
@@ -1054,9 +980,8 @@ export default function CourseWorkspace({
         {section === "quiz" ? (
           <section
             id="course-panel-quiz"
-            role="tabpanel"
             tabIndex={-1}
-            aria-labelledby="course-tab-quiz"
+            aria-label={labels.quiz}
             className="ent-quiz-panel"
           >
             {personalized && state.dashboard ? <AssessmentPanel
@@ -1076,9 +1001,8 @@ export default function CourseWorkspace({
         {section === "resources" ? (
           <section
             id="course-panel-resources"
-            role="tabpanel"
             tabIndex={-1}
-            aria-labelledby="course-tab-resources"
+            aria-label={labels.resources}
             className="ent-community-panel"
           >
             <header className="ent-community-intro">
@@ -1087,7 +1011,7 @@ export default function CourseWorkspace({
                 <h2>{text.resourcesTitle}</h2>
                 <p>{/* Consultarlas no modifica el progreso */}{locale === "en" ? "These recommendations extend the lab. Browsing them does not affect progress or internal quizzes." : "Estas recomendaciones amplían el laboratorio propio. Consultarlas no modifica el progreso ni la evaluación interna."}</p>
               </div>
-              <a href="/catalogo?view=resources">{locale === "en" ? "Explore resources →" : "Explorar recursos →"}</a>
+              <a href="/recursos">{locale === "en" ? "Explore resources →" : "Explorar recursos →"}</a>
             </header>
 
             <div className="ent-community-list">
@@ -1107,26 +1031,27 @@ export default function CourseWorkspace({
                   </div>
                   <h3>{resource.title}</h3>
                   <p>{resource.rationale}</p>
-                  <div className="ent-community-facts">
-                    <span>{resourceDifficultyLabel[resource.difficulty]}</span>
-                    <span>{resource.format}</span>
-                    <span>{resource.languages.join(" · ")}</span>
-                    <span className={resource.licenseStatus === "unknown" ? "is-warning" : ""}>{resource.licenseEvidenceHref ? <a href={resource.licenseEvidenceHref} target="_blank" rel="noreferrer">{resource.license}</a> : resource.licenseStatus === "unknown" ? (locale === "en" ? "Unverified license" : "Licencia no verificada") : resource.license}</span>
-                  </div>
-                  <div className="ent-community-concepts">{resource.concepts.map((concept) => <span key={concept}>{concept}</span>)}</div>
-                  <dl className="ent-community-metadata">
-                    <div><dt>{locale === "en" ? "Compatibility" : "Compatibilidad"}</dt><dd>{resource.runtimeNotes}</dd></div>
-                    <div><dt>{locale === "en" ? "Repository" : "Repositorio"}</dt><dd><a href={resource.repositoryUrl} target="_blank" rel="noreferrer">{resource.repositoryName}</a> · {resource.author}</dd></div>
-                    <div><dt>{locale === "en" ? "Editorial review" : "Revisión editorial"}</dt><dd>{resource.reviewedAt} · commit {resource.upstreamRef?.slice(0, 7)} · <span className="ent-reviewed-path">{resource.sourcePath}</span></dd></div>
-                  </dl>
-                  <details className="ent-community-steps">
-                    <summary>{locale === "en" ? "How to use" : "Cómo usarlo"}</summary>
+                  <details className="ent-community-steps ent-row-details">
+                    <summary>{locale === "en" ? "Details" : "Detalles"}</summary>
+                    <div className="ent-community-facts">
+                      <span>{resourceDifficultyLabel[resource.difficulty]}</span>
+                      <span>{resource.format}</span>
+                      <span>{resource.languages.join(" · ")}</span>
+                      <span className={resource.licenseStatus === "unknown" ? "is-warning" : ""}>{resource.licenseStatus === "unknown" ? (locale === "en" ? "Unverified license" : "Licencia no verificada") : resource.license}</span>
+                    </div>
+                    <div className="ent-community-concepts">{resource.concepts.map((concept) => <span key={concept}>{concept}</span>)}</div>
+                    <dl className="ent-community-metadata">
+                      <div><dt>{locale === "en" ? "Compatibility" : "Compatibilidad"}</dt><dd>{resource.runtimeNotes}</dd></div>
+                      <div><dt>{locale === "en" ? "Repository" : "Repositorio"}</dt><dd>{resource.repositoryName} · {resource.author}</dd></div>
+                      <div><dt>{locale === "en" ? "Editorial review" : "Revisión editorial"}</dt><dd>{resource.reviewedAt} · commit {resource.upstreamRef?.slice(0, 7)} · <span className="ent-reviewed-path">{resource.sourcePath}</span></dd></div>
+                    </dl>
+                    <h4>{locale === "en" ? "How to use" : "Cómo usarlo"}</h4>
                     <ol>{resource.usageInstructions.map((step) => <li key={step}>{step}</li>)}</ol>
+                    <a href={resource.href} target="_blank" rel="noreferrer">{text.viewGitHubSource} <span aria-hidden="true">↗</span></a>
                   </details>
                   <footer>
                     {!resource.previewAvailable ? <span className="ent-preview-unavailable">{resource.previewUnavailableReason ? previewUnavailableLabel[resource.previewUnavailableReason] : (locale === "en" ? "External view" : "Vista externa")}</span> : null}
                     <button type="button" className="ent-primary-action" aria-expanded={viewerOpen && selectedResourceId === resource.id} aria-controls="community-preview" onClick={(event) => openNotebookViewer(resource, event.currentTarget)}>{text.openInternalViewer} <span aria-hidden="true">→</span></button>
-                    <a className="ent-secondary-action" href={resource.href} target="_blank" rel="noreferrer">{text.viewGitHubSource} <span aria-hidden="true">↗</span></a>
                   </footer>
                 </article>
               ))}
@@ -1230,60 +1155,44 @@ export default function CourseWorkspace({
         <p className="ent-course-status" role="status" aria-live="polite">
           {message}
         </p>
-        <footer className="ent-course-footer">
-          {previous ? (
-            <a href={`/curso/${previous.slug}`}>← {previous.short}</a>
-          ) : (
-            <span />
-          )}
-          {next ? (
-            <a href={`/curso/${next.slug}`}>{next.short} →</a>
-          ) : (
-            <a href="/expediente">{locale === "en" ? "Open record →" : "Abrir expediente →"}</a>
-          )}
-        </footer>
       </article>
-      <aside className="ent-course-index" aria-label={locale === "en" ? "Module index" : "Índice del módulo"}>
-        <div>
-          <span>{locale === "en" ? `Module ${module.number}` : `Módulo ${module.number}`}</span>
-          <strong>{readOnly ? (locale === "en" ? "OPEN" : "ABIERTO") : `${unitPercent}%`}</strong>
-        </div>
-        {!readOnly ? <div
-          className="ent-progress"
-          role="progressbar"
-          aria-label={locale === "en" ? "Module progress" : "Progreso del módulo"}
-          aria-valuemin={0}
-          aria-valuemax={100}
-          aria-valuenow={unitPercent}
-        >
-          <i style={{ width: `${unitPercent}%` }} />
-        </div> : null}
-        <nav>
-          {module.lessons.map((lesson, index) => (
-            <a
-              key={lesson.id}
-              href={`/curso/${module.slug}/${lesson.id}`}
-              aria-current={initialLessonId === lesson.id ? "page" : undefined}
-            >
-              <span>{completedLessons.has(lesson.id) ? "✓" : index + 1}</span>
-              {lesson.title}
-            </a>
-          ))}
-          <button type="button" onClick={() => changeSection("lab")}>
-            <span>{progress?.labAttested ? "✓" : "L"}</span>{labels.lab}
-          </button>
-          <button type="button" onClick={() => changeSection("quiz")}>
-            <span>{progress?.quizBestPercent != null ? "✓" : "T"}</span>
-            {labels.quiz}
-          </button>
-          <button type="button" onClick={() => changeSection("resources")}>
-            <span aria-hidden="true">R</span>{labels.resources}
-          </button>
+      <dialog
+        ref={contentsRef}
+        id="module-contents"
+        className="ent-module-contents-dialog"
+        aria-labelledby="module-contents-title"
+        onCancel={(event) => {
+          event.preventDefault();
+          setContentsOpen(false);
+        }}
+        onClose={() => {
+          setContentsOpen(false);
+          requestAnimationFrame(() => {
+            const targetId = contentsTargetRef.current;
+            contentsTargetRef.current = null;
+            if (targetId) document.getElementById(targetId)?.focus();
+            else contentsOpenerRef.current?.focus();
+          });
+        }}
+        onClick={(event) => {
+          if (event.target === event.currentTarget) setContentsOpen(false);
+        }}
+      >
+        <header>
+          <div><small>{locale === "en" ? `Module ${module.number}` : `Módulo ${module.number}`}</small><h2 id="module-contents-title">{locale === "en" ? "Module content" : "Contenido del módulo"}</h2></div>
+          <button ref={contentsCloseRef} type="button" onClick={() => setContentsOpen(false)} aria-label={locale === "en" ? "Close module content" : "Cerrar contenido del módulo"}>×</button>
+        </header>
+        {!readOnly ? <div className="ent-progress" role="progressbar" aria-label={locale === "en" ? "Module progress" : "Progreso del módulo"} aria-valuemin={0} aria-valuemax={100} aria-valuenow={unitPercent}><i style={{ width: `${unitPercent}%` }} /></div> : null}
+        <nav aria-label={locale === "en" ? "Lessons and activities" : "Lecciones y actividades"}>
+          <p>{labels.lessons}</p>
+          {module.lessons.map((lesson, index) => <a key={lesson.id} href={`/curso/${module.slug}/${lesson.id}`} aria-current={initialLessonId === lesson.id ? "page" : undefined}><span>{completedLessons.has(lesson.id) ? "✓" : index + 1}</span>{lesson.title}</a>)}
+          <p>{locale === "en" ? "Practice" : "Práctica"}</p>
+          <button type="button" className={section === "lab" ? "is-active" : undefined} onClick={() => chooseSection("lab")}><span>{progress?.labAttested ? "✓" : "L"}</span>{labels.lab}</button>
+          <button type="button" className={section === "quiz" ? "is-active" : undefined} onClick={() => chooseSection("quiz")}><span>{progress?.quizBestPercent != null ? "✓" : "E"}</span>{labels.quiz}</button>
+          <button type="button" className={section === "resources" ? "is-active" : undefined} onClick={() => chooseSection("resources")}><span aria-hidden="true">R</span>{labels.resources}</button>
         </nav>
-        {previous ? (
-          <a href={`/curso/${previous.slug}`}>← {locale === "en" ? "Previous module" : "Módulo anterior"}</a>
-        ) : null}
-      </aside>
+        <footer>{next ? <a href={`/curso/${next.slug}`}>{locale === "en" ? "Next module" : "Módulo siguiente"}: {next.short} →</a> : <a href="/expediente">{locale === "en" ? "Open results" : "Abrir resultados"} →</a>}</footer>
+      </dialog>
     </div>
   );
 }

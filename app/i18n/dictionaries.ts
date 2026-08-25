@@ -23,74 +23,44 @@ export const languageSwitcherText: Record<Locale, {
 
 export const publicShellText: Record<Locale, {
   skip: string;
-  brandTagline: string;
   projectIndependent: string;
   publicNav: string;
   projectInfo: string;
   accountDefault: string;
-  progress: string;
   footerDisclaimer: string;
   links: {
-    route: string;
-    catalog: string;
-    simulators: string;
-    resources: string;
     glossary: string;
     methodology: string;
-    changelog: string;
-    about: string;
-    recovery: string;
     privacy: string;
     terms: string;
-    github: string;
   };
 }> = {
   es: {
     skip: "Saltar al contenido",
-    brandTagline: "Ingeniería de datos con Databricks",
     projectIndependent: "Proyecto independiente",
     publicNav: "Navegación pública",
     projectInfo: "Información del proyecto",
     accountDefault: "Entrar",
-    progress: "Mi progreso",
     footerDisclaimer: "Proyecto personal e independiente. No está afiliado, patrocinado ni avalado por Databricks.",
     links: {
-      route: "Ruta",
-      catalog: "Temario",
-      simulators: "Simulacros",
-      resources: "Recursos",
       glossary: "Glosario",
       methodology: "Metodología",
-      changelog: "Changelog",
-      about: "Acerca del proyecto",
-      recovery: "Recuperar espacio",
       privacy: "Privacidad",
       terms: "Términos",
-      github: "Código en GitHub",
     },
   },
   en: {
     skip: "Skip to content",
-    brandTagline: "Data engineering with Databricks",
     projectIndependent: "Independent project",
     publicNav: "Public navigation",
     projectInfo: "Project information",
     accountDefault: "Sign in",
-    progress: "My progress",
     footerDisclaimer: "Personal and independent project. It is not affiliated with, sponsored by, or endorsed by Databricks.",
     links: {
-      route: "Path",
-      catalog: "Curriculum",
-      simulators: "Practice exams",
-      resources: "Resources",
       glossary: "Glossary",
       methodology: "Methodology",
-      changelog: "Changelog",
-      about: "About the project",
-      recovery: "Recover workspace",
       privacy: "Privacy",
       terms: "Terms",
-      github: "Code on GitHub",
     },
   },
 };
@@ -101,11 +71,7 @@ export const appShellText: Record<Locale, {
   closeMenu: string;
   mainNav: string;
   brandHome: (productName: string) => string;
-  publicAccess: string;
-  openContent: string;
-  myPreparation: string;
   learning: string;
-  participate: string;
   account: string;
   createWorkspace: string;
   myAccount: string;
@@ -113,27 +79,10 @@ export const appShellText: Record<Locale, {
   project: string;
   about: string;
   privacy: string;
-  publicNoteTitle: string;
-  publicNoteBody: string;
-  privateNoteTitle: string;
-  privateNoteBody: string;
   createWorkspaceAria: string;
-  accountAria: string;
-  saveProgress: string;
   nav: {
     home: string;
-    route: string;
     catalog: string;
-    resources: string;
-    progress: string;
-    simulators: string;
-  };
-  short: {
-    home: string;
-    route: string;
-    catalog: string;
-    resources: string;
-    progress: string;
     simulators: string;
   };
 }> = {
@@ -143,11 +92,7 @@ export const appShellText: Record<Locale, {
     closeMenu: "Cerrar",
     mainNav: "Navegación principal",
     brandHome: (productName) => `${productName}, ir a Inicio`,
-    publicAccess: "Acceso público",
-    openContent: "Contenido abierto",
-    myPreparation: "Mi preparación",
     learning: "Aprendizaje",
-    participate: "Participa",
     account: "Cuenta",
     createWorkspace: "Crear espacio personal",
     myAccount: "Mi cuenta",
@@ -155,15 +100,8 @@ export const appShellText: Record<Locale, {
     project: "Proyecto",
     about: "Acerca de",
     privacy: "Privacidad",
-    publicNoteTitle: "Exploración sin registro",
-    publicNoteBody: "Crea un espacio solo al guardar",
-    privateNoteTitle: "Progreso persistente",
-    privateNoteBody: "Recuperable con tu código privado",
     createWorkspaceAria: "Crear un espacio personal",
-    accountAria: "Abrir mi cuenta",
-    saveProgress: "Guardar progreso",
-    nav: { home: "Inicio", route: "Ruta", catalog: "Temario", resources: "Recursos", progress: "Mi progreso", simulators: "Simulacros" },
-    short: { home: "IN", route: "RU", catalog: "TE", resources: "RC", progress: "MP", simulators: "SI" },
+    nav: { home: "Inicio", catalog: "Temario", simulators: "Simulacros" },
   },
   en: {
     skip: "Skip to content",
@@ -171,11 +109,7 @@ export const appShellText: Record<Locale, {
     closeMenu: "Close",
     mainNav: "Main navigation",
     brandHome: (productName) => `${productName}, go to Home`,
-    publicAccess: "Public access",
-    openContent: "Open content",
-    myPreparation: "My preparation",
     learning: "Learning",
-    participate: "Participate",
     account: "Account",
     createWorkspace: "Create personal workspace",
     myAccount: "My account",
@@ -183,15 +117,8 @@ export const appShellText: Record<Locale, {
     project: "Project",
     about: "About",
     privacy: "Privacy",
-    publicNoteTitle: "Explore without signing in",
-    publicNoteBody: "Create a workspace only when saving",
-    privateNoteTitle: "Persistent progress",
-    privateNoteBody: "Recoverable with your private code",
     createWorkspaceAria: "Create a personal workspace",
-    accountAria: "Open my account",
-    saveProgress: "Save progress",
-    nav: { home: "Home", route: "Path", catalog: "Curriculum", resources: "Resources", progress: "My progress", simulators: "Practice exams" },
-    short: { home: "HM", route: "PT", catalog: "CU", resources: "RS", progress: "MP", simulators: "EX" },
+    nav: { home: "Home", catalog: "Curriculum", simulators: "Practice exams" },
   },
 };
 
@@ -902,4 +829,3 @@ export const glossaryText: Record<Locale, Record<string, any>> = {
     review: "Reviewed",
   },
 };
-

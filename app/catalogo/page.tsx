@@ -4,6 +4,7 @@ import { getOptionalEnterprisePageContext } from "../components/enterprise/getSh
 import { communityResourceCatalog, moduleSummaries } from "../enterprise/curriculum";
 import { getRequestLocale } from "../i18n/server";
 import type { Metadata } from "next";
+import { permanentRedirect } from "next/navigation";
 
 export async function generateMetadata(): Promise<Metadata> {
   const locale = await getRequestLocale();
@@ -23,9 +24,22 @@ export async function generateMetadata(): Promise<Metadata> {
   };
 }
 
-export default async function CatalogoPage() {
+type CatalogSearchParams = Promise<Record<string, string | string[] | undefined>>;
+
+export default async function CatalogoPage({ searchParams }: { searchParams: CatalogSearchParams }) {
+  const requested = await searchParams;
+  const legacyView = Array.isArray(requested.view) ? requested.view[0] : requested.view;
+  if (legacyView === "resources") {
+    const preserved = new URLSearchParams();
+    for (const [key, value] of Object.entries(requested)) {
+      if (key === "view" || value === undefined) continue;
+      if (Array.isArray(value)) value.forEach((item) => preserved.append(key, item));
+      else preserved.set(key, value);
+    }
+    permanentRedirect(`/recursos${preserved.size ? `?${preserved.toString()}` : ""}`);
+  }
   const context = await getOptionalEnterprisePageContext();
   const personalized = Boolean(context.learner);
   const title = context.locale === "en" ? "Curriculum" : "Temario";
-  return <AppShell active="catalog" title={title} brand={context.brand} userDisplayName={context.userDisplayName} locale={context.locale} publicMode={!personalized}><CatalogWorkspace modules={moduleSummaries(context.locale)} resources={communityResourceCatalog(context.locale)} personalized={personalized} locale={context.locale} /></AppShell>;
+  return <AppShell active="catalog" title={title} brand={context.brand} userDisplayName={context.userDisplayName} locale={context.locale} variant={personalized ? "workspace" : "explore"} authenticated={personalized}><CatalogWorkspace modules={moduleSummaries(context.locale)} resources={communityResourceCatalog(context.locale)} surface="modules" personalized={personalized} locale={context.locale} /></AppShell>;
 }

@@ -58,6 +58,7 @@ const associateModuleIds = modules.slice(0, 12).map((module) => module.id);
 const professionalModuleIds = modules.map((module) => module.id);
 const streamingModuleIds = modules.filter((module) => module.track === "streaming").map((module) => module.id);
 const labModuleIds = modules.map((module) => module.id);
+const firstLabHref = `/curso/${modules[0].slug}?section=lab`;
 
 export const learningPathProfiles: LearningPathProfile[] = [
   profile({
@@ -76,7 +77,7 @@ export const learningPathProfiles: LearningPathProfile[] = [
     id: "professional",
     title: "Preparar Data Engineer Professional",
     shortTitle: "Professional",
-    href: "/catalogo?level=professional",
+    href: "/catalogo",
     cta: "Ver itinerario completo",
     forWhom: "Data engineers con fundamentos Associate que necesitan practicar decisiones de producción.",
     prerequisites: "Base lakehouse, Spark/SQL y experiencia leyendo pipelines o notebooks de datos.",
@@ -112,8 +113,8 @@ export const learningPathProfiles: LearningPathProfile[] = [
     id: "laboratorios",
     title: "Practicar con laboratorios",
     shortTitle: "Laboratorios",
-    href: "/recursos",
-    cta: "Abrir recursos prácticos",
+    href: firstLabHref,
+    cta: "Abrir el primer laboratorio",
     forWhom: "Personas que aprenden mejor ejecutando, comparando evidencia y revisando notebooks.",
     prerequisites: "Acceso a Databricks Free Edition o a un workspace aislado cuando el laboratorio lo requiera.",
     objective: "Recorrer prácticas guiadas con starter code, checks, evidencia esperada y recursos complementarios.",

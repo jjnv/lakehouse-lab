@@ -1,7 +1,8 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { ApiErrorBody, LearnerDashboard } from "../../enterprise/contracts";
+import type { SaveStateValue } from "./SaveState";
 
 const LEGACY_PROGRESS_KEY = "lakehouse-lab-progress-v2";
 const MIGRATION_MARKER_KEY = "lakehouse-lab-enterprise-imported";
@@ -112,8 +113,25 @@ export function useDashboard(enabled = true) {
   const [dashboard, setDashboard] = useState<LearnerDashboard | null>(null);
   const [loading, setLoading] = useState(enabled);
   const [error, setError] = useState<string | null>(null);
-  const [saveState, setSaveState] = useState<"saved" | "saving" | "offline" | "error">("saved");
+  const [saveState, setSaveStateValue] = useState<SaveStateValue>("idle");
+  const savedTimerRef = useRef<number | null>(null);
   const [legacyDismissed, setLegacyDismissed] = useState(false);
+
+  const setSaveState = useCallback((next: SaveStateValue) => {
+    if (savedTimerRef.current !== null) window.clearTimeout(savedTimerRef.current);
+    savedTimerRef.current = null;
+    setSaveStateValue(next);
+    if (next === "saved") {
+      savedTimerRef.current = window.setTimeout(() => {
+        savedTimerRef.current = null;
+        setSaveStateValue("idle");
+      }, 3_000);
+    }
+  }, []);
+
+  useEffect(() => () => {
+    if (savedTimerRef.current !== null) window.clearTimeout(savedTimerRef.current);
+  }, []);
 
   const refresh = useCallback(async () => {
     if (!enabled) {
@@ -125,14 +143,14 @@ export function useDashboard(enabled = true) {
     try {
       const response = await fetch("/api/me/dashboard", { cache: "no-store", headers: { accept: "application/json" } });
       setDashboard(await readJson<LearnerDashboard>(response));
-      setSaveState("saved");
+      setSaveStateValue((current) => current === "saved" ? current : "idle");
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : "No se pudo cargar tu aprendizaje.");
       setSaveState(navigator.onLine ? "error" : "offline");
     } finally {
       setLoading(false);
     }
-  }, [enabled]);
+  }, [enabled, setSaveState]);
 
   useEffect(() => {
     if (!enabled) return;
@@ -141,12 +159,12 @@ export function useDashboard(enabled = true) {
   }, [enabled, refresh]);
   useEffect(() => {
     if (!enabled) return;
-    const online = () => { setSaveState("saved"); void refresh(); };
+    const online = () => { setSaveState("idle"); void refresh(); };
     const offline = () => setSaveState("offline");
     window.addEventListener("online", online);
     window.addEventListener("offline", offline);
     return () => { window.removeEventListener("online", online); window.removeEventListener("offline", offline); };
-  }, [enabled, refresh]);
+  }, [enabled, refresh, setSaveState]);
 
   const legacyCandidate = useMemo(
     () => dashboard && !legacyDismissed ? readLegacyCandidate(dashboard) : null,
@@ -173,9 +191,9 @@ export function useDashboard(enabled = true) {
       await refresh();
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : "No se pudo importar el progreso.");
-      setSaveState("error");
+      setSaveState(navigator.onLine ? "error" : "offline");
     }
-  }, [dashboard, refresh]);
+  }, [dashboard, refresh, setSaveState]);
 
   const dismissLegacy = useCallback(() => {
     setLegacyDismissed(true);

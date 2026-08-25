@@ -8,6 +8,7 @@ import type {
 import type { AssessmentAttemptPublic } from "../../enterprise/contracts";
 import { assessmentPanelText } from "../../i18n/dictionaries";
 import type { Locale } from "../../i18n/config";
+import type { SaveStateValue } from "./SaveState";
 
 type AssessmentResultView = {
   scorePercent: number;
@@ -38,7 +39,7 @@ type Props = {
   title: string;
   bestScore: number | null;
   disabled?: boolean;
-  onState: (state: "saved" | "saving" | "offline" | "error") => void;
+  onState: (state: Exclude<SaveStateValue, "idle">) => void;
   onCompleted: () => Promise<void> | void;
   locale?: Locale;
 };
@@ -84,6 +85,7 @@ export default function AssessmentPanel({
   const [result, setResult] = useState<AssessmentResultView | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [page, setPage] = useState(0);
+  const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
   const [secondsLeft, setSecondsLeft] = useState<number | null>(null);
   const [warning, setWarning] = useState("");
   const [recovering, setRecovering] = useState(true);
@@ -102,7 +104,9 @@ export default function AssessmentPanel({
     const storageKey = `lakehouse-assessment:${next.id}`;
     const savedPage = Number(window.sessionStorage.getItem(`${storageKey}:page`) ?? 0);
     const maximumPage = Math.max(0, Math.ceil(next.assessment.questions.length / pageSize) - 1);
-    setPage(Number.isInteger(savedPage) && savedPage >= 0 ? Math.min(savedPage, maximumPage) : 0);
+    const restoredPage = Number.isInteger(savedPage) && savedPage >= 0 ? Math.min(savedPage, maximumPage) : 0;
+    setPage(restoredPage);
+    setCurrentQuestionIndex(restoredPage * pageSize);
     try {
       const savedMarked = JSON.parse(window.sessionStorage.getItem(`${storageKey}:marked`) ?? "[]");
       setMarked(Array.isArray(savedMarked) ? savedMarked.filter((item): item is string => typeof item === "string") : []);
@@ -164,6 +168,7 @@ export default function AssessmentPanel({
       restoreAttempt(next);
       setResult(null);
       setPage(0);
+      setCurrentQuestionIndex(0);
       setReviewing(false);
       onState("saved");
     } catch (caught) {
@@ -273,6 +278,16 @@ export default function AssessmentPanel({
       ? text.untimedText
       : `${String(Math.floor(secondsLeft / 60)).padStart(2, "0")}:${String(secondsLeft % 60).padStart(2, "0")}`;
 
+  function goToQuestion(index: number) {
+    if (!attempt || !questions[index]) return;
+    const nextPage = Math.floor(index / pageSize);
+    setCurrentQuestionIndex(index);
+    setPage(nextPage);
+    setReviewing(false);
+    window.sessionStorage.setItem(`lakehouse-assessment:${attempt.id}:page`, String(nextPage));
+    requestAnimationFrame(() => document.getElementById(`assessment-question-${questions[index].id}`)?.focus());
+  }
+
   if (recovering) return <div className="ent-state-card" role="status"><span className="ent-spinner" aria-hidden="true" /><div><strong>{text.recoveringTitle}</strong><p>{text.recoveringBody}</p></div></div>;
 
   if (!attempt)
@@ -366,15 +381,11 @@ export default function AssessmentPanel({
       </p>
       <nav className="ent-question-map" aria-label={text.questionMapLabel /* Mapa de preguntas */}>
         {questions.map((question, index) => {
-          const current = Math.floor(index / pageSize) === page;
+          const current = index === currentQuestionIndex;
           const answered = Boolean(selections[question.id]);
           const isMarked = marked.includes(question.id);
           return <button key={question.id} type="button" className={`${answered ? "is-answered" : ""} ${isMarked ? "is-marked" : ""}`} aria-current={current ? "step" : undefined} aria-label={text.questionAria(index + 1, answered, isMarked)} onClick={() => {
-            const nextPage = Math.floor(index / pageSize);
-            setPage(nextPage);
-            window.sessionStorage.setItem(`lakehouse-assessment:${attempt.id}:page`, String(nextPage));
-            setReviewing(false);
-            requestAnimationFrame(() => document.getElementById("assessment-heading")?.focus());
+            goToQuestion(index);
           }}>{index + 1}</button>;
         })}
       </nav>
@@ -383,18 +394,15 @@ export default function AssessmentPanel({
         <h3 id="assessment-review-heading">{text.reviewTitle}</h3>
         <p>{text.reviewDesc(Object.keys(selections).length, questions.length, marked.length)}</p>
         <ul>{questions.map((question, index) => <li key={question.id}><button type="button" onClick={() => {
-          const nextPage = Math.floor(index / pageSize);
-          setPage(nextPage);
-          setReviewing(false);
-          requestAnimationFrame(() => document.getElementById("assessment-heading")?.focus());
+          goToQuestion(index);
         }}><span>{index + 1}</span><b>{selections[question.id] ? text.reviewAnswered : text.reviewPending}</b>{marked.includes(question.id) ? <small>{text.reviewMarked}</small> : null}</button></li>)}</ul>
-        <div className="ent-form-actions"><button type="button" className="ent-secondary-action" onClick={() => setReviewing(false)}>{text.backToAttempt}</button><button type="button" className="ent-primary-action" disabled={!complete} onClick={() => void submit()}>{text.confirmSubmit /* Confirmar entrega */}</button></div>
+        <div className="ent-form-actions"><button type="button" className="ent-secondary-action" onClick={() => goToQuestion(currentQuestionIndex)}>{text.backToAttempt}</button><button type="button" className="ent-primary-action" disabled={!complete} onClick={() => void submit()}>{text.confirmSubmit /* Confirmar entrega */}</button></div>
       </section> : <div className="ent-question-list">
         {visible.map((question, index) => {
           const correction = correctionMap.get(question.id);
           return (
             <fieldset key={question.id}>
-              <legend>
+              <legend id={`assessment-question-${question.id}`} tabIndex={-1}>
                 <span>
                   {String(page * pageSize + index + 1).padStart(2, "0")}
                 </span>
@@ -420,6 +428,7 @@ export default function AssessmentPanel({
                         name={question.id}
                         checked={selected}
                         disabled={Boolean(result)}
+                        onFocus={() => setCurrentQuestionIndex(page * pageSize + index)}
                         onChange={() => void select(question.id, option.id)}
                       />
                       <span aria-hidden="true">
@@ -462,13 +471,7 @@ export default function AssessmentPanel({
           className="ent-secondary-action"
           disabled={page === 0}
           onClick={() => {
-            setReviewing(false);
-            setPage((value) => {
-              const next = Math.max(0, value - 1);
-              window.sessionStorage.setItem(`lakehouse-assessment:${attempt.id}:page`, String(next));
-              return next;
-            });
-            document.getElementById("assessment-heading")?.focus();
+            goToQuestion(Math.max(0, (page - 1) * pageSize));
           }}
         >
           {text.pagePrevious}
@@ -481,13 +484,7 @@ export default function AssessmentPanel({
             type="button"
             className="ent-primary-action"
             onClick={() => {
-              setReviewing(false);
-              setPage((value) => {
-                const next = Math.min(pages - 1, value + 1);
-                window.sessionStorage.setItem(`lakehouse-assessment:${attempt.id}:page`, String(next));
-                return next;
-              });
-              document.getElementById("assessment-heading")?.focus();
+              goToQuestion(Math.min(questions.length - 1, (page + 1) * pageSize));
             }}
           >
             {text.pageNext}
@@ -538,6 +535,8 @@ export default function AssessmentPanel({
                 setWarning("");
                 setMarked([]);
                 setReviewing(false);
+                setPage(0);
+                setCurrentQuestionIndex(0);
               }}
             >
               {text.newAttemptBtn}

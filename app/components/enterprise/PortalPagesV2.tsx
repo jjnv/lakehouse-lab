@@ -6,6 +6,7 @@ import type { LearnerDashboard, ModuleSummary } from "../../enterprise/contracts
 import { SaveState, useDashboard } from "./useDashboard";
 import { portalPagesText } from "../../i18n/dictionaries";
 import type { Locale } from "../../i18n/config";
+import type { SaveStateValue } from "./SaveState";
 
 function LoadingState({ locale = "es" }: { locale?: Locale }) {
   const text = portalPagesText[locale] ?? portalPagesText.es;
@@ -44,7 +45,7 @@ function LegacyImportCard({ dashboard, candidate, onImport, onDismiss, locale = 
   return <section className="ent-import-card" aria-labelledby="legacy-import-heading">
     <div><h2 id="legacy-import-heading">{text.legacyTitle}</h2><p>{text.legacyDesc}</p></div>
     <div className="ent-import-comparison" role="group" aria-label="Comparación del progreso">
-      <article><span>{text.legacyYourSpace}</span><strong>{serverLessons} {locale === "en" ? "lessons" : "lecciones"}</strong><small>{serverLabs} {locale === "en" ? "labs" : "laboratorios"} · {locale === "en" ? "rev" : "revisión"} {dashboard.revision.value}</small></article>
+      <article><span>{text.legacyYourSpace}</span><strong>{serverLessons} {locale === "en" ? "lessons" : "lecciones"}</strong><small>{serverLabs} {locale === "en" ? "labs" : "laboratorios"}</small></article>
       <span aria-hidden="true">→</span>
       <article><span>{text.legacyThisBrowser}</span><strong>{candidate.summary.lessons} {locale === "en" ? "lessons" : "lecciones"}</strong><small>{candidate.summary.labs} {locale === "en" ? "labs" : "laboratorios"} · {candidate.summary.quizzes} tests</small></article>
     </div>
@@ -56,7 +57,7 @@ function LegacyImportCard({ dashboard, candidate, onImport, onDismiss, locale = 
 function PreferencesForm({ dashboard, refresh, setSaveState, mode = "onboarding", locale = "es" }: {
   dashboard: LearnerDashboard;
   refresh: () => Promise<void>;
-  setSaveState: (state: "saved" | "saving" | "offline" | "error") => void;
+  setSaveState: (state: Exclude<SaveStateValue, "idle">) => void;
   mode?: "onboarding" | "settings";
   locale?: Locale;
 }) {
@@ -101,7 +102,7 @@ function PreferencesForm({ dashboard, refresh, setSaveState, mode = "onboarding"
       ["topics", text.prefTopicsLabel, text.prefTopicsDesc],
     ].map(([value, label, description]) => <label key={value}><input type="radio" name={`${mode}-goal`} value={value} checked={goal === value} onChange={() => setGoal(value as typeof goal)} /><span><b>{label}</b><small>{description}</small></span></label>)}</div></fieldset>
     {message ? <p className="ent-form-status" role="status">{message}</p> : null}
-    <div className="ent-form-actions"><a className="ent-secondary-action" href="/catalogo">{text.prefExplore}</a><button type="button" className="ent-primary-action" disabled={pending} onClick={() => void savePreferences()}>{pending ? text.prefSaving : mode === "onboarding" ? text.prefOnboardingSave : text.prefSettingsSave}</button></div>
+    <div className="ent-form-actions">{mode === "onboarding" ? <a className="ent-secondary-action" href="/catalogo">{text.prefExplore}</a> : null}<button type="button" className="ent-primary-action" disabled={pending} onClick={() => void savePreferences()}>{pending ? text.prefSaving : mode === "onboarding" ? text.prefOnboardingSave : text.prefSettingsSave}</button></div>
   </section>;
 }
 
@@ -113,6 +114,9 @@ export function EmployeeHomeV2({ locale = "es" }: { locale?: Locale }) {
   const dashboard = state.dashboard;
   const percent = totalProgress(dashboard);
   const goalLabel = dashboard.preferences.goal === "associate" ? "Associate" : dashboard.preferences.goal === "professional" ? "Professional" : (locale === "en" ? "by topic" : "por temas");
+  const firstReview = dashboard.reviews[0];
+  const reviewModule = firstReview ? dashboard.modules.find((module) => module.id === firstReview.moduleId) : null;
+  const reviewHref = firstReview && reviewModule ? `/curso/${reviewModule.slug}?lesson=${firstReview.lessonId}&review=1` : "/mi-aprendizaje#repasos";
 
   if (!dashboard.preferences.onboardingCompleted && state.legacyCandidate) {
     return <div className="ent-page-stack"><LegacyImportCard dashboard={dashboard} candidate={state.legacyCandidate} onImport={() => void state.importLegacy(state.legacyCandidate!)} onDismiss={state.dismissLegacy} locale={locale} /></div>;
@@ -127,7 +131,7 @@ export function EmployeeHomeV2({ locale = "es" }: { locale?: Locale }) {
 
     <section className="ent-page-intro ent-page-intro-home" aria-labelledby="home-heading">
       <div><h2 id="home-heading">{text.homeGreeting(dashboard.learner.displayName.split(" ")[0], goalLabel)}</h2></div>
-      <SaveState value={state.saveState} onRetry={state.refresh} />
+      <SaveState value={state.saveState} onRetry={state.refresh} locale={locale} />
     </section>
 
     <section className="ent-focus-layout" aria-label={locale === "en" ? "Learning priority" : "Prioridad de aprendizaje"}>
@@ -136,16 +140,13 @@ export function EmployeeHomeV2({ locale = "es" }: { locale?: Locale }) {
         <h3>{dashboard.nextActivity.label}</h3>
         <a className="ent-primary-action" href={dashboard.nextActivity.href}>{text.homeContinue} <span aria-hidden="true">→</span></a>
       </article>
-      <aside className="ent-week-card" aria-label={text.homeSimulatorsTitle}>
-        <div><span>{text.homeSimulatorsTitle}</span><strong>{dashboard.bestSimulatorScores.associate === null ? text.homeAssociatePending : `Associate ${dashboard.bestSimulatorScores.associate}%`}</strong><small>{dashboard.bestSimulatorScores.professional === null ? text.homeProPending : `Professional ${dashboard.bestSimulatorScores.professional}%`}</small></div>
-        <ProgressBar value={Math.min(100, Math.round(((dashboard.bestSimulatorScores.associate ?? 0) + (dashboard.bestSimulatorScores.professional ?? 0)) / 2))} label={locale === "en" ? "Practice exam score progress" : "Progreso de resultados de simulacro"} />
+      <aside className="ent-week-card" aria-label={text.homePendingReviews}>
+        <div><span>{text.homePendingReviews}</span><strong>{dashboard.reviews.length || text.reviewsAllUpToDate}</strong><small>{firstReview ? text.reviewsInterval(firstReview.intervalDays, firstReview.dueOn) : text.reviewsEmptyText}</small></div>
+        {firstReview ? <a className="ent-secondary-action" href={reviewHref}>{text.reviewsButton}</a> : null}
       </aside>
     </section>
 
-    <section className="ent-overview-grid" aria-label={locale === "en" ? "Path status" : "Estado de la ruta"}>
-      <article><span>{text.homeOverviewCompleted}</span><strong>{percent}%</strong><ProgressBar value={percent} label={locale === "en" ? "Total path progress" : "Progreso total de la ruta"} /></article>
-      <article><span>{text.homePendingReviews}</span><strong>{dashboard.reviews.length}</strong><a href="/mi-aprendizaje#repasos">{text.homeOpenQueue}</a></article>
-    </section>
+    <section className="ent-route-banner" aria-label={locale === "en" ? "Path progress" : "Progreso de la ruta"}><div><span>{text.homeOverviewCompleted}</span><strong>{percent}%</strong></div><ProgressBar value={percent} label={locale === "en" ? "Total path progress" : "Progreso total de la ruta"} /></section>
   </div>;
 }
 
@@ -156,19 +157,22 @@ export function MyLearningV2({ locale = "es" }: { locale?: Locale }) {
   if (!state.dashboard) return <ErrorState message={state.error ?? (locale === "en" ? "Try again." : "Inténtalo de nuevo.")} retry={state.refresh} locale={locale} />;
   const dashboard = state.dashboard;
   const phases = [...new Set(dashboard.modules.map((module) => module.phaseId))];
+  const relevantPhaseId = dashboard.modules.find((module) => {
+    const progress = moduleProgress(dashboard, module.id);
+    return progress?.unlocked !== false && !progress?.completed;
+  })?.phaseId ?? phases.at(-1);
 
   return <div className="ent-page-stack">
-    <section className="ent-page-intro" aria-labelledby="learning-heading"><div><h2 id="learning-heading">{text.learningTitle}</h2></div><SaveState value={state.saveState} onRetry={state.refresh} /></section>
-    <section className="ent-route-banner" aria-label={locale === "en" ? "Professional preparation" : "Preparación Professional"}><div><span>{text.learningBannerTitle}</span><strong>{totalProgress(dashboard)}%</strong></div><ProgressBar value={totalProgress(dashboard)} label={locale === "en" ? "Preparation progress" : "Progreso de preparación"} /></section>
+    <section className="ent-page-intro" aria-labelledby="learning-heading"><div><h2 id="learning-heading">{text.learningTitle}</h2></div><SaveState value={state.saveState} onRetry={state.refresh} locale={locale} /></section>
 
     <div className="ent-phase-list">
       {phases.map((phaseId, phaseIndex) => {
         const phaseModules = dashboard.modules.filter((module) => module.phaseId === phaseId);
         const completed = phaseModules.filter((module) => moduleProgress(dashboard, module.id)?.completed).length;
-        return <section key={phaseId} className="ent-phase" aria-labelledby={`phase-${phaseId}`}>
-          <header><span>{String(phaseIndex + 1).padStart(2, "0")}</span><div><h2 id={`phase-${phaseId}`}>{phaseModules[0]?.phase}</h2></div><small>{text.learningModulesCount(completed, phaseModules.length)}</small></header>
+        return <details key={phaseId} name="learning-phases" className="ent-phase" open={phaseId === relevantPhaseId}>
+          <summary className="ent-phase-summary"><span>{String(phaseIndex + 1).padStart(2, "0")}</span><div><h2 id={`phase-${phaseId}`}>{phaseModules[0]?.phase}</h2></div><small>{text.learningModulesCount(completed, phaseModules.length)}</small></summary>
           <div className="ent-phase-modules">{phaseModules.map((module) => <ModuleRow key={module.id} module={module} dashboard={dashboard} locale={locale} />)}</div>
-        </section>;
+        </details>;
       })}
     </div>
 
@@ -207,10 +211,17 @@ export function LearningRecordV2({ locale = "es" }: { locale?: Locale }) {
     { label: locale === "en" ? "Professional Practice Exam" : "Simulacro Professional", current: dashboard.bestSimulatorScores.professional ?? 0, required: 80, met: (dashboard.bestSimulatorScores.professional ?? 0) >= 80, href: "/simulacro/professional", suffix: "%" },
     { label: "Capstone", current: capstoneComplete ? 1 : 0, required: 1, met: capstoneComplete, href: dashboard.modules.find((item) => item.id === "m32") ? `/curso/${dashboard.modules.find((item) => item.id === "m32")!.slug}` : "/mi-aprendizaje", text: capstoneComplete ? (locale === "en" ? "Completed" : "Completado") : (locale === "en" ? "Pending" : "Pendiente") },
   ];
+  const nextRequirement = credentialCriteria.find((criterion) => !criterion.met);
+  const completedCriteria = credentialCriteria.filter((criterion) => criterion.met).length;
+  const credentialCard = <section className="ent-credential-card" aria-labelledby="credential-heading"><div><h2 id="credential-heading">{dashboard.credential ? text.recordCredentialTitleIssued : text.recordCredentialTitleReq}</h2><p>{dashboard.credential ? text.recordCredentialIssuedOn(new Intl.DateTimeFormat(locale === "en" ? "en-US" : "es-ES", { dateStyle: "long" }).format(new Date(dashboard.credential.issuedAt))) : text.recordCredentialReqDesc}</p></div>{dashboard.credential ? <div><a className="ent-primary-action" href={dashboard.credential.pdfHref}>{text.recordDownloadPdf}</a><a href={dashboard.credential.verificationHref}>{text.recordPublicVerification}</a></div> : <ul className="ent-credential-checklist">{credentialCriteria.map((criterion) => <li key={criterion.label} className={criterion.met ? "is-complete" : ""}><span aria-hidden="true">{criterion.met ? "✓" : "○"}</span><div><b>{criterion.label}</b><small>{criterion.text ?? `${criterion.current}${criterion.suffix ?? ""} ${locale === "en" ? "of" : "de"} ${criterion.required}${criterion.suffix ?? ""}`}</small></div><a href={criterion.href}>{criterion.met ? (locale === "en" ? "Review" : "Revisar") : (locale === "en" ? "Continue" : "Continuar")}</a></li>)}</ul>}<small>{text.recordDisclaimer}</small></section>;
   return <div className="ent-page-stack">
-    <section className="ent-page-intro" aria-labelledby="record-heading"><div><h2 id="record-heading">{text.recordTitle}</h2></div><SaveState value={state.saveState} onRetry={state.refresh} /></section>
-    <section className="ent-credential-card" aria-labelledby="credential-heading"><div><h2 id="credential-heading">{dashboard.credential ? text.recordCredentialTitleIssued : text.recordCredentialTitleReq}</h2><p>{dashboard.credential ? text.recordCredentialIssuedOn(new Intl.DateTimeFormat(locale === "en" ? "en-US" : "es-ES", { dateStyle: "long" }).format(new Date(dashboard.credential.issuedAt))) : text.recordCredentialReqDesc}</p></div>{dashboard.credential ? <div><a className="ent-primary-action" href={dashboard.credential.pdfHref}>{text.recordDownloadPdf}</a><a href={dashboard.credential.verificationHref}>{text.recordPublicVerification}</a></div> : <ul className="ent-credential-checklist">{credentialCriteria.map((criterion) => <li key={criterion.label} className={criterion.met ? "is-complete" : ""}><span aria-hidden="true">{criterion.met ? "✓" : "○"}</span><div><b>{criterion.label}</b><small>{criterion.text ?? `${criterion.current}${criterion.suffix ?? ""} ${locale === "en" ? "of" : "de"} ${criterion.required}${criterion.suffix ?? ""}`}</small></div><a href={criterion.href}>{criterion.met ? (locale === "en" ? "Review" : "Revisar") : (locale === "en" ? "Continue" : "Continuar")}</a></li>)}</ul>}<small>{text.recordDisclaimer}</small></section>
-    <section className="ent-section" aria-labelledby="record-table-heading"><div className="ent-section-heading"><div><h2 id="record-table-heading">{text.recordTableTitle}</h2></div></div>{visible.length ? <div className="ent-table-wrap" tabIndex={0} aria-label={locale === "en" ? "Scrollable progress table" : "Tabla de progreso desplazable"}><table className="ent-table"><thead><tr><th>{text.recordColModule}</th><th>{text.recordColStatus}</th><th>{text.recordColLessons}</th><th>{text.recordColLab}</th><th>{text.recordColQuiz}</th><th><span className="sr-only">{text.recordColAction}</span></th></tr></thead><tbody>{visible.map((module) => { const progress = moduleProgress(dashboard, module.id)!; return <tr key={module.id}><td data-label={text.recordColModule}><span>{module.number}</span><b>{module.short}</b></td><td data-label={text.recordColStatus}><span className={`ent-status ${progress.completed ? "is-complete" : "is-progress"}`}>{progress.completed ? text.recordStatusPassed : text.recordStatusInProgress}</span></td><td data-label={text.recordColLessons}>{progress.completedLessonIds.length}/5</td><td data-label={text.recordColLab}>{progress.labAttested ? text.recordLabAttested : text.recordLabPending}</td><td data-label={text.recordColQuiz}>{progress.quizBestPercent === null ? "—" : `${progress.quizBestPercent}%`}</td><td data-label={text.recordColAction}><a href={`/curso/${module.slug}`}>{text.recordOpen}</a></td></tr>; })}</tbody></table></div> : <div className="ent-empty"><strong>{text.recordEmptyTitle}</strong><p>{text.recordEmptyDesc}</p><a href="/curso/data-intelligence-platform-y-arquitectura-lakehouse">{text.recordStart}</a></div>}</section>
+    <section className="ent-page-intro" aria-labelledby="record-heading"><div><h2 id="record-heading">{text.recordTitle}</h2></div><SaveState value={state.saveState} onRetry={state.refresh} locale={locale} /></section>
+    <section className="ent-focus-layout" aria-label={locale === "en" ? "Activity and next requirement" : "Actividad y siguiente requisito"}>
+      <article className="ent-focus-card"><p className="ent-focus-type">{locale === "en" ? "Activity" : "Actividad"}</p><h3>{locale === "en" ? `${visible.length} active modules` : `${visible.length} módulos con actividad`}</h3><p>{locale === "en" ? `${completedModules} modules, ${completedLabs} labs, and ${passedQuizzes} quizzes completed.` : `${completedModules} módulos, ${completedLabs} laboratorios y ${passedQuizzes} evaluaciones superadas.`}</p></article>
+      <aside className="ent-week-card"><div><span>{locale === "en" ? "Next requirement" : "Siguiente requisito"}</span><strong>{nextRequirement?.label ?? (dashboard.credential ? text.recordCredentialTitleIssued : (locale === "en" ? "Requirements complete" : "Requisitos completos"))}</strong>{nextRequirement ? <small>{nextRequirement.text ?? `${nextRequirement.current}${nextRequirement.suffix ?? ""} ${locale === "en" ? "of" : "de"} ${nextRequirement.required}${nextRequirement.suffix ?? ""}`}</small> : null}</div>{nextRequirement ? <a className="ent-secondary-action" href={nextRequirement.href}>{locale === "en" ? "Continue" : "Continuar"}</a> : null}</aside>
+    </section>
+    {dashboard.credential ? credentialCard : <details className="ent-record-disclosure"><summary><strong>{locale === "en" ? "Internal certificate requirements" : "Requisitos de la constancia interna"}</strong><span>{completedCriteria}/{credentialCriteria.length}</span></summary>{credentialCard}</details>}
+    <details className="ent-record-disclosure"><summary><strong>{text.recordTableTitle}</strong><span>{visible.length}</span></summary><section className="ent-section" aria-label={text.recordTableTitle}>{visible.length ? <div className="ent-table-wrap" tabIndex={0} aria-label={locale === "en" ? "Scrollable progress table" : "Tabla de progreso desplazable"}><table className="ent-table"><thead><tr><th>{text.recordColModule}</th><th>{text.recordColStatus}</th><th>{text.recordColLessons}</th><th>{text.recordColLab}</th><th>{text.recordColQuiz}</th><th><span className="sr-only">{text.recordColAction}</span></th></tr></thead><tbody>{visible.map((module) => { const progress = moduleProgress(dashboard, module.id)!; return <tr key={module.id}><td data-label={text.recordColModule}><span>{module.number}</span><b>{module.short}</b></td><td data-label={text.recordColStatus}><span className={`ent-status ${progress.completed ? "is-complete" : "is-progress"}`}>{progress.completed ? text.recordStatusPassed : text.recordStatusInProgress}</span></td><td data-label={text.recordColLessons}>{progress.completedLessonIds.length}/5</td><td data-label={text.recordColLab}>{progress.labAttested ? text.recordLabAttested : text.recordLabPending}</td><td data-label={text.recordColQuiz}>{progress.quizBestPercent === null ? "—" : `${progress.quizBestPercent}%`}</td><td data-label={text.recordColAction}><a href={`/curso/${module.slug}`}>{text.recordOpen}</a></td></tr>; })}</tbody></table></div> : <div className="ent-empty"><strong>{text.recordEmptyTitle}</strong><p>{text.recordEmptyDesc}</p><a href="/curso/data-intelligence-platform-y-arquitectura-lakehouse">{text.recordStart}</a></div>}</section></details>
   </div>;
 }
 
@@ -268,7 +279,13 @@ function RecoveryControls({ locale = "es" }: { locale?: Locale }) {
     }
   }
 
-  return <section className="ent-recovery-controls" aria-labelledby="recovery-heading"><div><h2 id="recovery-heading">{text.recoveryTitle}</h2><p>{text.recoveryIntro}</p></div>{recoveryCode ? <div className="ent-recovery-code"><span>{text.recoveryCodeLabel}</span><code>{recoveryCode}</code>{expiresAt ? <small>{text.recoveryValidUntil(new Intl.DateTimeFormat(locale === "en" ? "en-US" : "es-ES", { dateStyle: "long" }).format(new Date(expiresAt)))}</small> : null}<button type="button" className="ent-secondary-action" onClick={() => void navigator.clipboard.writeText(recoveryCode).then(() => setMessage(locale === "en" ? "Code copied." : "Código copiado."))}>{text.recoveryCopyBtn}</button></div> : null}<div className="ent-form-actions"><a className="ent-secondary-action" href="/recuperar">{text.recoveryAlreadyHave}</a><button type="button" className="ent-secondary-action" disabled={pending !== null} onClick={() => void issueCode()}>{pending === "issue" ? text.recoveryGenerating : recoveryCode ? text.recoveryRotate : text.recoveryGenerate}</button><button type="button" className="ent-secondary-action" disabled={pending !== null} onClick={() => void revokeCode()}>{text.recoveryRevoke}</button><button type="button" className="ent-danger-action" disabled={pending !== null} onClick={() => void closeSession()}>{pending === "logout" ? text.recoveryLoggingOut : text.recoveryLogout}</button></div>{message ? <p className="ent-form-status" role="status">{message}</p> : null}</section>;
+  return <section className="ent-recovery-controls" aria-labelledby="recovery-heading">
+    <p>{text.recoveryIntro}</p>
+    {recoveryCode ? <div className="ent-recovery-code"><span>{text.recoveryCodeLabel}</span><code>{recoveryCode}</code>{expiresAt ? <small>{text.recoveryValidUntil(new Intl.DateTimeFormat(locale === "en" ? "en-US" : "es-ES", { dateStyle: "long" }).format(new Date(expiresAt)))}</small> : null}<button type="button" className="ent-secondary-action" onClick={() => void navigator.clipboard.writeText(recoveryCode).then(() => setMessage(locale === "en" ? "Code copied." : "Código copiado."))}>{text.recoveryCopyBtn}</button></div> : null}
+    <div className="ent-form-actions"><a className="ent-secondary-action" href="/recuperar">{text.recoveryAlreadyHave}</a><button type="button" className="ent-secondary-action" disabled={pending !== null} onClick={() => void issueCode()}>{pending === "issue" ? text.recoveryGenerating : recoveryCode ? text.recoveryRotate : text.recoveryGenerate}</button></div>
+    <details className="ent-settings-advanced"><summary>{locale === "en" ? "Advanced actions" : "Acciones avanzadas"}</summary><div className="ent-form-actions"><button type="button" className="ent-secondary-action" disabled={pending !== null} onClick={() => void revokeCode()}>{text.recoveryRevoke}</button><button type="button" className="ent-danger-action" disabled={pending !== null} onClick={() => void closeSession()}>{pending === "logout" ? text.recoveryLoggingOut : text.recoveryLogout}</button></div></details>
+    {message ? <p className="ent-form-status" role="status">{message}</p> : null}
+  </section>;
 }
 
 export function LearnerSettingsV2({ locale = "es" }: { locale?: Locale }) {
@@ -354,14 +371,10 @@ export function LearnerSettingsV2({ locale = "es" }: { locale?: Locale }) {
   const deleting = deletePending;
   return <>
   <div className="ent-page-stack" inert={confirmDelete ? true : undefined}>
-    <section className="ent-page-intro" aria-labelledby="settings-heading"><div><h2 id="settings-heading">{text.settingsTitle}</h2></div><SaveState value={state.saveState} onRetry={state.refresh} /></section>
-    <section className="ent-settings-grid-v2">
-      <article><h2>{dashboard.learner.displayName}</h2><dl><div><dt>{text.settingsAccount}</dt><dd>{text.settingsAnonymousSession}</dd></div><div><dt>{text.settingsLang}</dt><dd>{locale === "en" ? "English" : "Español"}</dd></div><div><dt>{text.settingsTz}</dt><dd>{dashboard.learner.timezone}</dd></div></dl></article>
-      <article><h2>{text.settingsPrivacyTitle}</h2><p>{text.settingsPrivacyDesc}</p>{dashboard.brand.supportEmail ? <a href={`mailto:${dashboard.brand.supportEmail}`}>{text.settingsSupport}</a> : null}</article>
-    </section>
+    <section className="ent-page-intro" aria-labelledby="settings-heading"><div><h2 id="settings-heading">{text.settingsTitle}</h2></div><SaveState value={state.saveState} onRetry={state.refresh} locale={locale} /></section>
     <PreferencesForm dashboard={dashboard} refresh={state.refresh} setSaveState={state.setSaveState} mode="settings" locale={locale} />
-    <RecoveryControls locale={locale} />
-    <section className="ent-account-actions" aria-labelledby="data-heading"><div><h2 id="data-heading">{text.settingsDataTitle}</h2><p>{text.settingsDataDesc}</p></div><div><a className="ent-secondary-action" href="/api/me/export" download>{text.settingsExport}</a><button ref={deleteTriggerRef} type="button" className="ent-danger-action" aria-haspopup="dialog" onClick={() => { setDeleteError(null); setConfirmDelete(true); }}>{text.settingsDeleteTrigger}</button></div></section>
+    <details className="ent-settings-disclosure"><summary><h2 id="recovery-heading">{text.recoveryTitle}</h2></summary><RecoveryControls locale={locale} /></details>
+    <details className="ent-settings-disclosure"><summary><h2 id="data-heading">{text.settingsDataTitle}</h2></summary><section className="ent-account-actions" aria-labelledby="data-heading"><div><p>{text.settingsDataDesc}</p>{dashboard.brand.supportEmail ? <a href={`mailto:${dashboard.brand.supportEmail}`}>{text.settingsSupport}</a> : null}</div><div><a className="ent-secondary-action" href="/api/me/export" download>{text.settingsExport}</a><details className="ent-settings-advanced"><summary>{locale === "en" ? "Advanced actions" : "Acciones avanzadas"}</summary><button ref={deleteTriggerRef} type="button" className="ent-danger-action" aria-haspopup="dialog" onClick={() => { setDeleteError(null); setConfirmDelete(true); }}>{text.settingsDeleteTrigger}</button></details></div></section></details>
   </div>
   {confirmDelete ? <div className="ent-dialog-layer"><button className="ent-dialog-backdrop" type="button" tabIndex={-1} aria-hidden="true" onClick={closeDeleteDialog} /><section ref={dialogRef} className="ent-dialog" role="alertdialog" aria-modal="true" aria-labelledby="delete-heading" aria-describedby="delete-description" aria-busy={deleting || undefined}><h2 id="delete-heading">{text.settingsDialogTitle}</h2><p id="delete-description">{text.settingsDialogDesc}</p><label htmlFor="delete-confirmation">{text.settingsConfirmLabel}</label><input id="delete-confirmation" value={deleteText} onChange={(event) => setDeleteText(event.target.value)} autoComplete="off" aria-describedby="delete-description" disabled={deleting} />{deleteError ? <p className="ent-form-status" role="alert">{deleteError}</p> : null}<div className="ent-form-actions"><button ref={cancelRef} type="button" className="ent-secondary-action" disabled={deleting} onClick={closeDeleteDialog}>{text.settingsCancel}</button><button type="button" className="ent-danger-action" disabled={deleteText !== "ELIMINAR" || deleting} onClick={() => void deleteProgress()}>{deleting ? text.settingsDeleting : text.settingsDeleteDefinitive}</button></div></section></div> : null}
   </>;

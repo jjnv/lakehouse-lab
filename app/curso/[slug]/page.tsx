@@ -38,6 +38,5 @@ export default async function CursoPage({ params }: { params: Promise<{ slug: st
     next: index >= 0 && index < summaries.length - 1 ? summaries[index + 1] : null,
   };
   const modulePayload = publicModule(courseModule, context.locale);
-  const eyebrow = context.locale === "en" ? `Module ${courseModule.number} · ${modulePayload.level}` : `Módulo ${courseModule.number} · ${modulePayload.level}`;
-  return <AppShell active="learning" eyebrow={eyebrow} title={modulePayload.short} courseMode brand={context.brand} userDisplayName={context.userDisplayName} locale={context.locale} publicMode={!personalized}><CourseWorkspace module={modulePayload} personalized={personalized} navigation={navigation} locale={context.locale} /></AppShell>;
+  return <AppShell active="learning" title={modulePayload.short} variant="course" authenticated={personalized} brand={context.brand} userDisplayName={context.userDisplayName} locale={context.locale}><CourseWorkspace module={modulePayload} personalized={personalized} navigation={navigation} locale={context.locale} /></AppShell>;
 }

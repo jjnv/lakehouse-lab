@@ -58,8 +58,7 @@ export default async function LessonPage({ params }: { params: Promise<{ slug: s
     },
     citation: modulePayload.sources.map(sourceStructuredData),
   };
-  const eyebrow = context.locale === "en" ? `Module ${courseModule.number} · Lesson` : `Módulo ${courseModule.number} · Lección`;
-  return <AppShell active="learning" eyebrow={eyebrow} title={modulePayload.short} courseMode brand={context.brand} userDisplayName={context.userDisplayName} locale={context.locale} publicMode={!personalized}>
+  return <AppShell active="learning" title={modulePayload.short} variant="course" authenticated={personalized} brand={context.brand} userDisplayName={context.userDisplayName} locale={context.locale}>
     <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }} />
     <CourseWorkspace module={modulePayload} personalized={personalized} navigation={navigation} initialLessonId={lessonId} singleLessonMode locale={context.locale} />
   </AppShell>;

@@ -11,9 +11,12 @@ test("learning paths expose functional profile entries and documented duration m
   for (const id of ["associate", "professional", "databricks-cero", "streaming-cdc", "laboratorios"]) {
     assert.match(source, new RegExp(`id: "${id}"`, "u"));
   }
-  for (const href of ["/catalogo?level=associate", "/catalogo?level=professional", "/catalogo?phase=fundamentos", "/catalogo?phase=streaming", "/recursos"]) {
+  for (const href of ["/catalogo?level=associate", "/catalogo", "/catalogo?phase=fundamentos", "/catalogo?phase=streaming"]) {
     assert.ok(source.includes(`href: "${href}"`), `missing functional href ${href}`);
   }
+  assert.match(source, /const firstLabHref = `\/curso\/\$\{modules\[0\]\.slug\}\?section=lab`/u);
+  assert.match(source, /href: firstLabHref/u);
+  assert.doesNotMatch(source, /href: "\/catalogo\?level=professional"/u);
   assert.match(source, /DURATION_METHOD/u);
   assert.match(source, /module\.minutes/u);
   assert.match(source, /labOnlyMinutes/u);
@@ -29,16 +32,18 @@ test("editorial model provides reusable metadata, changelog and issue links", ()
   assert.match(source, /No se declaran revisores externos|revisores externos/u);
 });
 
-test("lesson UX has stable urls, breadcrumbs, editorial metadata and privacy copy", () => {
+test("lesson UX has stable urls, breadcrumbs, progressive details and privacy copy", () => {
   const course = read("app/components/enterprise/CourseWorkspace.tsx");
   const lessonRoute = read("app/curso/[slug]/[lessonId]/page.tsx");
   const search = read("app/enterprise/curriculum.ts");
   assert.match(course, /initialLessonId/u);
   assert.match(course, /singleLessonMode/u);
   assert.match(course, /\/curso\/\$\{module\.slug\}\/\$\{lesson\.id\}/u);
-  assert.match(course, /Metadatos editoriales/u);
-  assert.match(course, /Migas de pan/u);
-  assert.match(course, /Solo crearemos un perfil anónimo/u);
+  assert.match(course, /className="ent-breadcrumbs"/u);
+  assert.match(course, /locale === "en" \? "Breadcrumbs" : "Migas de pan"/u);
+  assert.match(course, /className="ent-editorial-meta"/u);
+  assert.match(course, /<summary>\{locale === "en" \? "Details" : "Detalles"\}<\/summary>/u);
+  assert.match(course, /Puedes leer sin crear un espacio\. Créalo solo cuando quieras guardar\./u);
   assert.match(lessonRoute, /LearningResource/u);
   assert.match(lessonRoute, /application\/ld\+json/u);
   assert.match(search, /\/curso\/\$\{module\.slug\}\/\$\{lesson\.id\}/u);

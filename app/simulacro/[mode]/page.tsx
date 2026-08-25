@@ -33,7 +33,6 @@ const publicSimulatorText: Record<Locale, {
   plan: (label: string) => string;
   conditions: string;
   cards: Array<{ label: string; title: string; body: string }>;
-  eyebrow: string;
   title: (mode: string) => string;
 }> = {
   es: {
@@ -48,7 +47,6 @@ const publicSimulatorText: Record<Locale, {
       { label: "Correccion", title: "Servidor", body: "El intento se guarda con sesion privada y revision por dominio." },
       { label: "Repeticion", title: "Sin limite interno", body: "Puedes practicar de nuevo; el mejor resultado se conserva." },
     ],
-    eyebrow: "Evaluacion interna",
     title: (mode) => `Simulacro ${mode === "associate" ? "Associate" : "Professional"}`,
   },
   en: {
@@ -63,7 +61,6 @@ const publicSimulatorText: Record<Locale, {
       { label: "Scoring", title: "Server-side", body: "The attempt is saved with a private session and reviewed by domain." },
       { label: "Retakes", title: "No internal limit", body: "You can practice again; the best result is preserved." },
     ],
-    eyebrow: "Internal assessment",
     title: (mode) => `${mode === "associate" ? "Associate" : "Professional"} Practice Exam`,
   },
 };
@@ -91,5 +88,5 @@ export default async function SimulacroPage({ params }: { params: Promise<{ mode
       </main>
     </PublicShell>;
   }
-  return <AppShell active="learning" eyebrow={text.eyebrow} title={text.title(mode)} brand={context.brand} userDisplayName={context.userDisplayName} locale={locale}><SimulatorWorkspace mode={mode} locale={locale} /></AppShell>;
+  return <AppShell active="learning" title={text.title(mode)} variant="workspace" authenticated brand={context.brand} userDisplayName={context.userDisplayName} locale={locale}><SimulatorWorkspace mode={mode} locale={locale} /></AppShell>;
 }

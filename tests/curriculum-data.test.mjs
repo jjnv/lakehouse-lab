@@ -415,7 +415,7 @@ test("dependency and enterprise completion gates cannot be bypassed by stale sta
   assert.doesNotMatch(publicQuizProjection, /\banswer\s*:|\bexplanation\s*:/);
   assert.match(pageSource, /getSessionUser\(\)/);
   assert.match(pageSource, /href="\/ruta"/);
-  assert.match(pageSource, /sampleLessonHref/);
+  assert.match(pageSource, /firstLessonHref/);
   assert.doesNotMatch(pageSource, /href="\/demo"/);
   assert.doesNotMatch(courseSource, /function makeQuiz/);
 });

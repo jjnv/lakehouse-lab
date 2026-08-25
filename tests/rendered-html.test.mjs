@@ -61,7 +61,7 @@ test("the compiled client does not contain server-only curriculum banks or answe
 });
 
 test("the compiled UI retains keyboard, announcement and high-contrast affordances", () => {
-  for (const semanticContract of ["tablist", "tabpanel", "progressbar", "aria-live", "ArrowRight", "Escape"]) {
+  for (const semanticContract of ["module-contents", "Lecciones y actividades", "progressbar", "aria-live", "showModal", "Escape"]) {
     assert.ok(clientJavaScript.includes(semanticContract), `compiled interaction is missing ${semanticContract}`);
   }
   assert.match(clientStyles, /\.ent-shell\{/u);
@@ -75,7 +75,7 @@ test("the compiled UI retains keyboard, announcement and high-contrast affordanc
 
 test("the server bundle contains the complete public launch surface", () => {
   for (const contract of [
-    "Domina|Data engineering with Databricks",
+    "Empieza con fundamentos|Start with data engineering fundamentals",
     "Associate",
     "Professional",
     "Simulacros",

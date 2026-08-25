@@ -17,8 +17,8 @@ const routes = [
 ] as const;
 
 const publicRoutes = [
-  { path: "/", heading: "Empieza con fundamentos lakehouse." },
-  { path: "/ruta", heading: "Empieza desde cero si no sabes qué elegir." },
+  { path: "/", heading: "Empieza con fundamentos de ingeniería de datos." },
+  { path: "/ruta", heading: "¿Qué quieres conseguir?" },
   { path: "/metodologia", heading: "Cómo validamos el contenido." },
   { path: "/changelog", heading: "Qué ha cambiado en el contenido." },
   { path: "/acerca-de", heading: "Preparación independiente para Data Engineers." },
@@ -150,6 +150,117 @@ test("la ruta antigua de demo redirige al catálogo abierto", async ({ page }) =
   await expect(page.locator("main#main-content")).toBeVisible();
 });
 
+test("la navegación simplificada mantiene un único destino actual público y privado", async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 1000 });
+  await page.goto("/ruta");
+  const publicNavigation = page.locator(".public-header > nav");
+  await expect(publicNavigation.getByRole("link", { name: "Aprender", exact: true })).toHaveAttribute("aria-current", "page");
+  await expect(publicNavigation.locator('[aria-current="page"]')).toHaveCount(1);
+  await expect(publicNavigation.getByRole("link", { name: "Temario", exact: true })).not.toHaveAttribute("aria-current", "page");
+
+  await page.goto("/mi-aprendizaje");
+  await waitForWorkspace(page);
+  const workspaceNavigation = page.locator('#enterprise-navigation nav[aria-label="Áreas principales"]');
+  await expect(workspaceNavigation.getByRole("link", { name: "Plan", exact: true })).toHaveAttribute("aria-current", "page");
+  await expect(workspaceNavigation.locator('[aria-current="page"]')).toHaveCount(1);
+
+  await page.goto("/recursos");
+  await waitForWorkspace(page);
+  await expect(workspaceNavigation.getByRole("link", { name: "Temario", exact: true })).toHaveAttribute("aria-current", "page");
+  await expect(workspaceNavigation.locator('[aria-current="page"]')).toHaveCount(1);
+});
+
+test("la navegación pública simplificada funciona como diálogo en móvil", async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto("/ruta");
+  const menu = page.getByRole("button", { name: "Menú" });
+  await menu.click();
+  const dialog = page.getByRole("dialog", { name: "Navegación pública" });
+  await expect(dialog).toBeVisible();
+  await expect(dialog.getByRole("link", { name: "Aprender", exact: true })).toHaveAttribute("aria-current", "page");
+  await expect(dialog.locator('[aria-current="page"]')).toHaveCount(1);
+  await page.keyboard.press("Escape");
+  await expect(dialog).toBeHidden();
+  await expect(menu).toBeFocused();
+});
+
+test("los objetivos Professional y Laboratorios llevan al contenido completo y a una práctica real", async ({ page }) => {
+  await page.goto("/ruta");
+  const professional = page.locator("li").filter({ has: page.getByRole("heading", { name: "Preparar Data Engineer Professional", exact: true }) });
+  await expect(professional.getByRole("link", { name: /Ver itinerario completo/ })).toHaveAttribute("href", "/catalogo");
+  const laboratories = page.locator("li").filter({ has: page.getByRole("heading", { name: "Practicar con laboratorios", exact: true }) });
+  await expect(laboratories.getByRole("link", { name: /Abrir el primer laboratorio/ })).toHaveAttribute(
+    "href",
+    "/curso/data-intelligence-platform-y-arquitectura-lakehouse?section=lab",
+  );
+});
+
+test("la superficie de recursos redirige permanentemente y conserva filtros y permalink", async ({ page }) => {
+  const legacyPath = "/catalogo?view=resources&q=Delta&phase=streaming&difficulty=advanced&format=ipynb&preview=1&utm_source=regression&topic=delta&topic=streaming";
+  const redirect = await page.request.get(legacyPath, { maxRedirects: 0 });
+  expect(redirect.status()).toBe(308);
+  const location = redirect.headers().location;
+  expect(location).toBeTruthy();
+  const target = new URL(location, "http://lakehouse.test");
+  expect(target.pathname).toBe("/recursos");
+  expect(target.searchParams.has("view")).toBe(false);
+  expect(target.searchParams.get("q")).toBe("Delta");
+  expect(target.searchParams.get("phase")).toBe("streaming");
+  expect(target.searchParams.get("difficulty")).toBe("advanced");
+  expect(target.searchParams.get("format")).toBe("ipynb");
+  expect(target.searchParams.get("preview")).toBe("1");
+  expect(target.searchParams.get("utm_source")).toBe("regression");
+  expect(target.searchParams.getAll("topic")).toEqual(["delta", "streaming"]);
+
+  await page.goto(legacyPath);
+  await waitForWorkspace(page);
+  expect(new URL(page.url()).pathname).toBe("/recursos");
+  const surfaceNavigation = page.locator(".ent-catalog-switch");
+  await expect(surfaceNavigation.getByRole("link", { name: /Recursos/ })).toHaveAttribute("aria-current", "location");
+  await expect(surfaceNavigation.getByRole("link", { name: /Módulos/ })).not.toHaveAttribute("aria-current", "location");
+  const search = page.getByRole("searchbox", { name: "Buscar", exact: true });
+  await expect(search).toHaveValue("Delta");
+  await page.getByText("Más filtros", { exact: true }).click();
+  await expect(page.getByRole("combobox", { name: "Dificultad" })).toHaveValue("advanced");
+  await expect(page.getByRole("combobox", { name: "Formato" })).toHaveValue("ipynb");
+  await expect(page.getByRole("checkbox", { name: /vista interna/i })).toBeChecked();
+
+  await search.fill("Kafka");
+  await expect.poll(() => new URL(page.url()).searchParams.get("q")).toBe("Kafka");
+  const updated = new URL(page.url());
+  expect(updated.pathname).toBe("/recursos");
+  expect(updated.searchParams.get("utm_source")).toBe("regression");
+  expect(updated.searchParams.getAll("topic")).toEqual(["delta", "streaming"]);
+  expect(updated.searchParams.has("view")).toBe(false);
+  await page.reload();
+  await waitForWorkspace(page);
+  await expect(page.getByRole("searchbox", { name: "Buscar", exact: true })).toHaveValue("Kafka");
+});
+
+test("el simulacro simplificado conserva contenido bilingüe y oculta el guardado inactivo", async ({ page }) => {
+  try {
+    const spanish = await page.request.post("/api/locale", { data: { locale: "es" } });
+    expect(spanish.ok()).toBe(true);
+    await page.goto("/simulacro/associate");
+    await waitForWorkspace(page);
+    await expect(page.locator("#simulator-heading")).toHaveText("Simulacro Associate");
+    await expect(page.getByText("Adaptación de tiempo", { exact: true })).toBeVisible();
+    await expect(page.locator(".ent-save-state")).toHaveCount(0);
+
+    const english = await page.request.post("/api/locale", { data: { locale: "en" } });
+    expect(english.ok()).toBe(true);
+    await page.goto("/simulacro/associate");
+    await waitForWorkspace(page);
+    await expect(page.getByRole("heading", { level: 1, name: "Associate Practice Exam" })).toBeVisible();
+    await expect(page.locator("#simulator-heading")).toHaveText("Associate Practice Exam");
+    await expect(page.getByText("Time adjustment", { exact: true })).toBeVisible();
+    await expect(page.getByText(/Original questions aligned with the blueprint/)).toBeVisible();
+    await expect(page.locator(".ent-save-state")).toHaveCount(0);
+  } finally {
+    await page.request.post("/api/locale", { data: { locale: "es" } });
+  }
+});
+
 test("el drawer móvil atrapa y restaura el foco", async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto("/inicio");
@@ -175,7 +286,7 @@ test("la navegación principal completa una carga de documento fiable", async ({
   await expect(page.getByRole("heading", { level: 1, name: "Temario" })).toBeVisible();
 });
 
-test("la tarjeta del catálogo abre el curso completo", async ({ page }) => {
+test("la fila del catálogo abre el curso completo", async ({ page }) => {
   await page.goto("/catalogo");
   await waitForWorkspace(page);
   await expect(page.getByRole("heading", { level: 2, name: "Encuentra tu siguiente módulo" })).toBeVisible();
@@ -187,20 +298,18 @@ test("la tarjeta del catálogo abre el curso completo", async ({ page }) => {
 });
 
 test("el catálogo descubre notebooks por temática sin duplicar el progreso", async ({ page }) => {
-  await page.goto("/catalogo?view=resources");
+  await page.goto("/recursos");
   await waitForWorkspace(page);
-  await expect(page.getByRole("tab", { name: /Recursos/ })).toHaveAttribute("aria-selected", "true");
-  const resourceCards = page.locator(".ent-resource-card");
-  await expect(resourceCards).toHaveCount(36);
-  await expect(resourceCards.locator(".ent-resource-card-topline b").filter({ hasText: "Vista interna" })).toHaveCount(19);
-  await expect(resourceCards.locator(".ent-resource-card-topline b").filter({ hasText: "Archivo en GitHub" })).toHaveCount(17);
-  const fileActions = resourceCards.getByRole("link", { name: /Ver archivo/ });
-  await expect(fileActions).toHaveCount(36);
-  await expect(resourceCards.getByRole("link", { name: /Ver notebook/ })).toHaveCount(36);
+  await expect(page.locator(".ent-catalog-switch").getByRole("link", { name: /Recursos/ })).toHaveAttribute("aria-current", "location");
+  const resourceRows = page.locator(".ent-resource-row");
+  await expect(resourceRows).toHaveCount(36);
+  const fileActions = resourceRows.getByRole("link", { name: /Ver archivo/ });
+  await expect(fileActions).toHaveCount(17);
+  await expect(resourceRows.getByRole("link", { name: /Ver notebook/ })).toHaveCount(19);
   const reviewedHrefs = await fileActions.evaluateAll((links) => links.map((link) => (link as HTMLAnchorElement).href));
   expect(reviewedHrefs.every((href) => /^https:\/\/github\.com\/[^/]+\/[^/]+\/blob\/[a-f0-9]{40}\/.+/.test(href))).toBe(true);
   await page.getByRole("searchbox", { name: "Buscar", exact: true }).fill("Change Data Feed");
-  await expect(page.locator(".ent-resource-card")).toHaveCount(3);
+  await expect(page.locator(".ent-resource-row")).toHaveCount(3);
   await expect(page.getByRole("heading", { name: "change-data-feed.ipynb" })).toBeVisible();
   await expectWcag22Aa(page);
 });
@@ -214,15 +323,15 @@ test("el catálogo abre el notebook en el visor lateral mediante un enlace profu
     });
   });
   const before = await (await page.request.get("/api/me/dashboard")).json();
-  await page.goto("/catalogo?view=resources");
+  await page.goto("/recursos");
   await waitForWorkspace(page);
-  await expect(page.getByRole("tab", { name: /Recursos/ })).toHaveAttribute("aria-selected", "true");
+  await expect(page.locator(".ent-catalog-switch").getByRole("link", { name: /Recursos/ })).toHaveAttribute("aria-current", "location");
   await page.getByRole("searchbox", { name: "Buscar", exact: true }).fill("change-data-feed.ipynb");
-  const resourceCard = page.locator(".ent-resource-card").filter({ has: page.getByRole("heading", { name: "change-data-feed.ipynb", exact: true }) });
-  await resourceCard.getByRole("link", { name: /Ver notebook/ }).click();
+  const resourceRow = page.locator(".ent-resource-row").filter({ has: page.getByRole("heading", { name: "change-data-feed.ipynb", exact: true }) });
+  await resourceRow.getByRole("link", { name: /Ver notebook/ }).click();
   await expect(page).toHaveURL(/\/curso\/change-data-feed-cdc-auto-cdc-y-scd\?section=resources&resource=delta-cdf/);
   await waitForWorkspace(page);
-  await expect(page.getByRole("tab", { name: /Recursos/ })).toHaveAttribute("aria-selected", "true");
+  await expect(page.locator("#course-panel-resources")).toBeVisible();
   const viewer = page.locator("dialog#community-preview");
   await expect(viewer).toBeVisible();
   await expect(viewer).toHaveAttribute("open", "");
@@ -356,21 +465,31 @@ test("el recurso externo usa el mismo visor y ofrece GitHub sin solicitar la API
   await expect.poll(() => previewRequests).toBe(0);
 });
 
-test("las cuatro pestañas del curso conservan navegación de teclado", async ({ page }) => {
+test("el contenido del módulo concentra la navegación y restaura el foco", async ({ page }) => {
   await page.goto("/curso/data-intelligence-platform-y-arquitectura-lakehouse");
   await waitForWorkspace(page);
-  const lessons = page.getByRole("tab", { name: /Lecciones/ });
-  await lessons.focus();
-  await page.keyboard.press("End");
-  const resources = page.getByRole("tab", { name: /Recursos/ });
-  await expect(resources).toBeFocused();
-  await expect(resources).toHaveAttribute("aria-selected", "true");
+  const opener = page.getByRole("button", { name: "Contenido del módulo", exact: true });
+  await opener.click();
+  const dialog = page.getByRole("dialog", { name: "Contenido del módulo" });
+  await expect(dialog).toBeVisible();
+  await expect(dialog.getByRole("button", { name: "Cerrar contenido del módulo" })).toBeFocused();
+  await dialog.getByRole("button", { name: "Recursos", exact: true }).click();
+  await expect(dialog).toBeHidden();
+  await expect(page).toHaveURL(/\?section=resources$/u);
+  await expect(page.locator("#course-panel-resources")).toBeFocused();
+
+  await opener.click();
+  await page.keyboard.press("Escape");
+  await expect(dialog).toBeHidden();
+  await expect(opener).toBeFocused();
 });
 
 test("la búsqueda global lleva al concepto exacto del temario", async ({ page }) => {
   await page.goto("/inicio");
   await waitForWorkspace(page);
+  await page.keyboard.press("Control+K");
   const search = page.getByRole("searchbox", { name: "Buscar conceptos en el temario" });
+  await expect(search).toBeFocused();
   await search.fill("watermark");
   const result = page.locator(".ent-search-result").filter({ hasText: "Watermark" }).first();
   await expect(result).toBeVisible();
@@ -386,6 +505,7 @@ test("la búsqueda global lleva al concepto exacto del temario", async ({ page }
 test("la búsqueda global encuentra un notebook y abre su ficha", async ({ page }) => {
   await page.goto("/inicio");
   await waitForWorkspace(page);
+  await page.getByRole("button", { name: "Buscar en el temario", exact: true }).click();
   const search = page.getByRole("searchbox", { name: "Buscar conceptos en el temario" });
   await search.fill("Photon.py");
   const result = page.locator(".ent-search-result").filter({ hasText: "Photon.py" }).first();
@@ -400,6 +520,9 @@ test("la búsqueda global encuentra un notebook y abre su ficha", async ({ page 
 test("el diálogo destructivo mantiene una salida segura", async ({ page }) => {
   await page.goto("/ajustes");
   await waitForWorkspace(page);
+  const dataDisclosure = page.locator("details.ent-settings-disclosure").filter({ hasText: "Portabilidad y control" });
+  await dataDisclosure.locator(":scope > summary").click();
+  await dataDisclosure.locator("details.ent-settings-advanced > summary").click();
   const trigger = page.getByRole("button", { name: "Eliminar progreso" });
   await trigger.click();
   const dialog = page.getByRole("alertdialog", { name: "¿Eliminar todo tu progreso?" });
@@ -468,7 +591,7 @@ test("dos identidades autenticadas conservan progreso aislado", async ({ browser
         expectedRevision: dashboardA.revision.value,
       },
     });
-    expect(mutation.ok()).toBeTruthy();
+    expect(mutation.ok(), `${mutation.status()} ${await mutation.text()}`).toBeTruthy();
 
     const pageB = await contextB.newPage();
     const dashboardBResponse = await pageB.request.get(`${baseURL}/api/me/dashboard`);
@@ -513,7 +636,7 @@ test("las nuevas páginas de certificación y simulacro son públicas sin crear 
     const anonymousRoutes = [
       { path: "/associate", heading: "Databricks Data Engineer Associate" },
       { path: "/professional", heading: "Databricks Data Engineer Professional" },
-      { path: "/simulacros", heading: "Simulacros internos Associate y Professional" },
+      { path: "/simulacros", heading: "Elige un simulacro" },
       { path: "/simulacro/associate", heading: "Databricks Data Engineer Associate" },
       { path: "/simulacro/professional", heading: "Databricks Data Engineer Professional" },
     ] as const;
@@ -531,12 +654,14 @@ test("las nuevas páginas de certificación y simulacro son públicas sin crear 
   }
 });
 
-test("un visitante crea un espacio anónimo con una cookie privada", async ({ browser, baseURL }) => {
-  const context = await browser.newContext({ extraHTTPHeaders: {} });
+test("un visitante crea un espacio anónimo con una cookie privada", async ({ browser, baseURL }, testInfo) => {
+  const viewport = testInfo.project.use.viewport;
+  const context = await browser.newContext({ extraHTTPHeaders: {}, ...(viewport ? { viewport } : {}) });
   try {
     const page = await context.newPage();
     await page.goto(`${baseURL}/`);
-    await page.getByRole("link", { name: "Temario" }).first().click();
+    await expect(page.locator('a[href="/catalogo"]').first()).toHaveAttribute("href", "/catalogo");
+    await page.goto(`${baseURL}/catalogo`);
     await expect(page).toHaveURL(/\/catalogo$/u);
     await expect(page.getByRole("heading", { level: 1, name: "Temario" })).toBeVisible();
     await expect(page.getByRole("link", { name: "Crear espacio para guardar" })).toBeVisible();

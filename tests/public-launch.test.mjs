@@ -13,7 +13,7 @@ test("the root is a public landing page instead of a protected redirect", () => 
   assert.match(rootPage, /getSessionUser\(\)/);
   assert.match(rootPage, /Empieza con fundamentos/u);
   assert.match(rootPage, /Empezar la primera lección/u);
-  assert.match(rootPage, /Explorar rutas/u);
+  assert.match(rootPage, /Elegir otro objetivo/u);
   assert.doesNotMatch(rootPage, /Explorar la demo|Beta pública/);
   assert.match(rootPage, /independiente de Databricks|Proyecto independiente/i);
 });

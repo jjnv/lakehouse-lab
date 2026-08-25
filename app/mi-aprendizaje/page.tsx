@@ -10,5 +10,5 @@ export const metadata: Metadata = {
 
 export default async function MiAprendizajePage() {
   const context = await requireEnterprisePageContext("/mi-aprendizaje");
-  return <AppShell active="learning" title="Plan" brand={context.brand} userDisplayName={context.userDisplayName} locale={context.locale}><MyLearningV2 locale={context.locale} /></AppShell>;
+  return <AppShell active="learning" title="Plan" variant="workspace" authenticated brand={context.brand} userDisplayName={context.userDisplayName} locale={context.locale}><MyLearningV2 locale={context.locale} /></AppShell>;
 }

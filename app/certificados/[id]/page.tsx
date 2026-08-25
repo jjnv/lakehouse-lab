@@ -13,5 +13,5 @@ export default async function CertificadoPage({ params, searchParams }: { params
   const { id } = await params;
   const { code = "" } = await searchParams;
   const verification = await getPublicCredentialVerification(id, code);
-  return <AppShell active="record" title="Verificar constancia" brand={DEFAULT_BRAND_CONFIG} publicMode><CredentialView verification={verification} /></AppShell>;
+  return <AppShell active="record" title="Verificar constancia" variant="explore" authenticated={false} brand={DEFAULT_BRAND_CONFIG}><CredentialView verification={verification} /></AppShell>;
 }

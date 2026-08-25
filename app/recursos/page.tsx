@@ -27,7 +27,7 @@ export default async function RecursosPage() {
   const context = await getOptionalEnterprisePageContext();
   const personalized = Boolean(context.learner);
   const title = context.locale === "en" ? "Resources" : "Recursos";
-  return <AppShell active="resources" title={title} brand={context.brand} userDisplayName={context.userDisplayName} locale={context.locale} publicMode={!personalized}>
-    <CatalogWorkspace modules={moduleSummaries(context.locale)} resources={communityResourceCatalog(context.locale)} personalized={personalized} initialView="resources" locale={context.locale} />
+  return <AppShell active="resources" title={title} brand={context.brand} userDisplayName={context.userDisplayName} locale={context.locale} variant={personalized ? "workspace" : "explore"} authenticated={personalized}>
+    <CatalogWorkspace modules={moduleSummaries(context.locale)} resources={communityResourceCatalog(context.locale)} surface="resources" personalized={personalized} locale={context.locale} />
   </AppShell>;
 }

@@ -38,7 +38,7 @@ test("keeps curriculum reading and curated notebook previews public", async () =
     read("app/api/resources/[resourceId]/preview/route.ts"),
   ]);
   assert.match(rootPage, /href="\/ruta"/u);
-  assert.match(rootPage, /sampleLessonHref/u);
+  assert.match(rootPage, /firstLessonHref/u);
   assert.match(publicShell, /href="\/simulacros"/u);
   for (const source of [catalogPage, coursePage]) {
     assert.match(source, /getOptionalEnterprisePageContext/u);
