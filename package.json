@@ -39,7 +39,7 @@
     "db:migrate": "node scripts/migrate.mjs"
   },
   "dependencies": {
-    "@libsql/client": "0.17.4",
+    "@libsql/client": "0.18.0",
     "@vercel/analytics": "^2.0.1",
     "drizzle-orm": "0.45.2",
     "next": "16.2.6",
