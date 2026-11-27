@@ -315,6 +315,13 @@ details:not([open])>:not(summary){display:none!important}
 .ent-shell-secondary-menu>summary::-webkit-details-marker{display:none}
 .ent-shell-secondary-menu[open]>.ent-nav{position:absolute;right:0;top:calc(100% + 8px);z-index:45;width:min(300px,calc(100vw - 24px));max-height:calc(100dvh - 90px);overflow:auto;display:grid;border:1px solid #303846;border-radius:11px;padding:12px;background:#0d1219;box-shadow:0 18px 45px rgba(0,0,0,.38)}
 .ent-shell-language{min-height:44px;display:flex;align-items:center}
+.ent-shell-course .ent-topbar{grid-template-columns:minmax(0,1fr) auto auto}
+.ent-shell-course .ent-topbar-title>a{min-width:44px;min-height:44px;display:inline-grid;place-items:center;border-radius:9px;color:#ff825f;font-size:20px;text-decoration:none}
+.ent-shell-course .ent-topbar-title>a:hover{background:#151d27}
+.ent-nav a:not(:has(>span)){grid-template-columns:minmax(0,1fr)}
+.ent-shell-secondary-menu .ent-nav-secondary{margin-top:0;border-top:0}
+.ent-shell-secondary-menu .ent-nav-secondary>p:not(:first-child){margin-top:12px;border-top:1px solid #2a303b;padding-top:12px}
+.ent-shell-secondary-menu .ent-shell-language{padding:0 10px}
 
 .ent-catalog-switch{width:max-content;display:flex;gap:4px;border:0;border-bottom:1px solid #303846;border-radius:0;padding:0;background:transparent}
 .ent-catalog-switch a{min-height:44px;display:flex;align-items:center;gap:7px;border-bottom:2px solid transparent;padding:8px 12px;color:#b8c0cb;text-decoration:none;font-size:13px;font-weight:800}
@@ -403,6 +410,8 @@ details:not([open])>:not(summary){display:none!important}
 
 @media(max-width:700px){
   .ent-topbar{grid-template-columns:minmax(0,1fr) auto;padding:10px 12px}
+  .ent-shell-course .ent-topbar{grid-template-columns:minmax(0,1fr) auto auto;gap:8px}
+  .ent-shell-course .ent-topbar>.ent-topbar-title{display:flex;align-items:center;gap:2px}
   .ent-global-search.is-expanded{position:absolute;inset:8px 58px 8px 8px;z-index:35;width:auto!important}
   .ent-global-search.is-expanded form{height:42px}
   .ent-search-trigger>span:not(.ent-search-symbol),.ent-search-trigger kbd{display:none}
