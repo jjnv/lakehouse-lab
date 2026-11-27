@@ -18,6 +18,10 @@ const homeText: Record<Locale, {
   startLesson: string;
   chooseGoal: string;
   independence: string;
+  fromScratch: string;
+  fromScratchLink: string;
+  howHeading: string;
+  howSteps: { href: string; title: string; body: string }[];
 }> = {
   es: {
     accountProgress: "Mi progreso",
@@ -29,6 +33,15 @@ const homeText: Record<Locale, {
     startLesson: "Empezar la primera lección",
     chooseGoal: "Elegir otro objetivo",
     independence: "Proyecto independiente de Databricks. Puedes leer sin registrarte.",
+    fromScratch: "¿Empiezas desde cero?",
+    fromScratchLink: "Lee antes los fundamentos de datos",
+    howHeading: "Cómo aprender aquí",
+    howSteps: [
+      { href: "/fundamentos", title: "1. Fundamentos", body: "Datos, archivos, SQL, Spark y lakehouse explicados desde cero, con analogías y autocomprobación." },
+      { href: "/catalogo", title: "2. Temario por módulos", body: "32 módulos con lecciones ordenadas: lo esencial, la idea, cómo funciona, un caso práctico y código." },
+      { href: "/glosario", title: "3. Glosario", body: "Más de 130 términos con definición llana, ejemplo y términos relacionados, en español e inglés." },
+      { href: "/simulacros", title: "4. Practica", body: "Laboratorios guiados y simulacros para comprobar lo aprendido antes de certificarte." },
+    ],
   },
   en: {
     accountProgress: "My progress",
@@ -40,6 +53,15 @@ const homeText: Record<Locale, {
     startLesson: "Start the first lesson",
     chooseGoal: "Choose another goal",
     independence: "Independent from Databricks. You can read without signing up.",
+    fromScratch: "Starting from scratch?",
+    fromScratchLink: "Read the data foundations first",
+    howHeading: "How to learn here",
+    howSteps: [
+      { href: "/fundamentos", title: "1. Foundations", body: "Data, files, SQL, Spark and the lakehouse explained from scratch, with analogies and self-checks." },
+      { href: "/catalogo", title: "2. Curriculum by module", body: "32 modules with ordered lessons: the essentials, the idea, how it works, a worked example and code." },
+      { href: "/glosario", title: "3. Glossary", body: "Over 130 terms with a plain definition, an example and related terms, in Spanish and English." },
+      { href: "/simulacros", title: "4. Practice", body: "Guided labs and practice exams to check what you learned before certifying." },
+    ],
   },
 };
 
@@ -65,7 +87,21 @@ export default async function RootPage() {
             <Link className="public-primary" href={firstLessonHref}>{text.startLesson}<span aria-hidden="true">→</span></Link>
             <Link className="public-secondary" href="/ruta">{text.chooseGoal}</Link>
           </div>
+          <p className="public-trust">{text.fromScratch} <Link href="/fundamentos">{text.fromScratchLink}</Link>.</p>
           <p className="public-trust">{text.independence}</p>
+        </section>
+        <section className="public-home-steps" aria-labelledby="home-steps-heading">
+          <h2 id="home-steps-heading">{text.howHeading}</h2>
+          <ol>
+            {text.howSteps.map((step) => (
+              <li key={step.href}>
+                <Link href={step.href}>
+                  <strong>{step.title}</strong>
+                  <span>{step.body}</span>
+                </Link>
+              </li>
+            ))}
+          </ol>
         </section>
       </main>
     </PublicShell>

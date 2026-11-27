@@ -429,3 +429,66 @@ details:not([open])>:not(summary){display:none!important}
   .ent-resource-row{padding-inline:10px}
   .ent-module-row-main h2,.ent-resource-row-main h2{font-size:15px}
 }
+
+/* Didactic lesson sequence: numbered steps, readable measure and callouts. */
+.ent-shell .ent-lesson-body{max-width:800px}
+.ent-shell .ent-lesson-body code{border-radius:4px;padding:1px 5px;background:#151d27;color:#ffd2c4;font:.9em var(--mono)}
+.ent-shell .ent-lesson-body pre code{padding:0;background:none;color:inherit;font:inherit}
+.ent-shell .ent-lesson-toc{display:grid;gap:8px;margin:4px 0 22px;border:1px solid #2a303b;border-radius:10px;padding:14px 16px;background:#0d1219}
+.ent-shell .ent-lesson-toc>span{color:#b8c0cb;font-size:12px;font-weight:800;letter-spacing:.04em;text-transform:uppercase}
+.ent-shell .ent-lesson-toc ol{display:flex;flex-wrap:wrap;gap:6px;margin:0;padding:0;list-style:none;counter-reset:toc}
+.ent-shell .ent-lesson-toc li{counter-increment:toc}
+.ent-shell .ent-lesson-toc a{min-height:32px;display:inline-flex;align-items:center;gap:6px;border:1px solid #394250;border-radius:999px;padding:0 11px;color:#f5f7fa;font-size:13px;text-decoration:none}
+.ent-shell .ent-lesson-toc a:before{content:counter(toc);color:#ff8a66;font:800 11px var(--mono)}
+.ent-shell .ent-lesson-toc a:hover{border-color:#ff6a45}
+.ent-shell .ent-lesson-step{position:relative;margin:0;padding:22px 0 24px 0;border-top:1px solid #222a35;scroll-margin-top:120px}
+.ent-shell .ent-lesson-step:first-of-type{border-top:0;padding-top:6px}
+.ent-shell .ent-lesson-step>h4{display:flex;align-items:center;gap:10px;margin:0 0 14px;color:#f5f7fa;font-size:clamp(18px,2.2vw,21px);line-height:1.3}
+.ent-shell .ent-lesson-step>h4>span{flex:0 0 30px;width:30px;height:30px;display:inline-grid;place-items:center;border-radius:50%;background:#2a1a15;color:#ff8a66;font:800 13px var(--mono)}
+.ent-shell .ent-lesson-step p,.ent-shell .ent-lesson-step li,.ent-shell .ent-lesson-step dd{color:#c9d0d9;font-size:15px;line-height:1.72}
+.ent-shell .ent-lesson-step>p{margin:0 0 12px;max-width:70ch}
+.ent-shell .ent-essentials{border:1px solid #2f3b2f;border-radius:12px;padding:20px!important;background:linear-gradient(180deg,#101a14,#0b120e)}
+.ent-shell .ent-essentials>h4>span{background:#163322;color:#8ee3b0}
+.ent-shell .ent-essentials-plain{color:#f5f7fa!important;font-size:17px!important;line-height:1.65!important}
+.ent-shell .ent-builds-on{margin:12px 0 0!important;font-size:14px!important}
+.ent-shell .ent-builds-on strong{color:#8ee3b0}
+.ent-shell .ent-callout{margin:14px 0;border:1px solid #2a303b;border-left:4px solid #ff6a45;border-radius:10px;padding:14px 16px;background:#0e141c}
+.ent-shell .ent-callout>strong{display:block;margin-bottom:4px;color:#f5f7fa;font-size:12px;letter-spacing:.04em;text-transform:uppercase}
+.ent-shell .ent-callout>p{margin:0;max-width:70ch}
+.ent-shell .ent-callout.is-analogy{border-left-color:#8ee3b0;background:#0d1712}
+.ent-shell .ent-callout.is-model{border-left-color:#7fb4ff;background:#0d131d}
+.ent-shell .ent-callout.is-exam{border-left-color:#f2d27a;background:#17140b}
+.ent-shell .ent-glossary-chips{display:flex;flex-wrap:wrap;align-items:center;gap:6px;margin-top:14px}
+.ent-shell .ent-glossary-chips>span{color:#b8c0cb;font-size:13px;font-weight:800}
+.ent-shell .ent-glossary-chips ul{display:contents;list-style:none}
+.ent-shell .ent-glossary-chips a{min-height:32px;display:inline-flex;align-items:center;border:1px solid #2f5a40;border-radius:999px;padding:0 11px;color:#c8f3d8;font-size:13px;text-decoration:none}
+.ent-shell .ent-glossary-chips a:hover{border-color:#8ee3b0;color:#fff}
+.ent-shell .ent-concept-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,220px),1fr));gap:10px}
+.ent-shell .ent-concept-grid article{display:grid;align-content:start;gap:6px;border:1px solid #2a303b;border-radius:10px;padding:14px;background:#0e141c;scroll-margin-top:150px}
+.ent-shell .ent-concept-grid article strong{color:#f5f7fa;font-size:15px}
+.ent-shell .ent-concept-grid article p{margin:0;font-size:14px}
+.ent-shell .ent-concept-grid article small{color:#b8c0cb;font-size:13px;line-height:1.55}
+.ent-shell .ent-concept-grid article small b{color:#f5f7fa}
+.ent-shell .ent-concept-grid article[tabindex="-1"]:focus{outline:3px solid #ff7a4f;outline-offset:3px}
+.ent-shell .ent-mechanics,.ent-shell .ent-worked-case ol{display:grid;gap:10px;margin:14px 0 0;padding:0;list-style:none;counter-reset:step}
+.ent-shell .ent-mechanics li,.ent-shell .ent-worked-case ol li{counter-increment:step;display:grid;grid-template-columns:28px minmax(0,1fr);gap:10px}
+.ent-shell .ent-mechanics li:before,.ent-shell .ent-worked-case ol li:before{content:counter(step);width:26px;height:26px;display:inline-grid;place-items:center;border:1px solid #394250;border-radius:50%;color:#7fb4ff;font:800 12px var(--mono)}
+.ent-shell .ent-worked-case{display:grid;gap:12px;margin:0}
+.ent-shell .ent-worked-case>div{border:1px solid #2a303b;border-radius:10px;padding:14px 16px;background:#0e141c}
+.ent-shell .ent-worked-case>div:last-child{border-color:#2f5a40;background:#0d1712}
+.ent-shell .ent-worked-case dt{margin-bottom:6px;color:#f5f7fa;font-size:12px;font-weight:800;letter-spacing:.04em;text-transform:uppercase}
+.ent-shell .ent-worked-case dd{margin:0}
+.ent-shell .ent-lesson-step .ent-code-example{margin:0}
+.ent-shell .ent-lesson-step .ent-code-example>div strong{font-size:13px}
+.ent-shell .ent-lesson-step .ent-code-example>div span{font-size:11px}
+.ent-shell .ent-lesson-step .ent-code-example pre{font-size:13px}
+.ent-shell .ent-lesson-step .ent-code-example>p{padding-top:12px;font-size:14px;color:#c9d0d9}
+.ent-shell .ent-pitfalls{display:grid;gap:8px;margin:0;padding:0;list-style:none}
+.ent-shell .ent-pitfalls li{position:relative;border:1px solid #3a2a2d;border-radius:10px;padding:12px 14px 12px 40px;background:#170f11}
+.ent-shell .ent-pitfalls li:before{content:"!";position:absolute;left:12px;top:12px;width:20px;height:20px;display:grid;place-items:center;border-radius:50%;background:#4a1f24;color:#ffb0b8;font:800 12px var(--mono)}
+.ent-shell .ent-lesson-step .ent-recall-card{margin-top:0}
+.ent-shell .ent-recall-question{margin:0!important;color:#f5f7fa!important;font-size:17px!important;font-weight:750}
+.ent-shell .ent-lesson-summary ul{display:grid;gap:8px;margin:0;padding:0;list-style:none}
+.ent-shell .ent-lesson-summary li{position:relative;padding-left:26px}
+.ent-shell .ent-lesson-summary li:before{content:"✓";position:absolute;left:0;top:0;color:#8ee3b0;font-weight:800}
+@media(max-width:700px){.ent-shell .ent-lesson-step p,.ent-shell .ent-lesson-step li,.ent-shell .ent-lesson-step dd{font-size:15px}.ent-shell .ent-essentials{padding:16px!important}.ent-shell .ent-lesson-toc ol{gap:5px}.ent-shell .ent-pitfalls li{padding-left:38px}}

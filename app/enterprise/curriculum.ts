@@ -6,7 +6,7 @@ import {
   usageInstructionsFor,
   type ExpandedCommunityRecommendation,
 } from "../curriculum/community-resources";
-import { glossaryCategoryLabels, glossaryEntries } from "../curriculum/glossary";
+import { glossaryEntries, glossaryEntryById, type GlossaryEntry } from "../curriculum/glossary";
 import type { Locale } from "../i18n/config";
 import {
   localizeGlossaryCategory,
@@ -354,9 +354,11 @@ function buildModuleSearchIndex(locale: Locale): IndexedCurriculumResult[] {
 function buildGlossarySearchIndex(locale: Locale): IndexedCurriculumResult[] {
   return glossaryEntries.map((sourceEntry, index) => {
     const entry = localizeGlossaryEntry(sourceEntry, locale);
-    const category = locale === "en"
-      ? localizeGlossaryCategory(sourceEntry.category, locale)
-      : glossaryCategoryLabels[sourceEntry.category];
+    const category = localizeGlossaryCategory(sourceEntry.category, locale);
+    const relatedTerms = sourceEntry.related
+      .map((id) => glossaryEntryById.get(id))
+      .filter((related): related is GlossaryEntry => Boolean(related))
+      .map((related) => localizeGlossaryEntry(related, locale).term);
     const location = `${locale === "en" ? "Glossary" : "Glosario"} · ${category}`;
     return {
       id: `glossary:${entry.id}`,
@@ -366,7 +368,7 @@ function buildGlossarySearchIndex(locale: Locale): IndexedCurriculumResult[] {
       location,
       href: `/glosario#${entry.id}`,
       searchableLabel: normalizeSearchText(`${entry.term} ${entry.aliases.join(" ")}`, locale),
-      searchableDescription: normalizeSearchText(`${entry.definition} ${entry.whyItMatters} ${entry.related.join(" ")}`, locale),
+      searchableDescription: normalizeSearchText(`${entry.definition} ${entry.whyItMatters} ${entry.example} ${relatedTerms.join(" ")}`, locale),
       searchableLocation: normalizeSearchText(location, locale),
       order: 10_000 + index,
     };

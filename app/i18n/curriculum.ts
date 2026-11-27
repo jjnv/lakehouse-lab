@@ -1,8 +1,9 @@
 import type { CurriculumModule, Lesson, QuizQuestion } from "../course-data";
-import type { GlossaryEntry } from "../curriculum/glossary";
+import { glossaryCategoryLabels, glossaryCategoryLabelsEn, type GlossaryCategory, type GlossaryEntry } from "../curriculum/glossary";
 import type { CommunityResourceCatalogEntry, ModuleSummary } from "../enterprise/contracts";
 import type { Locale } from "./config";
 import { englishLessonContentFor } from "./english-lesson-content";
+import { lessonEssentialsFor } from "../curriculum/lesson-essentials";
 
 type ModuleCopy = {
   title: string;
@@ -337,19 +338,6 @@ const englishLessonNarratives: Record<string, EnglishLessonNarrative[]> = {
   ],
 };
 
-const glossaryCategoryEn: Record<string, string> = {
-  plataforma: "Platform",
-  gobierno: "Governance",
-  almacenamiento: "Storage",
-  ingesta: "Ingestion",
-  streaming: "Streaming",
-  orquestacion: "Orchestration",
-  rendimiento: "Performance",
-  desarrollo: "Development",
-  seguridad: "Security",
-  coste: "Cost",
-};
-
 const exactTextEn: Record<string, string> = {
   "Modelo mental": "Mental model",
   "Implementación": "Implementation",
@@ -636,6 +624,7 @@ function localizeLesson(lesson: Lesson, locale: Locale, moduleCopy: ModuleCopy, 
     keyPoints: fullContent?.keyPoints ?? englishKeyPoints(copy.title, moduleCopy, index),
     example: fullContent ? { ...lesson.example, ...fullContent.example } : englishExample(lesson, copy.title, moduleCopy),
     pitfalls: fullContent?.pitfalls ?? englishPitfalls(copy.title, moduleCopy),
+    essentials: lessonEssentialsFor(lesson.id, "en"),
     examDecision: fullContent?.examDecision ?? `In an exam or architecture review, choose the option that satisfies the stated ${moduleCopy.short} requirement while preserving governance, idempotency, and observable evidence.`,
     checkpoint: fullContent?.checkpoint ?? {
       question: `What must you prove after choosing a pattern for ${copy.title}?`,
@@ -700,30 +689,19 @@ export function localizeSearchLocation(location: string, locale: Locale): string
 }
 
 export function localizeGlossaryCategory(category: string, locale: Locale): string {
-  return locale === "en" ? glossaryCategoryEn[category] ?? category : category;
+  const key = category as GlossaryCategory;
+  return locale === "en" ? glossaryCategoryLabelsEn[key] ?? category : glossaryCategoryLabels[key] ?? category;
 }
 
-function englishGlossaryDefinition(entry: GlossaryEntry) {
-  const category = localizeGlossaryCategory(entry.category, "en").toLocaleLowerCase("en");
-  return `${entry.term} is a Databricks ${category} concept used to reason about platform design, data contracts, governance boundaries, or operational behavior in a lakehouse architecture.`;
-}
-
-function englishGlossaryWhy(entry: GlossaryEntry) {
-  return `It matters because ${entry.term} affects how teams choose services, assign ownership, validate permissions, operate workloads, and answer scenario-based certification questions.`;
-}
-
-function englishAliases(aliases: string[]) {
-  const spanishHints = /\b(cuenta|entorno|catalogo|catálogo|tabla|volumen|ingesta|coste|esquema|gestionada|externa|datos|calidad|gobierno|seguridad)\b/iu;
-  return aliases.filter((alias) => !spanishHints.test(alias));
-}
-
+/** Proyecta una entrada del glosario al idioma pedido usando su redacción editorial. */
 export function localizeGlossaryEntry(entry: GlossaryEntry, locale: Locale): GlossaryEntry {
   if (locale === "es") return entry;
   return {
     ...entry,
-    aliases: englishAliases(entry.aliases),
-    definition: englishGlossaryDefinition(entry),
-    whyItMatters: englishGlossaryWhy(entry),
-    related: entry.related.map((item) => exactTextEn[item] ?? item),
+    term: entry.en.term ?? entry.term,
+    aliases: entry.en.aliases,
+    definition: entry.en.definition,
+    whyItMatters: entry.en.whyItMatters,
+    example: entry.en.example,
   };
 }

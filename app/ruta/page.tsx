@@ -30,6 +30,8 @@ const routeText: Record<Locale, {
   lead: string;
   available: string;
   modules: string;
+  foundations: string;
+  foundationsLink: string;
   openFirstLab: string;
 }> = {
   es: {
@@ -38,6 +40,8 @@ const routeText: Record<Locale, {
     lead: "Elige un objetivo. Podrás cambiarlo sin perder acceso al resto del temario.",
     available: "Objetivos disponibles",
     modules: "módulos",
+    foundations: "¿Nunca has trabajado con datos? Antes de elegir, dedica media hora a los",
+    foundationsLink: "fundamentos de datos",
     openFirstLab: "Abrir el primer laboratorio",
   },
   en: {
@@ -46,6 +50,8 @@ const routeText: Record<Locale, {
     lead: "Choose one goal. You can change it without losing access to the rest of the curriculum.",
     available: "Available goals",
     modules: "modules",
+    foundations: "Never worked with data before? Before choosing, spend half an hour on the",
+    foundationsLink: "data foundations",
     openFirstLab: "Open the first lab",
   },
 };
@@ -74,6 +80,7 @@ export default async function RutaPage() {
           <p className="public-kicker">{text.kicker}</p>
           <h1 id="route-heading">{text.title}</h1>
           <p className="public-document-lead">{text.lead}</p>
+          <p className="public-trust">{text.foundations} <Link href="/fundamentos">{text.foundationsLink}</Link>.</p>
         </section>
 
         <ol className="public-phase-list" aria-label={text.available}>

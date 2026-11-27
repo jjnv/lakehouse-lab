@@ -1,6 +1,16 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 import PublicShell from "../components/public/PublicShell";
-import { glossaryCategoryLabels, glossaryEntries, glossaryEntriesByInitial } from "../curriculum/glossary";
+import GlossaryExplorer, { type GlossaryExplorerEntry } from "../components/public/GlossaryExplorer";
+import InlineText from "../components/InlineText";
+import {
+  glossaryCategoryLabels,
+  glossaryEntries,
+  glossaryEntryById,
+  glossaryLevelLabels,
+  type GlossaryCategory,
+  type GlossaryLevel,
+} from "../curriculum/glossary";
 import { localizeGlossaryCategory, localizeGlossaryEntry } from "../i18n/curriculum";
 import { glossaryText } from "../i18n/dictionaries";
 import { getRequestLocale } from "../i18n/server";
@@ -8,29 +18,81 @@ import { getRequestLocale } from "../i18n/server";
 export async function generateMetadata(): Promise<Metadata> {
   const locale = await getRequestLocale();
   return {
-    title: locale === "en" ? "Databricks Glossary" : "Glosario Databricks",
+    title: locale === "en" ? "Lakehouse and Databricks Glossary" : "Glosario lakehouse y Databricks",
     description: locale === "en"
-      ? "Glossary for Databricks, Delta Lake, Unity Catalog, Lakeflow, streaming, and performance."
-      : "Glosario de Databricks, Delta Lake, Unity Catalog, Lakeflow, streaming y rendimiento.",
+      ? "Bilingual glossary of data engineering, lakehouse and Databricks concepts with plain definitions, examples and related terms."
+      : "Glosario bilingüe de ingeniería de datos, lakehouse y Databricks con definiciones llanas, ejemplos y términos relacionados.",
     alternates: { canonical: "/glosario" },
   };
 }
 
-const categoryCounts = glossaryEntries.reduce<Record<string, number>>((counts, entry) => {
-  counts[entry.category] = (counts[entry.category] ?? 0) + 1;
-  return counts;
-}, {});
+/** Orden recomendado para quien empieza desde cero. */
+const START_HERE = [
+  "data",
+  "table",
+  "table-schema",
+  "sql",
+  "parquet",
+  "distributed-computing",
+  "data-lake",
+  "data-warehouse",
+  "lakehouse",
+  "etl",
+];
 
-const firstEntryByCategory = glossaryEntries.reduce<Record<string, string>>((targets, entry) => {
-  targets[entry.category] ??= entry.id;
-  return targets;
-}, {});
+const levelOrder: GlossaryLevel[] = ["fundamentos", "intermedio", "avanzado"];
 
 export default async function GlosarioPage() {
   const locale = await getRequestLocale();
   const text = glossaryText[locale] ?? glossaryText.es;
-  const groupedEntries = glossaryEntriesByInitial();
-  const initials = Object.keys(groupedEntries).sort((left, right) => left.localeCompare(right, locale === "en" ? "en" : "es"));
+  const sortLocale = locale === "en" ? "en" : "es";
+
+  const entries: GlossaryExplorerEntry[] = glossaryEntries
+    .map((source) => {
+      const entry = localizeGlossaryEntry(source, locale);
+      return {
+        id: entry.id,
+        term: entry.term,
+        aliases: entry.aliases,
+        category: entry.category,
+        categoryLabel: localizeGlossaryCategory(entry.category, locale),
+        level: entry.level,
+        levelLabel: glossaryLevelLabels[entry.level][locale === "en" ? "en" : "es"],
+        definition: entry.definition,
+        whyItMatters: entry.whyItMatters,
+        example: entry.example,
+        related: entry.related.flatMap((id) => {
+          const related = glossaryEntryById.get(id);
+          return related ? [{ id, term: localizeGlossaryEntry(related, locale).term }] : [];
+        }),
+        sourceUrl: entry.sourceUrl,
+        sourceLabel: entry.sourceUrl.startsWith("/fundamentos")
+          ? (locale === "en" ? "Lakehouse Lab · Foundations" : entry.sourceLabel)
+          : entry.sourceLabel,
+        reviewedAt: entry.reviewedAt,
+      };
+    })
+    .sort((left, right) => left.term.localeCompare(right.term, sortLocale, { sensitivity: "base" }));
+
+  const count = <T extends string>(key: (entry: GlossaryExplorerEntry) => T) =>
+    entries.reduce<Record<string, number>>((totals, entry) => {
+      totals[key(entry)] = (totals[key(entry)] ?? 0) + 1;
+      return totals;
+    }, {});
+  const categoryCounts = count((entry) => entry.category);
+  const levelCounts = count((entry) => entry.level);
+
+  const categories = (Object.keys(glossaryCategoryLabels) as GlossaryCategory[]).map((id) => ({
+    id,
+    label: localizeGlossaryCategory(id, locale),
+    count: categoryCounts[id] ?? 0,
+  }));
+  const levels = levelOrder.map((id) => ({
+    id,
+    label: glossaryLevelLabels[id][locale === "en" ? "en" : "es"],
+    count: levelCounts[id] ?? 0,
+  }));
+  const startHere = START_HERE.flatMap((id) => entries.filter((entry) => entry.id === id));
 
   return (
     <PublicShell active="glossary" locale={locale}>
@@ -39,59 +101,32 @@ export default async function GlosarioPage() {
           <p className="public-kicker">{text.kicker}</p>
           <h1>{text.title}</h1>
           <p className="public-document-lead">{text.lead}</p>
+          <p className="public-glossary-total"><b>{entries.length}</b> {text.reviewedTerms}</p>
 
-          <section className="public-glossary-summary" aria-labelledby="glossary-summary-heading">
-            <div>
-              <span>{glossaryEntries.length}</span>
-              <h2 id="glossary-summary-heading">{text.reviewedTerms}</h2>
-              <p>{text.reviewedSummary}</p>
-            </div>
-            <nav aria-label={text.alphabetIndexAria}>
-              {initials.map((initial) => <a key={initial} href={`#glosario-${initial.toLocaleLowerCase(locale === "en" ? "en" : "es")}`}>{initial}</a>)}
-            </nav>
-          </section>
+          <div className="public-glossary-intro">
+            <section aria-labelledby="glossary-howto-heading" className="public-glossary-howto">
+              <h2 id="glossary-howto-heading">{text.howToHeading}</h2>
+              <ol>{(text.howToSteps as string[]).map((step) => <li key={step}>{step}</li>)}</ol>
+              <p><Link href="/fundamentos">{text.foundationsLink} →</Link></p>
+            </section>
 
-          <section aria-labelledby="glossary-categories-heading">
-            <h2 id="glossary-categories-heading">{text.categoriesHeading}</h2>
-            <div className="public-glossary-categories">
-              {Object.entries(glossaryCategoryLabels).map(([category, label]) => (
-                <a key={category} href={`#${firstEntryByCategory[category]}`}>
-                  <span>{locale === "en" ? localizeGlossaryCategory(category, locale) : label}</span>
-                  <b>{categoryCounts[category] ?? 0}</b>
-                </a>
-              ))}
-            </div>
-          </section>
+            <section aria-labelledby="glossary-start-heading" className="public-glossary-start">
+              <h2 id="glossary-start-heading">{text.startHereHeading}</h2>
+              <p>{text.startHereLead}</p>
+              <ol>
+                {startHere.map((entry) => (
+                  <li key={entry.id}>
+                    <a href={`#${entry.id}`}>{entry.term}</a>
+                    <span><InlineText text={entry.definition.split(". ")[0].replace(/\.$/u, "")} /></span>
+                  </li>
+                ))}
+              </ol>
+            </section>
+          </div>
 
           <section aria-labelledby="glossary-list-heading">
             <h2 id="glossary-list-heading">{text.definitionsHeading}</h2>
-            <div className="public-glossary-index">
-              {initials.map((initial) => (
-                <section key={initial} id={`glosario-${initial.toLocaleLowerCase(locale === "en" ? "en" : "es")}`} aria-labelledby={`glosario-heading-${initial}`}>
-                  <h3 id={`glosario-heading-${initial}`}>{initial}</h3>
-                  <div className="public-glossary-grid">
-                    {groupedEntries[initial].map((sourceEntry) => {
-                      const entry = localizeGlossaryEntry(sourceEntry, locale);
-                      return <details key={entry.id} id={entry.id} className="public-glossary-card">
-                        <summary>
-                          <span>{locale === "en" ? localizeGlossaryCategory(entry.category, locale) : glossaryCategoryLabels[entry.category]}</span>
-                          <strong>{entry.term}</strong>
-                        </summary>
-                        <a className="public-glossary-permalink" href={`#${entry.id}`} aria-label={`${locale === "en" ? "Direct link to" : "Enlace directo a"} ${entry.term}`}>#</a>
-                        {entry.aliases.length ? <p className="public-glossary-aliases">{text.aliasPrefix} {entry.aliases.join(", ")}</p> : null}
-                        <p>{entry.definition}</p>
-                        <p><strong>{text.whyItMatters}</strong> {entry.whyItMatters}</p>
-                        <dl>
-                          <div><dt>{text.related}</dt><dd>{entry.related.join(" · ")}</dd></div>
-                          <div><dt>{text.source}</dt><dd><a href={entry.sourceUrl} rel="noreferrer">{entry.sourceLabel}</a></dd></div>
-                          <div><dt>{text.review}</dt><dd>{entry.reviewedAt}</dd></div>
-                        </dl>
-                      </details>
-                    })}
-                  </div>
-                </section>
-              ))}
-            </div>
+            <GlossaryExplorer entries={entries} categories={categories} levels={levels} locale={locale} />
           </section>
         </article>
       </main>

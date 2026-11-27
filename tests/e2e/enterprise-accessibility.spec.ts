@@ -19,6 +19,8 @@ const routes = [
 const publicRoutes = [
   { path: "/", heading: "Empieza con fundamentos de ingeniería de datos." },
   { path: "/ruta", heading: "¿Qué quieres conseguir?" },
+  { path: "/fundamentos", heading: "Fundamentos de datos, paso a paso." },
+  { path: "/glosario", heading: "El vocabulario del lakehouse, de lo básico a lo avanzado." },
   { path: "/metodologia", heading: "Cómo validamos el contenido." },
   { path: "/changelog", heading: "Qué ha cambiado en el contenido." },
   { path: "/acerca-de", heading: "Preparación independiente para Data Engineers." },
@@ -496,7 +498,7 @@ test("la búsqueda global lleva al concepto exacto del temario", async ({ page }
   await result.click();
   await expect(page).toHaveURL(/\/curso\/estado-ventanas-watermarks-y-datos-tardios\/m14-l2\?concept=concept-.*#concept-/);
   await waitForWorkspace(page);
-  const concept = page.locator('.ent-mental-model article[id^="concept-"]').filter({ hasText: "Watermark" }).first();
+  const concept = page.locator('.ent-concept-grid article[id^="concept-"]').filter({ hasText: "Watermark" }).first();
   await expect(concept).toBeVisible();
   await expect(concept).toBeFocused();
   await expectWcag22Aa(page);
@@ -570,6 +572,41 @@ test("la interfaz hace reflow a 320 CSS px", async ({ page }) => {
     .filter((element) => element.right > window.innerWidth)
     .slice(0, 12));
   expect(widths.document, JSON.stringify(overflowing)).toBeLessThanOrEqual(widths.viewport);
+});
+
+test("las páginas didácticas públicas hacen reflow a 320 CSS px", async ({ page }) => {
+  await page.setViewportSize({ width: 320, height: 800 });
+  for (const path of ["/fundamentos", "/glosario", "/curso/data-intelligence-platform-y-arquitectura-lakehouse/m01-l1"]) {
+    await page.goto(path);
+    const widths = await page.evaluate(() => ({ viewport: window.innerWidth, document: document.documentElement.scrollWidth }));
+    expect(widths.document, path).toBeLessThanOrEqual(widths.viewport);
+  }
+});
+
+test("la lección sigue una secuencia didáctica con lo esencial y enlaces al glosario", async ({ page }) => {
+  await page.goto("/curso/data-intelligence-platform-y-arquitectura-lakehouse/m01-l1");
+  await waitForWorkspace(page);
+  const lesson = page.locator("#lesson-m01-l1");
+  for (const heading of ["Lo esencial", "La idea", "Conceptos clave", "Cómo funciona", "Caso práctico", "Ejemplo de código", "Errores comunes", "Comprueba tu comprensión", "Resumen"]) {
+    await expect(lesson.getByRole("heading", { level: 4, name: heading })).toBeVisible();
+  }
+  await expect(lesson.getByRole("navigation", { name: "En esta lección" })).toBeVisible();
+  await expect(lesson.locator('.ent-glossary-chips a[href^="/glosario#"]').first()).toBeVisible();
+});
+
+test("el glosario filtra por texto y nivel con teclado y anuncia el recuento", async ({ page }) => {
+  await page.goto("/glosario");
+  const search = page.getByRole("searchbox", { name: "Buscar un término" });
+  await search.focus();
+  await page.keyboard.type("checkpoint");
+  await expect(page.locator("#checkpoint")).toBeVisible();
+  await expect(page.locator("#lakehouse")).toHaveCount(0);
+  await expect(page.locator(".public-glossary-status p[aria-live=polite]")).toContainText(/de \d+ términos/u);
+  await page.getByRole("button", { name: "Limpiar filtros" }).click();
+  await page.getByRole("button", { name: /^Fundamentos/u }).first().click();
+  await expect(page.locator("#lakehouse")).toBeVisible();
+  await expect(page.locator("#liquid-clustering")).toHaveCount(0);
+  await expectWcag22Aa(page);
 });
 
 test("dos identidades autenticadas conservan progreso aislado", async ({ browser, baseURL }) => {

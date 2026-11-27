@@ -83,12 +83,15 @@ test("public and signed-in navigation share the curriculum concept search", () =
 
 test("the Databricks glossary is public, sourced and searchable", () => {
   const glossaryPage = read("app/glosario/page.tsx");
-  const glossaryData = read("app/curriculum/glossary.ts");
+  const glossaryData = ["glossary.ts", "glossary-entries/foundations.ts", "glossary-entries/platform.ts", "glossary-entries/storage.ts", "glossary-entries/processing.ts"]
+    .map((file) => read(`app/curriculum/${file}`))
+    .join("\n");
   const publicShell = read("app/components/public/PublicShell.tsx");
   const sitemap = read("app/sitemap.ts");
 
   assert.match(glossaryPage, /PublicShell active="glossary"/);
-  assert.match(glossaryPage, /glossaryEntriesByInitial/);
+  assert.match(glossaryPage, /<GlossaryExplorer\b/);
+  assert.match(read("app/components/public/GlossaryExplorer.tsx"), /aria-live="polite"/);
   assert.match(glossaryData, /Delta Lake/);
   assert.match(glossaryData, /Unity Catalog/);
   assert.match(glossaryData, /Lakeflow Jobs/);

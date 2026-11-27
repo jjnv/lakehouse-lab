@@ -87,3 +87,28 @@ export type ModuleContentPack = {
   quiz: [ContentQuizQuestion, ContentQuizQuestion, ContentQuizQuestion, ContentQuizQuestion];
   sources: [ContentSource, ContentSource, ...ContentSource[]];
 };
+
+/**
+ * Puerta de entrada didáctica de una lección: explica la idea en lenguaje
+ * llano antes de la profundización técnica y la conecta con lo ya aprendido.
+ */
+export type LessonEssentialsText = {
+  /** La idea central explicada sin jerga, en dos o tres frases. */
+  plain: string;
+  /** Analogía cotidiana que ayuda a fijar el modelo mental. */
+  analogy: string;
+  /** Qué conocimiento previo reutiliza y cómo encaja en el recorrido. */
+  buildsOn: string;
+};
+
+export type LessonEssentialsSource = {
+  /** IDs del glosario (`app/curriculum/glossary.ts`) que conviene repasar. */
+  glossary: string[];
+  es: LessonEssentialsText;
+  en: LessonEssentialsText;
+};
+
+/** Proyección localizada que consume la interfaz. */
+export type LessonEssentials = LessonEssentialsText & {
+  glossary: { id: string; term: string }[];
+};

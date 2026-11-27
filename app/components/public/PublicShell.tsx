@@ -11,6 +11,7 @@ import type { Locale } from "../../i18n/config";
 type PublicArea =
   | "home"
   | "route"
+  | "foundations"
   | "simulacros"
   | "glossary"
   | "about"
@@ -31,6 +32,7 @@ function PublicNavigationLinks({ locale, active, onNavigate }: { locale: Locale;
   return (
     <>
       <Link href="/ruta" aria-current={active === "route" ? "page" : undefined} onClick={onNavigate}>{locale === "en" ? "Learn" : "Aprender"}</Link>
+      <Link href="/fundamentos" aria-current={active === "foundations" ? "page" : undefined} onClick={onNavigate}>{locale === "en" ? "Foundations" : "Fundamentos"}</Link>
       <Link href="/catalogo" onClick={onNavigate}>{locale === "en" ? "Curriculum" : "Temario"}</Link>
       <Link href="/simulacros" aria-current={active === "simulacros" ? "page" : undefined} onClick={onNavigate}>{locale === "en" ? "Practice exams" : "Simulacros"}</Link>
     </>

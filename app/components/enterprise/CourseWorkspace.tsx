@@ -12,12 +12,77 @@ import {
 import type { PublicModule } from "../../enterprise/curriculum";
 import type { CommunityResourceRecommendationPublic, NotebookPreviewPayload } from "../../enterprise/contracts";
 import AssessmentPanel from "./AssessmentPanel";
+import InlineText from "../InlineText";
 import { SaveState, useDashboard } from "./useDashboard";
 import { courseWorkspaceText } from "../../i18n/dictionaries";
 import { localizeReviewDate } from "../../i18n/curriculum";
 import type { Locale } from "../../i18n/config";
 
 type CourseSection = "lessons" | "lab" | "quiz" | "resources";
+
+type LessonStepId = "essentials" | "idea" | "concepts" | "how" | "case" | "code" | "pitfalls" | "check" | "summary";
+
+/** Etiquetas de la secuencia didáctica de cada lección. */
+const lessonSectionText: Record<Locale, {
+  tocLabel: string;
+  steps: { id: LessonStepId; label: string }[];
+  analogy: string;
+  buildsOn: string;
+  glossary: string;
+  whyItMatters: string;
+  mentalModel: string;
+  situation: string;
+  reasoning: string;
+  outcome: string;
+  examDecision: string;
+}> = {
+  es: {
+    tocLabel: "En esta lección",
+    steps: [
+      { id: "essentials", label: "Lo esencial" },
+      { id: "idea", label: "La idea" },
+      { id: "concepts", label: "Conceptos clave" },
+      { id: "how", label: "Cómo funciona" },
+      { id: "case", label: "Caso práctico" },
+      { id: "code", label: "Ejemplo de código" },
+      { id: "pitfalls", label: "Errores comunes" },
+      { id: "check", label: "Comprueba tu comprensión" },
+      { id: "summary", label: "Resumen" },
+    ],
+    analogy: "Piénsalo así",
+    buildsOn: "Se apoya en:",
+    glossary: "Términos del glosario:",
+    whyItMatters: "Por qué importa:",
+    mentalModel: "Modelo mental",
+    situation: "Situación",
+    reasoning: "Razonamiento paso a paso",
+    outcome: "Resultado",
+    examDecision: "Cómo decidir en el examen",
+  },
+  en: {
+    tocLabel: "In this lesson",
+    steps: [
+      { id: "essentials", label: "The essentials" },
+      { id: "idea", label: "The idea" },
+      { id: "concepts", label: "Key concepts" },
+      { id: "how", label: "How it works" },
+      { id: "case", label: "Worked example" },
+      { id: "code", label: "Code example" },
+      { id: "pitfalls", label: "Common mistakes" },
+      { id: "check", label: "Check your understanding" },
+      { id: "summary", label: "Summary" },
+    ],
+    analogy: "Think of it like this",
+    buildsOn: "Builds on:",
+    glossary: "Glossary terms:",
+    whyItMatters: "Why it matters:",
+    mentalModel: "Mental model",
+    situation: "Situation",
+    reasoning: "Step-by-step reasoning",
+    outcome: "Outcome",
+    examDecision: "How to decide in the exam",
+  },
+};
 
 const sectionLabel: Record<Locale, Record<CourseSection, string>> = {
   es: {
@@ -34,14 +99,7 @@ const sectionLabel: Record<Locale, Record<CourseSection, string>> = {
   },
 };
 
-function NotebookInline({ text }: { text: string }) {
-  const parts = text.split(/(`[^`\n]+`|\*\*[^*\n]+\*\*)/g).filter(Boolean);
-  return <>{parts.map((part, index) => part.startsWith("`") && part.endsWith("`")
-    ? <code key={index}>{part.slice(1, -1)}</code>
-    : part.startsWith("**") && part.endsWith("**")
-      ? <strong key={index}>{part.slice(2, -2)}</strong>
-      : part)}</>;
-}
+const NotebookInline = InlineText;
 
 function markdownBlocks(text: string) {
   const sourceLines = text.replace(/\r/g, "").split("\n");
@@ -276,6 +334,7 @@ export default function CourseWorkspace({
 }) {
   const state = useDashboard(personalized);
   const text = courseWorkspaceText[locale] ?? courseWorkspaceText.es;
+  const lessonText = lessonSectionText[locale] ?? lessonSectionText.es;
   const labels = sectionLabel[locale] ?? sectionLabel.es;
   const [section, setSection] = useState<CourseSection>("lessons");
   const [recall, setRecall] = useState<Record<string, string>>({});
@@ -757,109 +816,185 @@ export default function CourseWorkspace({
                   <i aria-hidden="true">+</i>
                 </summary>
                 <div className="ent-lesson-body">
-                  {lesson.explanation.map((paragraph) => (
-                    <p key={paragraph}>{paragraph}</p>
-                  ))}
-                  <section className="ent-code-example">
-                    <div>
-                      <span>{lesson.example.language}</span>
-                      <strong>{lesson.example.title}</strong>
+                  <nav className="ent-lesson-toc" aria-label={lessonText.tocLabel}>
+                    <span>{lessonText.tocLabel}</span>
+                    <ol>
+                      {lessonText.steps.map((step) => (
+                        <li key={step.id}><a href={`#${lesson.id}-${step.id}`}>{step.label}</a></li>
+                      ))}
+                    </ol>
+                  </nav>
+
+                  <section id={`${lesson.id}-essentials`} className="ent-lesson-step ent-essentials" aria-labelledby={`${lesson.id}-essentials-heading`}>
+                    <h4 id={`${lesson.id}-essentials-heading`}><span aria-hidden="true">1</span>{lessonText.steps[0].label}</h4>
+                    <p className="ent-essentials-plain"><InlineText text={lesson.essentials.plain} /></p>
+                    <div className="ent-callout is-analogy">
+                      <strong>{lessonText.analogy}</strong>
+                      <p><InlineText text={lesson.essentials.analogy} /></p>
                     </div>
-                    <pre tabIndex={0}>
-                      <code>{lesson.example.code}</code>
-                    </pre>
-                    <p>{lesson.example.note}</p>
-                  </section>
-                  <section className="ent-recall-card">
-                    <div>
-                      <h4>{lesson.checkpoint.question}</h4>
-                    </div>
-                    <label htmlFor={`recall-${lesson.id}`}>
-                      {text.activeRecallAnswerLabel}
-                    </label>
-                    <textarea
-                      id={`recall-${lesson.id}`}
-                      placeholder={text.activeRecallPlaceholder}
-                      value={recall[lesson.id] ?? ""}
-                      onChange={(event) => {
-                        const value = event.target.value;
-                        setRecall((current) => ({
-                          ...current,
-                          [lesson.id]: value,
-                        }));
-                        window.localStorage.setItem(
-                          `lakehouse-private-draft:${lesson.id}`,
-                          value,
-                        );
-                      }}
-                    />
-                    <button
-                      type="button"
-                      className="ent-secondary-action"
-                      onClick={() =>
-                        setRevealed((current) => ({
-                          ...current,
-                          [lesson.id]: true,
-                        }))
-                      }
-                    >
-                      {text.checkAnswer}
-                    </button>
-                    {revealed[lesson.id] ? (
-                      <div className="ent-recall-answer">
-                        <span>{text.suggestedAnswer}</span>
-                        <p>{lesson.checkpoint.answer}</p>
-                        <div>
-                          <button
-                            type="button"
-                            onClick={() =>
-                              void lessonMutation(lesson.id, "review", "again")
-                            }
-                            disabled={preview || readOnly}
-                          >
-                            {locale === "en" ? "Need review" : "Necesito repasarlo"}
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() =>
-                              void lessonMutation(lesson.id, "review", "good")
-                            }
-                            disabled={preview || readOnly}
-                          >
-                            {locale === "en" ? "Remembered well" : "Lo recordé bien"}
-                          </button>
-                        </div>
+                    <p className="ent-builds-on"><strong>{lessonText.buildsOn}</strong> <InlineText text={lesson.essentials.buildsOn} /></p>
+                    {lesson.essentials.glossary.length ? (
+                      <div className="ent-glossary-chips">
+                        <span>{lessonText.glossary}</span>
+                        <ul>
+                          {lesson.essentials.glossary.map((term) => (
+                            <li key={term.id}><a href={`/glosario#${term.id}`}>{term.term}</a></li>
+                          ))}
+                        </ul>
                       </div>
                     ) : null}
                   </section>
-                  <details className="ent-lesson-disclosure">
-                    <summary>{locale === "en" ? "Go deeper" : "Profundiza"}</summary>
-                    <section className="ent-mental-model">
-                      <h4>{lesson.deepDive.mentalModel}</h4>
-                      <div>
-                        {lesson.deepDive.concepts.map((concept) => (
-                          <article id={concept.anchor} key={concept.anchor} tabIndex={-1}>
-                            <strong>{concept.term}</strong>
-                            <p>{concept.definition}</p>
-                            <small>{concept.whyItMatters}</small>
-                          </article>
-                        ))}
-                      </div>
-                    </section>
-                  </details>
-                  <details className="ent-lesson-disclosure">
-                    <summary>{locale === "en" ? "Summary" : "Resumen"}</summary>
-                    <div className="ent-learning-notes">
-                      <section>
-                        <h4>{locale === "en" ? "Key points" : "Puntos clave"}</h4>
-                        <ul>{lesson.keyPoints.map((item) => <li key={item}>{item}</li>)}</ul>
-                      </section>
-                      <section>
-                        <h4>{locale === "en" ? "Avoid" : "Evita"}</h4>
-                        <ul>{lesson.pitfalls.map((item) => <li key={item}>{item}</li>)}</ul>
-                      </section>
+
+                  <section id={`${lesson.id}-idea`} className="ent-lesson-step" aria-labelledby={`${lesson.id}-idea-heading`}>
+                    <h4 id={`${lesson.id}-idea-heading`}><span aria-hidden="true">2</span>{lessonText.steps[1].label}</h4>
+                    {lesson.explanation.map((paragraph) => (
+                      <p key={paragraph}><InlineText text={paragraph} /></p>
+                    ))}
+                  </section>
+
+                  <section id={`${lesson.id}-concepts`} className="ent-lesson-step" aria-labelledby={`${lesson.id}-concepts-heading`}>
+                    <h4 id={`${lesson.id}-concepts-heading`}><span aria-hidden="true">3</span>{lessonText.steps[2].label}</h4>
+                    <div className="ent-concept-grid">
+                      {lesson.deepDive.concepts.map((concept) => (
+                        <article id={concept.anchor} key={concept.anchor} tabIndex={-1}>
+                          <strong>{concept.term}</strong>
+                          <p><InlineText text={concept.definition} /></p>
+                          <small><b>{lessonText.whyItMatters}</b> <InlineText text={concept.whyItMatters} /></small>
+                        </article>
+                      ))}
                     </div>
-                  </details>
+                  </section>
+
+                  <section id={`${lesson.id}-how`} className="ent-lesson-step" aria-labelledby={`${lesson.id}-how-heading`}>
+                    <h4 id={`${lesson.id}-how-heading`}><span aria-hidden="true">4</span>{lessonText.steps[3].label}</h4>
+                    <div className="ent-callout is-model">
+                      <strong>{lessonText.mentalModel}</strong>
+                      <p><InlineText text={lesson.deepDive.mentalModel} /></p>
+                    </div>
+                    <ol className="ent-mechanics">
+                      {lesson.deepDive.mechanics.map((step) => (
+                        <li key={step}><InlineText text={step} /></li>
+                      ))}
+                    </ol>
+                  </section>
+
+                  <section id={`${lesson.id}-case`} className="ent-lesson-step" aria-labelledby={`${lesson.id}-case-heading`}>
+                    <h4 id={`${lesson.id}-case-heading`}><span aria-hidden="true">5</span>{lessonText.steps[4].label}</h4>
+                    <dl className="ent-worked-case">
+                      <div>
+                        <dt>{lessonText.situation}</dt>
+                        <dd><InlineText text={lesson.deepDive.workedScenario.situation} /></dd>
+                      </div>
+                      <div>
+                        <dt>{lessonText.reasoning}</dt>
+                        <dd>
+                          <ol>
+                            {lesson.deepDive.workedScenario.reasoning.map((step) => (
+                              <li key={step}><InlineText text={step} /></li>
+                            ))}
+                          </ol>
+                        </dd>
+                      </div>
+                      <div>
+                        <dt>{lessonText.outcome}</dt>
+                        <dd><InlineText text={lesson.deepDive.workedScenario.outcome} /></dd>
+                      </div>
+                    </dl>
+                  </section>
+
+                  <section id={`${lesson.id}-code`} className="ent-lesson-step" aria-labelledby={`${lesson.id}-code-heading`}>
+                    <h4 id={`${lesson.id}-code-heading`}><span aria-hidden="true">6</span>{lessonText.steps[5].label}</h4>
+                    <div className="ent-code-example">
+                      <div>
+                        <span>{lesson.example.language}</span>
+                        <strong>{lesson.example.title}</strong>
+                      </div>
+                      <pre tabIndex={0}>
+                        <code>{lesson.example.code}</code>
+                      </pre>
+                      <p><InlineText text={lesson.example.note} /></p>
+                    </div>
+                  </section>
+
+                  <section id={`${lesson.id}-pitfalls`} className="ent-lesson-step" aria-labelledby={`${lesson.id}-pitfalls-heading`}>
+                    <h4 id={`${lesson.id}-pitfalls-heading`}><span aria-hidden="true">7</span>{lessonText.steps[6].label}</h4>
+                    <ul className="ent-pitfalls">
+                      {lesson.pitfalls.map((item) => <li key={item}><InlineText text={item} /></li>)}
+                    </ul>
+                    <div className="ent-callout is-exam">
+                      <strong>{lessonText.examDecision}</strong>
+                      <p><InlineText text={lesson.examDecision} /></p>
+                    </div>
+                  </section>
+
+                  <section id={`${lesson.id}-check`} className="ent-lesson-step" aria-labelledby={`${lesson.id}-check-heading`}>
+                    <h4 id={`${lesson.id}-check-heading`}><span aria-hidden="true">8</span>{lessonText.steps[7].label}</h4>
+                    <div className="ent-recall-card">
+                      <p className="ent-recall-question"><InlineText text={lesson.checkpoint.question} /></p>
+                      <label htmlFor={`recall-${lesson.id}`}>
+                        {text.activeRecallAnswerLabel}
+                      </label>
+                      <textarea
+                        id={`recall-${lesson.id}`}
+                        placeholder={text.activeRecallPlaceholder}
+                        value={recall[lesson.id] ?? ""}
+                        onChange={(event) => {
+                          const value = event.target.value;
+                          setRecall((current) => ({
+                            ...current,
+                            [lesson.id]: value,
+                          }));
+                          window.localStorage.setItem(
+                            `lakehouse-private-draft:${lesson.id}`,
+                            value,
+                          );
+                        }}
+                      />
+                      <button
+                        type="button"
+                        className="ent-secondary-action"
+                        onClick={() =>
+                          setRevealed((current) => ({
+                            ...current,
+                            [lesson.id]: true,
+                          }))
+                        }
+                      >
+                        {text.checkAnswer}
+                      </button>
+                      {revealed[lesson.id] ? (
+                        <div className="ent-recall-answer">
+                          <span>{text.suggestedAnswer}</span>
+                          <p><InlineText text={lesson.checkpoint.answer} /></p>
+                          <div>
+                            <button
+                              type="button"
+                              onClick={() =>
+                                void lessonMutation(lesson.id, "review", "again")
+                              }
+                              disabled={preview || readOnly}
+                            >
+                              {locale === "en" ? "Need review" : "Necesito repasarlo"}
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() =>
+                                void lessonMutation(lesson.id, "review", "good")
+                              }
+                              disabled={preview || readOnly}
+                            >
+                              {locale === "en" ? "Remembered well" : "Lo recordé bien"}
+                            </button>
+                          </div>
+                        </div>
+                      ) : null}
+                    </div>
+                  </section>
+
+                  <section id={`${lesson.id}-summary`} className="ent-lesson-step ent-lesson-summary" aria-labelledby={`${lesson.id}-summary-heading`}>
+                    <h4 id={`${lesson.id}-summary-heading`}><span aria-hidden="true">9</span>{lessonText.steps[8].label}</h4>
+                    <ul>{lesson.keyPoints.map((item) => <li key={item}><InlineText text={item} /></li>)}</ul>
+                  </section>
                   <footer>
                     <span>
                       {completedLessons.has(lesson.id)

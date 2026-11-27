@@ -4,7 +4,8 @@ import { advancedContentB } from "./curriculum/advanced-content-b";
 import { associateExamBank } from "./curriculum/associate-exam-bank";
 import { professionalExamBank } from "./curriculum/professional-exam-bank";
 import { associateOfficialAugmentations, professionalOfficialAugmentations, officialSampleCatalog, type ExamQuestionOrigin } from "./curriculum/exam-augmentations";
-import type { CodeLanguage, LessonDeepDive, ModuleContentPack, QuestionEditorialScope } from "./curriculum/content-types";
+import type { CodeLanguage, LessonDeepDive, LessonEssentials, ModuleContentPack, QuestionEditorialScope } from "./curriculum/content-types";
+import { lessonEssentialsFor } from "./curriculum/lesson-essentials";
 import { OFFICIAL_BLUEPRINTS, PLATFORM_REFERENCES, REVIEWED_AT, blueprintObjectives, objectiveIdsForModule, performanceObjectiveId } from "./editorial-data";
 
 export type TrackId = "core" | "streaming" | "pipelines" | "performance" | "delivery" | "final";
@@ -39,6 +40,8 @@ export type Lesson = {
   pitfalls: [string, string];
   examDecision: string;
   checkpoint: { question: string; answer: string };
+  /** Introducción en lenguaje llano que precede a la explicación técnica. */
+  essentials: LessonEssentials;
   refIds: string[];
 };
 
@@ -284,11 +287,13 @@ function makeLessons(seed: ModuleSeed, pack: ModuleContentPack): Lesson[] {
   return seed.topics.map((topic, index) => {
     const content = pack.lessons[index];
     const refIds = lessonSpecificSourceIds[seed.id]?.[index] ?? broadRefIds;
+    const id = `${seed.id}-l${index + 1}`;
     return {
-    id: `${seed.id}-l${index + 1}`,
+    id,
     kicker: lessonKickers[index],
     title: topic,
     decisions: content.keyPoints,
+    essentials: lessonEssentialsFor(id, "es"),
     refIds,
     ...content,
     };

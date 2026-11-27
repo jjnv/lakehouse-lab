@@ -81,6 +81,24 @@ Delta Lake o Apache Spark cuando corresponde. El glosario se mantiene en
 `app/curriculum/glossary.ts` y se expone en `/glosario`, sitemap y busqueda
 global.
 
+- **Glosario bilingüe**: `app/curriculum/glossary.ts` define tipos, categorías
+  y niveles (`fundamentos`, `intermedio`, `avanzado`); las entradas viven en
+  `app/curriculum/glossary-entries/` con texto español en primer nivel y su
+  versión inglesa en `en`. Los `id` son anclas públicas persistentes
+  (`/glosario#id`) y `related` enlaza IDs de otras entradas. El filtrado en
+  cliente está en `app/components/public/GlossaryExplorer.tsx`.
+- **Lo esencial por lección**: `app/curriculum/lesson-essentials/` contiene,
+  por ID persistente de lección (`m01-l1`…), una explicación llana, una
+  analogía, la conexión con lo aprendido antes y términos del glosario, en
+  español e inglés. `course-data.ts` y `i18n/curriculum.ts` lo proyectan como
+  `lesson.essentials`.
+- **Secuencia de la lección**: `CourseWorkspace.tsx` muestra cada lección en
+  nueve pasos numerados (lo esencial, la idea, conceptos clave, cómo funciona,
+  caso práctico, código, errores comunes, autocomprobación y resumen).
+- **Fundamentos**: `app/curriculum/foundations.ts` alimenta la página pública
+  `/fundamentos`, un recorrido previo al módulo 1 cuyos capítulos son anclas
+  referenciadas desde el glosario.
+
 ## Desarrollo local
 
 Requisitos:
