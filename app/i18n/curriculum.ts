@@ -583,6 +583,41 @@ export function localizeModuleSummary(summary: ModuleSummary, locale: Locale): M
   };
 }
 
+const englishPerformanceObjectives: Record<string, string> = {
+  m01: "Given a business case, draw a lakehouse architecture that separates storage, compute, and governance, and justify each surface with a verifiable decision.",
+  m02: "For three workloads with an SLA and budget, select and size compute, and deliver a comparison matrix with expected latency, isolation, and cost.",
+  m03: "Given a notebook with hidden state, refactor it into parameterized code and show that a clean run reproduces the same output.",
+  m04: "Given a semi-structured dataset, publish a normalized table with an explicit schema and prove key uniqueness, cardinality, and handling of invalid records.",
+  m05: "Given a query with shuffle or skew, locate the cause in the plan and metrics, apply a single change, and show an improvement without altering the result.",
+  m06: "Implement an idempotent Delta write and prove with history, keys, and a second run that the retry keeps the same logical state.",
+  m07: "Design a bronze-silver-gold product with explicit grain, contracts, and consumption object, and reconcile counts and amounts across layers.",
+  m08: "Load the same governed batch twice, keep provenance and quarantine, and prove that the second run duplicates neither entities nor files.",
+  m09: "Implement an incremental ingestion with controlled state and evolution, and justify Auto Loader or Lakeflow Connect by volume, freshness, and operations.",
+  m10: "Define a parameterized DAG with trigger, retry, and dependencies, and demonstrate a partial recovery that does not repeat already committed effects.",
+  m11: "Apply least privilege and promote the same artifact between dev and prod, providing positive and negative access and configuration tests.",
+  m12: "Deliver an end-to-end Associate mini-lakehouse and prove each acceptance criterion with an evidence matrix and defensible decisions.",
+  m13: "Restart a streaming query from its checkpoint and prove with offsets, counts, and keys that it neither loses nor duplicates events.",
+  m14: "Configure windows and a watermark for a time-based SLA, and use boundary data to identify which events are updated, dropped, and kept in state.",
+  m15: "Integrate an event bus preserving offsets and keys, and demonstrate replay, quarantine of invalid messages, and lag within target.",
+  m16: "Materialize ordered CDC with inserts, updates, and deletes, and reconcile final state and history for out-of-order events.",
+  m17: "Operate a streaming pipeline against an SLO and run a game day that proves recovery within RTO/RPO without loss or duplicates.",
+  m18: "Declare a bronze-silver-gold graph without imperative side effects and demonstrate dependencies, incremental refresh, and the strategy observed in the event log.",
+  m19: "Implement rules with observe, isolate, and fail actions, and demonstrate rates, traceable quarantine, and remediation through the event log.",
+  m20: "Design bounded control flow and repair only the failed subset, demonstrating idempotency and preservation of already successful tasks.",
+  m21: "Plan a 90-day backfill compatible with the daily load and prove there are no overlaps, duplicates, or unprocessed windows.",
+  m22: "Deliver a production declarative pipeline with quality, CDC, and operations, and demonstrate deployment, backfill, controlled failure, and recovery.",
+  m23: "Optimize a skewed workload with a measurable hypothesis and present plan, shuffle, spill, duration, and correctness before and after.",
+  m24: "Choose and apply a Delta layout from filter patterns, and demonstrate fewer files or bytes read without over-partitioning.",
+  m25: "Build an attributable cost report and propose three quantified guardrails that reduce spend without breaking the SLA.",
+  m26: "Investigate an incident by correlating at least three surfaces and deliver a reproducible hypothesis with IDs, evidence, confidence level, and next test.",
+  m27: "Recover a degraded workload and deliver a postmortem that demonstrates improved reliability and cost and assigns preventive actions.",
+  m28: "Package a transformation with pinned dependencies and prove its contract with unit, schema, and integration tests.",
+  m29: "Promote the same artifact through a bundle, keep plan and hash, and demonstrate smoke test, run identity, and a documented rollback.",
+  m30: "Protect a sensitive domain with least privilege and centralized policies, and demonstrate allow, masked/filtered, deny, retention, and audit.",
+  m31: "Select sharing, federation, or ingestion for two consumers, and demonstrate minimal contract, pushdown or read, and revocation per pattern.",
+  m32: "Deliver and defend a complete Professional platform, pass a game day, and trace every NFR to technical, operational, and cost evidence.",
+};
+
 export function localizeModule(module: CurriculumModule, locale: Locale): CurriculumModule {
   if (locale === "es") return module;
   const copy = moduleCopyEn[module.id];
@@ -593,6 +628,7 @@ export function localizeModule(module: CurriculumModule, locale: Locale): Curric
     short: copy.short,
     description: copy.description,
     outcomes: copy.outcomes,
+    performanceObjective: englishPerformanceObjectives[module.id] ?? module.performanceObjective,
     examDomains: module.examDomains.map(englishDomain),
     sources: module.sources.map((source, index) => ({
       ...source,

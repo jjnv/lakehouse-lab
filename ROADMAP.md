@@ -36,6 +36,21 @@ decisiones concretas se debaten en incidencias y pull requests.
 - [ ] Facilitar datasets sintéticos y laboratorios reproducibles.
 - [x] Mejorar descubrimiento, comparación y seguimiento de recursos.
 
+## Data Engineering Playground
+
+Detalle en [docs/playground.md](docs/playground.md).
+
+- [x] Fase 1: contratos, motor determinista, evaluación, dashboard, workspace
+      y cinco incidencias completas (streaming, MERGE, skew, permisos,
+      orquestación) con retrospectiva, currículo, ES/EN y pruebas.
+- [ ] Fase 2: Streaming & CDC Lab, Delta Lake Lab y Spark Performance Lab.
+- [ ] Fase 3: Pipeline Builder, Architecture Design Studio, Governance Lab y
+      FinOps Simulator.
+- [ ] Fase 4: SQL Challenges con ejecución aislada en navegador, PySpark guiado
+      y proyectos integrales.
+- [ ] Fase 5: motor adaptativo, panel de competencias ampliado, Daily
+      Engineering Challenge y modos Experto/Repetición comparada.
+
 ## Cómo participar
 
 Consulta [CONTRIBUTING.md](CONTRIBUTING.md), busca una incidencia existente y

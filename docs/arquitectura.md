@@ -29,6 +29,8 @@ progreso cuando el visitante lo decide.
   anclajes.
 - `/simulacros`, `/simulacro/associate`, `/simulacro/professional`: simulacros
   internos.
+- `/playground` y `/playground/scenario/[id]`: Data Engineering Playground
+  (simulacion conceptual en el navegador; ver `docs/playground.md`).
 - `/curso/[slug]` y `/curso/[slug]/[lessonId]`: modulos y lecciones con URLs
   estables.
 - `/metodologia`, `/changelog`, `/acerca-de`, `/privacidad`, `/terminos`,
@@ -48,6 +50,8 @@ navegador.
 - `/api/assessments/*`: inicio, entrega y correccion de evaluaciones en
   servidor.
 - `/api/labs/*`: atestacion de laboratorios.
+- `/api/playground/attempts`: GET resumen privado del Playground; POST guarda
+  un intento terminado reproduciendo el motor en servidor.
 - `/api/search`: busqueda publica cacheable de modulos, lecciones, conceptos,
   recursos y glosario.
 - `/api/resources/[resourceId]/preview`: preview interna de notebooks cuando la
@@ -59,7 +63,8 @@ navegador.
 El curriculo canonico vive en TypeScript bajo `app/curriculum/` y se proyecta a
 contratos publicos desde `app/enterprise/curriculum.ts`. No se guarda el temario
 en la base de datos. La base persiste sesiones, progreso, preferencias,
-recuperacion, intentos de evaluacion y credenciales.
+recuperacion, intentos de evaluacion, credenciales e intentos terminados del
+Playground (`playground_attempts`, migracion `0003`).
 
 Sin `TURSO_DATABASE_URL` y `TURSO_AUTH_TOKEN`, el desarrollo local usa SQLite en
 `.data/`. Con esas variables, el mismo cliente usa Turso/libSQL remoto.

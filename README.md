@@ -23,6 +23,7 @@ Plataforma educativa open source en español para aprender ingeniería de datos 
 - Exportación y eliminación del progreso.
 - Credenciales de finalización verificables públicamente y exportables en PDF.
 - Diseño adaptable y comprobaciones WCAG 2.2 AA.
+- **Data Engineering Playground** (`/playground`): simulador de incidencias de producción con motor determinista, cinco escenarios bilingües, evaluación en diez dimensiones e informe post mortem. Ver [docs/playground.md](docs/playground.md).
 
 ## Arquitectura
 

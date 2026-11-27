@@ -46,7 +46,7 @@ test("lesson UX has stable urls, breadcrumbs, progressive details and privacy co
   assert.match(course, /Puedes leer sin crear un espacio\. Créalo solo cuando quieras guardar\./u);
   assert.match(lessonRoute, /LearningResource/u);
   assert.match(lessonRoute, /application\/ld\+json/u);
-  assert.match(search, /\/curso\/\$\{module\.slug\}\/\$\{lesson\.id\}/u);
+  assert.match(search, /\/curso\/\$\{(?:localizedModule|module)\.slug\}\/\$\{lesson\.id\}/u);
 });
 
 test("public SEO includes new indexable routes and domain documentation", () => {

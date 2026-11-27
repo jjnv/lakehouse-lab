@@ -10,7 +10,7 @@ import { appShellText } from "../../i18n/dictionaries";
 import type { Locale } from "../../i18n/config";
 import CurriculumSearch from "./CurriculumSearch";
 
-export type EnterpriseArea = "home" | "learning" | "catalog" | "resources" | "record" | "settings" | "simulators";
+export type EnterpriseArea = "home" | "learning" | "catalog" | "resources" | "record" | "settings" | "simulators" | "playground";
 export type AppShellVariant = "explore" | "workspace" | "course";
 
 type AppShellProps = {
@@ -111,12 +111,14 @@ export default function AppShell({ active, title, children, variant, authenticat
     { href: "/inicio", label: text.nav.home, activeWhen: ["home"] },
     { href: "/mi-aprendizaje", label: locale === "en" ? "Plan" : "Plan", activeWhen: ["learning"] },
     { href: "/catalogo", label: text.nav.catalog, activeWhen: ["catalog", "resources"] },
+    { href: "/playground", label: "Playground", activeWhen: ["playground"] },
     { href: "/expediente", label: locale === "en" ? "Results" : "Resultados", activeWhen: ["record"] },
   ];
   const exploreNavigation: Array<{ href: string; label: string; activeWhen: EnterpriseArea[] }> = [
     { href: "/ruta", label: locale === "en" ? "Learn" : "Aprender", activeWhen: ["learning"] },
     { href: "/catalogo", label: text.nav.catalog, activeWhen: ["catalog", "resources"] },
     { href: "/simulacros", label: text.nav.simulators, activeWhen: ["simulators"] },
+    { href: "/playground", label: "Playground", activeWhen: ["playground"] },
   ];
   const navigation = variant === "workspace" ? workspaceNavigation : exploreNavigation;
 

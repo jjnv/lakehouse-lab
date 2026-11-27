@@ -447,3 +447,32 @@ export const privacyRequests = sqliteTable("privacy_requests", {
 }, (table) => [
   index("privacy_requests_org_status_idx").on(table.organizationId, table.status, table.requestedAt),
 ]);
+
+/**
+ * Intentos terminados del Data Engineering Playground. El servidor recalcula
+ * el resultado reproduciendo el motor determinista con las entradas guardadas;
+ * nunca se confía en una puntuación enviada por el navegador. Las evidencias
+ * de competencias se derivan de evaluation_json (sin tabla aparte en fase 1).
+ */
+export const playgroundAttempts = sqliteTable("playground_attempts", {
+  id: text("id").primaryKey(),
+  organizationId: text("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+  userId: text("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  scenarioId: text("scenario_id").notNull(),
+  scenarioVersion: text("scenario_version").notNull(),
+  mode: text("mode", { enum: ["guided", "practice", "evaluation", "production"] }).notNull(),
+  seed: integer("seed").notNull(),
+  status: text("status", { enum: ["recovered", "failed", "expired"] }).notNull(),
+  score: integer("score").notNull(),
+  durationMinutes: integer("duration_minutes").notNull(),
+  costUnits: integer("cost_units").notNull(),
+  inputsJson: text("inputs_json").notNull(),
+  evaluationJson: text("evaluation_json").notNull(),
+  idempotencyKey: text("idempotency_key").notNull(),
+  payloadHash: text("payload_hash").notNull(),
+  createdAt: createdAt(),
+}, (table) => [
+  uniqueIndex("playground_attempts_user_idempotency_unique").on(table.userId, table.idempotencyKey),
+  index("playground_attempts_user_created_idx").on(table.userId, table.createdAt),
+  index("playground_attempts_user_scenario_idx").on(table.userId, table.scenarioId),
+]);

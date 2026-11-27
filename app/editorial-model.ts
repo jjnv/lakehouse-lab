@@ -22,6 +22,13 @@ export const EDITORIAL_UPDATE_FREQUENCY = "Revisión planificada cuando cambian 
 
 export const editorialChangelog: EditorialChange[] = [
   {
+    date: "2026-11-27",
+    target: "Data Engineering Playground",
+    type: "producto",
+    description: "Nueva sección /playground con un simulador determinista de incidencias de producción: cinco escenarios bilingües (estado de streaming, MERGE no idempotente, data skew, permisos de Unity Catalog y reintentos de orquestación), evaluación en diez dimensiones, informe post mortem y guardado opcional reproducido en servidor. Datos y costes sintéticos.",
+    reference: null,
+  },
+  {
     date: "2026-08-25",
     target: "Currículo v2.1.0",
     type: "contenido",

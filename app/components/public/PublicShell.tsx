@@ -35,6 +35,7 @@ function PublicNavigationLinks({ locale, active, onNavigate }: { locale: Locale;
       <Link href="/fundamentos" aria-current={active === "foundations" ? "page" : undefined} onClick={onNavigate}>{locale === "en" ? "Foundations" : "Fundamentos"}</Link>
       <Link href="/catalogo" onClick={onNavigate}>{locale === "en" ? "Curriculum" : "Temario"}</Link>
       <Link href="/simulacros" aria-current={active === "simulacros" ? "page" : undefined} onClick={onNavigate}>{locale === "en" ? "Practice exams" : "Simulacros"}</Link>
+      <Link href="/playground" onClick={onNavigate}>Playground</Link>
     </>
   );
 }

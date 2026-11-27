@@ -51,6 +51,7 @@ import type {
   TenantBrandConfig,
 } from "./contracts";
 import { getOrganizationBranding, PROFESSIONAL_CURRICULUM_VERSION_ID } from "./store";
+import { deletePlaygroundData, exportPlaygroundData } from "./playground-service";
 import type { LearnerContext } from "./types";
 
 const MUTATION_ID = /^[A-Za-z0-9][A-Za-z0-9._:-]{15,159}$/u;
@@ -1420,7 +1421,7 @@ export async function renderCredentialPdf(learner: LearnerContext, row: typeof c
 
 export async function exportLearnerData(learner: LearnerContext) {
   const db = getDb();
-  const [dashboard, lessons, reviews, labs, attempts, credentialRows, events] = await Promise.all([
+  const [dashboard, lessons, reviews, labs, attempts, credentialRows, events, playground] = await Promise.all([
     getLearnerDashboard(learner),
     db.select().from(lessonProgress).where(eq(lessonProgress.userId, learner.user.id)),
     db.select().from(reviewSchedules).where(eq(reviewSchedules.userId, learner.user.id)),
@@ -1428,6 +1429,7 @@ export async function exportLearnerData(learner: LearnerContext) {
     db.select().from(assessmentAttempts).where(eq(assessmentAttempts.userId, learner.user.id)),
     db.select().from(credentials).where(eq(credentials.userId, learner.user.id)),
     db.select({ type: learningEvents.type, objectType: learningEvents.objectType, objectId: learningEvents.objectId, occurredAt: learningEvents.occurredAt }).from(learningEvents).where(eq(learningEvents.userId, learner.user.id)).orderBy(learningEvents.occurredAt),
+    exportPlaygroundData(learner.user.id),
   ]);
   return {
     exportedAt: nowIso(),
@@ -1438,6 +1440,7 @@ export async function exportLearnerData(learner: LearnerContext) {
     assessments: attempts.map(assessmentResultPublic),
     credentials: credentialRows.map(publicCredential),
     learningEvents: events,
+    playground: { attempts: playground },
   };
 }
 
@@ -1460,6 +1463,7 @@ export async function deleteLearnerProgress(learner: LearnerContext, body: unkno
   await db.delete(gamificationSummaries).where(eq(gamificationSummaries.userId, learner.user.id));
   await db.delete(credentials).where(eq(credentials.userId, learner.user.id));
   await db.delete(learningEvents).where(eq(learningEvents.userId, learner.user.id));
+  await deletePlaygroundData(learner.user.id);
   const resetGuard = { ...guard, key: `${learner.user.id}:${body.clientMutationId}`, replayed: false };
   const deletedAt = nowIso();
   const revision = await recordMutation(learner, resetGuard, "progress.deleted", "user", learner.user.id, { deletedAt });
