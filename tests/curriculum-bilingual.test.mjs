@@ -72,6 +72,7 @@ const course = require(join(temporary, "app/course-data.js"));
 const localization = require(join(temporary, "app/i18n/curriculum.js"));
 const curriculum = require(join(temporary, "app/enterprise/curriculum.js"));
 const progress = require(join(temporary, "app/progress.js"));
+const englishQuiz = require(join(temporary, "app/i18n/english-quiz/index.js"));
 
 after(async () => {
   await rm(temporary, { recursive: true, force: true });
@@ -137,6 +138,49 @@ test("both simulator projections keep editorial identity, scoring and unique Eng
       assert.notEqual(question.question, canonical.question);
       assert.equal(new Set(question.options).size, 4);
     }
+  }
+});
+
+test("every canonical question has real English copy aligned to its canonical options", () => {
+  const canonicalIds = course.questionTraceability.map((question) => question.editorialId);
+  assert.deepEqual([...englishQuiz.englishQuizEditorialIds()].sort(), [...canonicalIds].sort());
+  const prompts = new Set();
+  for (const editorialId of canonicalIds) {
+    const copy = englishQuiz.englishQuizCopyFor(editorialId);
+    const spanishOptions = course.canonicalQuizOptions(editorialId);
+    assert.equal(copy.options.length, spanishOptions.length, `${editorialId}: número de opciones`);
+    assert.equal(new Set(copy.options).size, 4, `${editorialId}: opciones EN duplicadas`);
+    assert.ok(copy.question.trim().length > 20 && copy.explanation.trim().length > 20, `${editorialId}: copia EN incompleta`);
+    assert.doesNotMatch(`${copy.question} ${copy.options.join(" ")} ${copy.explanation}`, /which decision best fits the|option that satisfies|Scale compute first and postpone validation|[áéíóúñ¿¡]/u, `${editorialId}: plantilla genérica o texto sin traducir`);
+    assert.equal(prompts.has(copy.question), false, `Prompt EN duplicado: ${editorialId}`);
+    prompts.add(copy.question);
+  }
+});
+
+test("English exam projections follow the shuffled options without changing the scored answer", () => {
+  for (const mode of ["associate", "professional"]) {
+    for (const attempt of [1, 2, 3]) {
+      for (const [index, spanish] of course.buildExamQuestions(mode, attempt).entries()) {
+        const english = localization.localizeQuizQuestion(spanish, "en", index);
+        const canonical = course.canonicalQuizOptions(spanish.editorialId);
+        const copy = englishQuiz.englishQuizCopyFor(spanish.editorialId);
+        assert.equal(english.answer, spanish.answer);
+        for (const [position, option] of spanish.options.entries()) {
+          assert.equal(english.options[position], copy.options[canonical.indexOf(option)], `${spanish.editorialId}: opción ${position} desalineada`);
+        }
+        assert.equal(english.options[english.answer], copy.options[canonical.indexOf(spanish.options[spanish.answer])]);
+      }
+    }
+  }
+});
+
+test("client components never import server-only assessment copy", async () => {
+  const { readdir } = await import("node:fs/promises");
+  const files = (await readdir(join(workspace, "app"), { recursive: true })).filter((file) => /\.tsx?$/u.test(file));
+  for (const file of files) {
+    const source = await readFile(join(workspace, "app", file), "utf8");
+    if (!/^\s*["']use client["']/u.test(source)) continue;
+    assert.doesNotMatch(source, /from\s+["'][^"']*(?:i18n\/curriculum|i18n\/english-quiz|course-data|curriculum\/(?:associate|professional)-exam-bank|exam-augmentations)["']/u, `${file} importa contenido de evaluación de servidor`);
   }
 });
 

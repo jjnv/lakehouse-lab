@@ -532,6 +532,18 @@ for (const question of allEditorialQuestions) {
   }
 }
 
+const canonicalOptionsByEditorialId: ReadonlyMap<string, readonly string[]> = new Map(
+  allEditorialQuestions.map((question) => [question.editorialId, Object.freeze([...question.options])]),
+);
+
+/**
+ * Opciones en el orden editorial canónico. Permite que las proyecciones
+ * localizadas sigan el barajado del simulador sin cambiar el índice correcto.
+ */
+export function canonicalQuizOptions(editorialId: string): readonly string[] | undefined {
+  return canonicalOptionsByEditorialId.get(editorialId);
+}
+
 export const professionalExtensionQuestionIds = allEditorialQuestions
   .filter((question) => question.scope === "professional-extension")
   .map((question) => question.editorialId);

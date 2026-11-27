@@ -4,6 +4,12 @@ import type { CommunityResourceCatalogEntry, ModuleSummary } from "../enterprise
 import type { Locale } from "./config";
 import { englishLessonContentFor } from "./english-lesson-content";
 import { lessonEssentialsFor } from "../curriculum/lesson-essentials";
+import { canonicalQuizOptions } from "../course-data";
+import { englishLabContent, type CanonicalModuleId } from "./english-lab-content";
+import { englishQuizCopyFor } from "./english-quiz";
+import { localizeReviewDate } from "./review-date";
+
+export { localizeReviewDate };
 
 type ModuleCopy = {
   title: string;
@@ -372,17 +378,6 @@ function lowerFirst(value: string) {
   return value ? `${value[0].toLocaleLowerCase("en")}${value.slice(1)}` : value;
 }
 
-export function localizeReviewDate(value: string | null, locale: Locale): string | null {
-  if (locale === "es" || !value) return value;
-  return value
-    .replace("24 de julio de 2026", "July 24, 2026")
-    .replace("23 de julio de 2026", "July 23, 2026")
-    .replace("21 de julio de 2026", "July 21, 2026")
-    .replace("24 jul 2026", "Jul 24, 2026")
-    .replace("23 jul 2026", "Jul 23, 2026")
-    .replace("21 jul 2026", "Jul 21, 2026");
-}
-
 function englishLessonCopy(moduleId: string, moduleCopy: ModuleCopy, index: number): LessonCopy {
   const title = lessonTitlesEn[moduleId]?.[index] ?? `${moduleCopy.short} decision ${index + 1}`;
   const outcome = moduleCopy.outcomes[index % moduleCopy.outcomes.length] ?? moduleCopy.description;
@@ -485,11 +480,13 @@ function englishDomain(domain: string): string {
 
 function englishLab(module: CurriculumModule, moduleCopy: ModuleCopy): CurriculumModule["lab"] {
   const schema = `main.lakehouse_lab_${module.id}`;
+  const prose = englishLabContent[module.id as CanonicalModuleId];
+  if (!prose) return module.lab;
   return {
     ...module.lab,
-    title: `${moduleCopy.short} guided lab`,
-    goal: `Practice ${moduleCopy.outcomes.map(lowerFirst).join(", ")} with a small, isolated Databricks exercise.`,
-    scenario: `You are asked to turn ${moduleCopy.title} into reproducible evidence for a reviewable lakehouse workload.`,
+    title: prose.title,
+    goal: prose.goal,
+    scenario: prose.scenario,
     freeEdition: {
       ...module.lab.freeEdition,
       note: module.lab.freeEdition.supported
@@ -520,10 +517,7 @@ function englishLab(module: CurriculumModule, moduleCopy: ModuleCopy): Curriculu
       ...module.lab.reproducibility,
       note: "The procedure is specified for repeatable practice; keep run evidence, parameters, and cleanup output.",
     },
-    deliberateFailure: {
-      scenario: "Run once with the wrong catalog, schema, permission, or checkpoint boundary to observe a controlled failure.",
-      recovery: "Correct the namespace or permission, preserve the failure evidence, and rerun from the idempotent cleanup point.",
-    },
+    deliberateFailure: prose.deliberateFailure,
     estimatedCost: {
       ...module.lab.estimatedCost,
       free: "0 USD, subject to fair-use limits and daily quotas",
@@ -540,24 +534,16 @@ function englishLab(module: CurriculumModule, moduleCopy: ModuleCopy): Curriculu
       { symptom: "Permission denied", fix: "Verify the minimum privilege for the object and compute surface instead of broadening access globally." },
       { symptom: "Output does not match", fix: "Restart from cleanup, validate the input contract, and rerun the steps in order." },
     ],
-    steps: [
-      `Create or select the isolated schema ${schema} and record the runtime.`,
-      `Implement the smallest example that demonstrates ${lowerFirst(moduleCopy.outcomes[0])}.`,
-      `Add a validation check for ${lowerFirst(moduleCopy.outcomes[1] ?? moduleCopy.description)}.`,
-      `Capture the result, metric, permission, or lineage evidence that supports the design decision.`,
-      "Run cleanup and confirm that rerunning the lab would not duplicate or leak data.",
-    ],
-    starterCode: `-- ${moduleCopy.title}\nCREATE SCHEMA IF NOT EXISTS ${schema};\nUSE SCHEMA ${schema};\n-- Add the module-specific objects and checks here.\nSELECT '${module.id}' AS module_id, current_timestamp() AS started_at;`,
-    solution: `-- Sample solution outline for ${moduleCopy.title}\n-- 1. Create isolated objects in ${schema}.\n-- 2. Run the transformation or configuration that demonstrates the module decision.\n-- 3. Validate counts, schema, permissions, metrics, or lineage.\n-- 4. Record evidence and clean up temporary resources.\nSELECT '${moduleCopy.short}' AS focus, 'evidence captured' AS status;`,
-    checks: module.lab.checks.map((_, index) => ({
-      label: `Evidence check ${index + 1}: ${moduleCopy.outcomes[index % moduleCopy.outcomes.length]}`,
-      pattern: ".*",
-    })) as CurriculumModule["lab"]["checks"],
-    expectedEvidence: [
-      `Runtime and namespace used for ${moduleCopy.short}.`,
-      "A query result, table sample, metric, or configuration screenshot that proves the selected pattern.",
-      "Cleanup output or written note showing how the practice can be rerun safely.",
-    ],
+    steps: prose.steps,
+    // Executable code, solutions and regex checks stay canonical (shared with
+    // Spanish) so English learners are graded by the same real checks.
+    starterCode: module.lab.starterCode,
+    solution: module.lab.solution,
+    checks: module.lab.checks.map((check, index) => ({
+      ...check,
+      label: prose.checkLabels[index] ?? check.label,
+    })),
+    expectedEvidence: prose.expectedEvidence,
     cloudNotes: module.lab.cloudNotes.map((item) => ({
       ...item,
       note: `On ${item.cloud}, use an isolated workspace or Free Edition where available, keep credentials out of notebooks, and document any cloud-specific service limits.`,
@@ -637,7 +623,7 @@ export function localizeModule(module: CurriculumModule, locale: Locale): Curric
     })),
     lessons: module.lessons.map((lesson, index) => localizeLesson(lesson, locale, copy, index)),
     lab: englishLab(module, copy),
-    quiz: module.quiz.map((question, index) => localizeQuizQuestion(question, locale, index)),
+    quiz: module.quiz.map((question) => localizeQuizQuestion(question, locale)),
   };
 }
 
@@ -669,28 +655,22 @@ function localizeLesson(lesson: Lesson, locale: Locale, moduleCopy: ModuleCopy, 
   };
 }
 
-export function localizeQuizQuestion(question: QuizQuestion, locale: Locale, index = 0): QuizQuestion {
+export function localizeQuizQuestion(question: QuizQuestion, locale: Locale): QuizQuestion {
   if (locale === "es") return question;
-  const moduleCopy = question.moduleId ? moduleCopyEn[question.moduleId] : null;
-  const focus = moduleCopy?.short ?? englishDomain(question.domain || "Databricks");
-  const outcome = moduleCopy?.outcomes[index % moduleCopy.outcomes.length] ?? "choose the governed, evidence-backed Databricks option";
-  const correct = `Apply the ${focus} option that satisfies ${lowerFirst(outcome)} and preserves operational evidence.`;
-  const distractors = [
-    "Scale compute first and postpone validation until users report a problem.",
-    "Bypass governance controls to make the implementation faster.",
-    "Delete state, checkpoints, or history before proving the root cause.",
-  ];
-  const options = question.options.map((_, optionIndex) => optionIndex === question.answer
-    ? correct
-    : distractors.shift() ?? `Use a manual workaround for ${focus} without documenting evidence.`);
+  const domain = englishDomain(question.domain);
+  const copy = englishQuizCopyFor(question.editorialId);
+  const canonical = canonicalQuizOptions(question.editorialId);
+  if (!copy || !canonical || canonical.length !== copy.options.length) return { ...question, domain };
+  // The simulator shuffles options per attempt; map each displayed option back
+  // to its canonical position so the scored `answer` index stays identical.
+  const order = question.options.map((option) => canonical.indexOf(option));
+  if (order.some((canonicalIndex) => canonicalIndex < 0) || new Set(order).size !== order.length) return { ...question, domain };
   return {
     ...question,
-    question: moduleCopy
-      ? `For ${moduleCopy.title}, which decision best fits the ${englishDomain(question.domain)} scenario?`
-      : `Which answer best resolves this ${englishDomain(question.domain || "Databricks")} scenario?`,
-    options,
-    explanation: `The correct answer is the one that keeps the Databricks decision tied to the requirement, uses the smallest governed pattern, and leaves evidence for validation, reruns, and recovery.`,
-    domain: englishDomain(question.domain),
+    question: copy.question,
+    options: order.map((canonicalIndex) => copy.options[canonicalIndex]),
+    explanation: copy.explanation,
+    domain,
   };
 }
 
