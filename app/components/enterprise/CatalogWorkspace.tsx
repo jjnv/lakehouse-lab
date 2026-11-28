@@ -6,6 +6,8 @@ import { SaveState, useDashboard } from "./useDashboard";
 import { catalogWorkspaceText } from "../../i18n/dictionaries";
 import type { Locale } from "../../i18n/config";
 
+type CatalogWorkspaceCopy = (typeof catalogWorkspaceText)["es"];
+
 type StatusFilter = "all" | "available" | "progress" | "completed" | "preview";
 export type CatalogSurface = "modules" | "resources";
 
@@ -280,7 +282,6 @@ export default function CatalogWorkspace({
   );
 }
 
-/* eslint-disable-next-line @typescript-eslint/no-explicit-any */
-function EmptyState({ onClear, text }: { onClear: () => void; text: Record<string, any> }) {
+function EmptyState({ onClear, text }: { onClear: () => void; text: Pick<CatalogWorkspaceCopy, "emptyTitle" | "emptyDesc" | "clearFilters"> }) {
   return <div className="ent-empty"><strong>{text.emptyTitle}</strong><p>{text.emptyDesc}</p><button type="button" className="ent-secondary-action" onClick={onClear}>{text.clearFilters}</button></div>;
 }

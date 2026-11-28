@@ -15,7 +15,7 @@ import AssessmentPanel from "./AssessmentPanel";
 import InlineText from "../InlineText";
 import { SaveState, useDashboard } from "./useDashboard";
 import { courseWorkspaceText } from "../../i18n/dictionaries";
-import { localizeReviewDate } from "../../i18n/curriculum";
+import { localizeReviewDate } from "../../i18n/dates";
 import type { Locale } from "../../i18n/config";
 
 type CourseSection = "lessons" | "lab" | "quiz" | "resources";

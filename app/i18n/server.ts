@@ -1,5 +1,5 @@
 import { cookies } from "next/headers";
-import { DEFAULT_LOCALE, LOCALE_COOKIE_NAME, localeFromValue, type Locale } from "./config";
+import { LOCALE_COOKIE_NAME, localeFromValue, type Locale } from "./config";
 
 export async function getRequestLocale(): Promise<Locale> {
   const cookieStore = await cookies();
@@ -14,8 +14,4 @@ export function localeCookieOptions() {
     path: "/",
     maxAge: 60 * 60 * 24 * 365,
   };
-}
-
-export function localeOrDefault(locale: Locale | null | undefined): Locale {
-  return locale ?? DEFAULT_LOCALE;
 }

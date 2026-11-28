@@ -49,6 +49,8 @@ test("the compiled client does not contain server-only curriculum banks or answe
     "professionalExamBank",
     "buildExamQuestions",
     "course-data",
+    "englishQuizContent",
+    "Rescued data avoids losing the part of the payload that does not fit the schema.",
   ]) {
     assert.ok(!clientJavaScript.includes(privateIdentifier), `client bundle exposes ${privateIdentifier}`);
   }
@@ -58,6 +60,7 @@ test("the compiled client does not contain server-only curriculum banks or answe
   assert.ok(serverJavaScript.includes("answerKeyJson"));
   assert.ok(serverJavaScript.includes("PDFDocument"));
   assert.ok(serverJavaScript.includes("legacyImports"));
+  assert.ok(serverJavaScript.includes("Rescued data avoids losing the part of the payload that does not fit the schema."));
 });
 
 test("the compiled UI retains keyboard, announcement and high-contrast affordances", () => {
@@ -80,7 +83,7 @@ test("the server bundle contains the complete public launch surface", () => {
     "Professional",
     "Simulacros",
     "Condiciones de uso",
-    "Proyecto independiente|PreparaciÃ³n independiente",
+    "Proyecto independiente|Preparación independiente",
     "og-public.png",
   ]) {
     assert.ok(new RegExp(contract, "u").test(serverJavaScript), `public launch surface is missing ${contract}`);

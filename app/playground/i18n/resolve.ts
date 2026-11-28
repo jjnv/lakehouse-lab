@@ -1,9 +1,5 @@
-import type { LocalizedScenario, PlaygroundLocale, ScenarioCopy } from "../domain/types";
+import type { LocalizedScenario, PlaygroundLocale } from "../domain/types";
 import { PLAYGROUND_UI } from "./ui";
-
-export function scenarioCopy(scenario: LocalizedScenario, locale: PlaygroundLocale): ScenarioCopy {
-  return scenario.copy[locale];
-}
 
 /** Resuelve la clave de texto de un evento del motor. Devuelve null si falta (lo detectan las pruebas). */
 export function eventText(scenario: LocalizedScenario, locale: PlaygroundLocale, textKey: string): string | null {

@@ -12,14 +12,6 @@ export function localeFromValue(value: unknown): Locale {
   return isLocale(value) ? value : DEFAULT_LOCALE;
 }
 
-export function localeLabel(locale: Locale) {
-  return locale === "en" ? "English" : "Español";
-}
-
-export function bcp47Locale(locale: Locale) {
-  return locale === "en" ? "en-US" : "es-ES";
-}
-
 export function openGraphLocale(locale: Locale) {
   return locale === "en" ? "en_US" : "es_ES";
 }

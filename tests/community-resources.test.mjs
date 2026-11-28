@@ -164,8 +164,8 @@ function loadCurriculumModule() {
       localizeResourceCatalog: (catalog) => catalog,
       localizeSearchLocation: (location) => location,
       localizeText: (value) => value,
-      moduleCopyEn: {},
     },
+    "../i18n/english-resource-content": evaluateCommonJs(transpile("app/i18n/english-resource-content.ts")),
     "./assessment-private": { prepareAssessment: () => ({}) },
     "./search-anchor": { conceptAnchor: () => "concept" },
   });

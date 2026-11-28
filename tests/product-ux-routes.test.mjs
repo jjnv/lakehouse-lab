@@ -69,7 +69,7 @@ test("english curriculum projection covers every module without pending placehol
     const moduleId = `m${String(index).padStart(2, "0")}`;
     assert.match(i18n, new RegExp(`${moduleId}: \\[`, "u"), `missing English lesson titles for ${moduleId}`);
   }
-  for (const required of ["englishDeepDive", "englishLab", "localizeQuizQuestion", "localizeGlossaryEntry", "localizeNotebookPreview"]) {
+  for (const required of ["englishLessonContentFor", "englishLabContentFor", "englishQuizContent", "englishLab", "localizeQuizQuestion", "localizeGlossaryEntry", "localizeNotebookPreview"]) {
     assert.ok(i18n.includes(required) || read("app/components/enterprise/CourseWorkspace.tsx").includes(required), `missing ${required}`);
   }
 });

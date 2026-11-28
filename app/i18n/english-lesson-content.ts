@@ -1153,10 +1153,10 @@ export const englishLessonContent = {
     }
   },
   "m04-l4": {
-    "summary": "Arrays, structs and maps can be transformed without losing the context of the parent row.",
+    "summary": "Arrays, structs, maps and VARIANT cover different complex-data contracts without losing the context of the parent row.",
     "explanation": [
-      "explode creates one row per element; explode_outer preserves the row when the collection is null or empty. The fields of a struct are selected with dot notation and transform processes arrays without expanding them.",
-      "When normalizing JSON, you preserve the parent record key and define what to do with empty arrays. Indefinitely inferring the production scheme causes source changes to alter results without review."
+      "explode creates one row per element; explode_outer preserves the row when the collection is null or empty. The fields of a struct are selected with dot notation and transform processes arrays without expanding them. For a known schema that needs statistics and layout, a typed struct remains the most explicit option.",
+      "VARIANT stores semi-structured JSON with an optimized encoding on Databricks Runtime 15.3 or later when fields change frequently. It does not replace modeling: VARIANT columns are not partitioning or clustering keys and cannot be grouped or ordered directly; project the fields used by contracts and critical queries into typed columns and verify runtime/protocol compatibility."
     ],
     "deepDive": {
       "mentalModel": "Complex types preserve structure: a struct groups fields with a schema, an array maintains a sequence, and a map associates keys with values. There is no need to convert JSON to strings or exploit everything immediately. The higher-order functions transform, filter, exists, and aggregate operate within an array preserving the parent row; field notation navigates structs; element_at queries collections. explode changes the grain when creating rows and therefore requires preserving keys from the parent. explode_outer maintains a representation when the collection is null or empty. Choosing between nested transformation and normalization depends on the consumer and semantics, not a limitation of Spark.",
@@ -1193,13 +1193,13 @@ export const englishLessonContent = {
     },
     "keyPoints": [
       "explode changes cardinality",
-      "explode_outer preserves parents without elements",
-      "Nested schema must be versioned"
+      "Struct favors a known contract",
+      "VARIANT keeps flexibility; project the critical fields"
     ],
     "decisions": [
       "explode changes cardinality",
-      "explode_outer preserves parents without elements",
-      "Nested schema must be versioned"
+      "Struct favors a known contract",
+      "VARIANT keeps flexibility; project the critical fields"
     ],
     "example": {
       "title": "Normalize order lines",
@@ -1207,9 +1207,9 @@ export const englishLessonContent = {
     },
     "pitfalls": [
       "Losing order_id when exploding items",
-      "Using explode when transform maintains cardinality better"
+      "Storing everything as VARIANT and expecting statistics, clustering or direct GROUP BY"
     ],
-    "examDecision": "Use explode to convert elements to rows; use struct or transform access if you don't need to increase rows.",
+    "examDecision": "Blueprint: use explode to turn elements into rows and struct/transform when the schema is known. Professional extension: choose VARIANT for highly variable JSON and project operational fields to stable types.",
     "checkpoint": {
       "question": "When to choose explode_outer?",
       "answer": "When the parent row must be preserved even if the array is null or empty."
@@ -2035,10 +2035,10 @@ export const englishLessonContent = {
     }
   },
   "m07-l3": {
-    "summary": "Gold can publish tables, views, materialized views or streaming tables depending on freshness and cost.",
+    "summary": "Gold can publish tables, views, materialized views, streaming tables or a semantic layer of metric views depending on freshness, reuse and cost.",
     "explanation": [
-      "A view computes by querying; a materialized view preserves results and refreshes; a streaming table processes incremental inputs; a table is maintained by an explicit load.",
-      "The choice depends on latency, change pattern and recomputation cost, not that Gold always means physical table."
+      "A view computes when queried; a materialized view keeps results and refreshes them; a streaming table processes incremental inputs; a table is maintained through an explicit load. A Unity Catalog metric view centralizes governed dimensions and measures so that different tools evaluate the same semantics through MEASURE().",
+      "The choice depends on latency, change pattern and recomputation cost. A metric view does not fix a faulty physical grain or replace an expensive materialization: it builds on well-modeled sources and prevents each dashboard from redefining revenue, margin or active customers."
     ],
     "deepDive": {
       "mentalModel": "Gold is a data interface for a decision or application. It can be a table, view, materialized view or streaming table; The choice balances freshness, recomputation cost, complexity, and resilience. A view calculates by consulting and maintains maximum relevance, but transfers cost and variability to the consumer. A materialized view physically maintains results and Databricks manages their updating according to capabilities. A table created by Job offers explicit control. A streaming table represents continuous incremental ingestion or transformation. Before choosing, metric, grain, dimensions, SLA and query pattern are defined. Gold is not simply the last SELECT statement from Silver.",
@@ -2074,27 +2074,27 @@ export const englishLessonContent = {
       }
     },
     "keyPoints": [
-      "View calculates on reading",
-      "MV materializes and refreshes",
-      "Streaming table processes incrementally"
+      "An MV materializes and refreshes",
+      "A metric view governs measures and dimensions",
+      "The physical grain remains authoritative"
     ],
     "decisions": [
-      "View calculates on reading",
-      "MV materializes and refreshes",
-      "Streaming table processes incrementally"
+      "An MV materializes and refreshes",
+      "A metric view governs measures and dimensions",
+      "The physical grain remains authoritative"
     ],
     "example": {
       "title": "Gold object materialized",
       "note": "Validates support and environment refresh policy."
     },
     "pitfalls": [
-      "Use view for expensive aggregation highly consulted",
-      "Choose streaming without freshness requirement"
+      "Using a view for an expensive, heavily queried aggregation",
+      "Creating a different metric in each dashboard even though they share a definition"
     ],
-    "examDecision": "For persisted results and managed refresh, choose materialized view; for always current logic when querying, view.",
+    "examDecision": "Blueprint: choose a view, materialized view or streaming table based on freshness and cost. Professional extension: add a metric view when several experiences must share governed measures and dimensions.",
     "checkpoint": {
-      "question": "What differentiates a MV from a view?",
-      "answer": "The VM stores and refreshes results; the view stores the query."
+      "question": "What does a metric view add on top of a Gold view or table?",
+      "answer": "A governed semantic layer with reusable measures and dimensions; on its own it does not change the grain or automatically materialize the source."
     }
   },
   "m07-l4": {
@@ -2665,10 +2665,10 @@ export const englishLessonContent = {
     }
   },
   "m09-l3": {
-    "summary": "Lakeflow Connect managed connectors manage ingestion; Standard connectors offer access from code.",
+    "summary": "Lakeflow Connect combines managed/standard connectors with query-based connectors for databases without CDC.",
     "explanation": [
-      "Managed connectors reduce operation and create governed pipelines for compatible sources. Standard connectors extend sources from Spark or pipelines.",
-      "CDC availability, latency, and capabilities are connector-dependent; not all offer the same semantics."
+      "Managed connectors reduce operations and create governed pipelines for compatible sources. Standard connectors extend sources from Spark or pipelines. A query-based connector queries the database directly through a Unity Catalog connection and writes streaming tables without an ingestion gateway or staging volume.",
+      "Query-based incremental ingestion runs on a schedule and stores a high-water mark of a single monotonic cursor column; each run reads values greater than the previous one. A NULL cursor is not ingested, and an ID only works if rows are append-only. Do not present this pattern as log-based CDC or as automatic capture of every delete."
     ],
     "deepDive": {
       "mentalModel": "Lakeflow Connect organizes ingestion options from highly managed connectors to more customizable interfaces. Managed connectors encapsulate authentication, incremental read, serverless compute, and governed destination for supported sources. Standard connectors expose capabilities from SQL, Python, or streaming APIs when you need to control transformations, options, or sources. Current documentation recommends starting with the most managed layer that meets requirements and moving down only for a specific limitation. The transformations framework is called Spark Declarative Pipelines; Lakeflow pipelines is the managed offering that extends it and still appears as a short name in the blueprint and legacy material. No connector eliminates the need to validate CDC and SLA semantics.",
@@ -2704,27 +2704,27 @@ export const englishLessonContent = {
       }
     },
     "keyPoints": [
-      "Managed minimizes operation",
-      "Standard gives control in code",
-      "Capacities depend on source"
+      "Managed minimizes operations",
+      "Query-based uses a cursor and a high-water mark",
+      "Cursor and semantics depend on the source"
     ],
     "decisions": [
-      "Managed minimizes operation",
-      "Standard gives control in code",
-      "Capacities depend on source"
+      "Managed minimizes operations",
+      "Query-based uses a cursor and a high-water mark",
+      "Cursor and semantics depend on the source"
     ],
     "example": {
       "title": "Connector evaluation",
       "note": "Confirm regional support and source objects."
     },
     "pitfalls": [
-      "Promise CDC without verifying connector",
-      "Choose custom before checking managed"
+      "Promising CDC without verifying the connector",
+      "Choosing an ID as the cursor when existing rows can be updated"
     ],
-    "examDecision": "Supported enterprise source and low operation: managed connector; special logic: standard/custom.",
+    "examDecision": "Blueprint: prioritize a supported managed connector. Professional extension: use query-based when the database offers no CDC and a monotonic cursor exists; it needs no gateway or staging.",
     "checkpoint": {
-      "question": "What core advantage does managed offer?",
-      "answer": "Databricks manages supported ingestion infrastructure and operation."
+      "question": "Which condition must the cursor of a query-based connector meet?",
+      "answer": "It must increase monotonically and change whenever a relevant row is updated; NULL values do not advance the cursor and are not ingested."
     }
   },
   "m09-l4": {
@@ -5563,10 +5563,10 @@ export const englishLessonContent = {
     }
   },
   "m18-l4": {
-    "summary": "Flows allow multiple inputs to a target and distinguish append, AUTO CDC and `ONCE` loads within the same declarative model.",
+    "summary": "Stable flows cover append, AUTO CDC and `ONCE` loads; Python sinks extend destinations, and `update_flow` is still labeled Public Preview.",
     "explanation": [
-      "A default flow accompanies the normal definition of a dataset. Additional flows can join regional feeds into a single streaming table without building a monolithic `union`. An append flow adds rows; AUTO CDC applies ordered changes; `ONCE` executes a batch load only once except full refresh.",
-      "Each flow must have identity and semantics compatible with the target. An AUTO CDC target only receives AUTO CDC flows. For historical backfill, an isolated `ONCE` append flow can coexist with continuous ingestion, as long as it does not duplicate already processed ranges."
+      "A default flow accompanies the normal definition of a dataset. Additional flows can merge regional feeds into a single streaming table without building a monolithic `union`. An append flow adds rows; AUTO CDC applies ordered changes; `ONCE` runs a batch load only once unless there is a full refresh. These are the module's main paths.",
+      "Sinks let a Python flow send records to tables, buses such as Kafka/Event Hubs or a custom destination through `ForEachBatch`. For global streaming aggregates without a watermark, `@dp.update_flow` emits only changed rows to a sink, but as of August 25, 2026 it is Public Preview and Python-only: it must remain an opt-in extension, not a requirement of the lab or the blueprint."
     ],
     "deepDive": {
       "mentalModel": "A flow is the unit that describes how data from a source reaches a target. Separating flow and table allows multiple sources to feed the same dataset under clear rules: an append flow for regions, an AUTO CDC flow for client changes or an `ONCE` flow for a historical load. Multiplicity is not equivalent to allowing arbitrary concurrent writes; All flows are part of the graph and the managed protocol of the pipeline. `ONCE` executes a load only once within the recorded lifecycle and can be executed again on a full refresh, so its logic must be deterministic. AUTO CDC is the current recommended name; `APPLY CHANGES` retains the same syntax and is still available, as well as appearing in Professional certification material. The student must recognize both terms without presenting the old name as the new option.",
@@ -5604,25 +5604,25 @@ export const englishLessonContent = {
     "keyPoints": [
       "Several append flows can write to the same streaming table.",
       "AUTO CDC targets only accept AUTO CDC flows.",
-      "`ONCE` serves for a finite load and is executed again on a full refresh."
+      "Sinks are Python; `update_flow` is Public Preview and is labeled explicitly."
     ],
     "decisions": [
       "Several append flows can write to the same streaming table.",
       "AUTO CDC targets only accept AUTO CDC flows.",
-      "`ONCE` serves for a finite load and is executed again on a full refresh."
+      "Sinks are Python; `update_flow` is Public Preview and is labeled explicitly."
     ],
     "example": {
       "title": "Regional flows to a table",
       "note": "Validates common keys and schema; `BY NAME` avoids relying on the physical order of columns."
     },
     "pitfalls": [
-      "Mix append and AUTO CDC on the same target without respecting flow restrictions.",
-      "Use `ONCE` for data that will continue to arrive and silently stop ingesting after the first update."
+      "Mixing append and AUTO CDC on the same target without respecting the flow restrictions.",
+      "Presenting the Preview `update_flow` as a stable core feature, or using `ONCE` for data that will keep arriving."
     ],
-    "examDecision": "When multiple compatible sources feed the same target, use separate flows; For state changes use AUTO CDC, not an updates append.",
+    "examDecision": "Blueprint: several compatible sources use separate append flows and state changes use AUTO CDC. Professional extension: Python sinks and the Public Preview `update_flow` require an explicit maturity decision.",
     "checkpoint": {
-      "question": "When would a flow marked `ONCE` be executed again?",
-      "answer": "In the first update and again if a full refresh of the target or pipeline is performed, according to the documented semantics."
+      "question": "Which maturity must be declared when proposing `@dp.update_flow` for a global aggregate written to a sink?",
+      "answer": "Public Preview and Python-only as of the review date; it must not be treated as a stable requirement or confused with append/AUTO CDC."
     }
   },
   "m18-l5": {
@@ -5941,10 +5941,10 @@ export const englishLessonContent = {
     }
   },
   "m19-l5": {
-    "summary": "Quality operation converts event log metrics into rates, sustained alerts, and stop, downgrade, or remediation decisions.",
+    "summary": "Operations combine enforcement in the pipeline with Data Quality Monitoring to observe freshness, completeness, distribution and drift on Unity Catalog assets.",
     "explanation": [
-      "An absolute count of invalids confuses volume growth with degradation. The `failed / (passed + failed)` rate for expectation, flow and window allows comparison. For critical rules, a single violation can fail; for gradual quality, a threshold held over several updates avoids noise.",
-      "The alert includes safe sample rows, link to update and owner. If the rate increases after a deployment, a rollback is decided; if it comes from a specific producer, it is isolated by `source_system`. The remediation is verified with the same indicator until the incident is closed."
+      "An absolute count of invalid rows confuses volume growth with degradation. The `failed / (passed + failed)` rate per expectation, flow and window makes comparison possible. Expectations observe, drop or fail records inside the pipeline: they are enforcement tied to the code and the update.",
+      "Data Quality Monitoring complements that contract without modifying the monitored tables or adding work to the producing job: anomaly detection learns historical patterns for freshness and completeness, and data profiling computes statistics and drift. It runs on serverless with its own cost. Use it to discover cross-cutting degradations; keep expectations or reconciliations when a rule must block or isolate data."
     ],
     "deepDive": {
       "mentalModel": "Operating quality means converting events and rules into sustained decisions. The counters of an expectation are transformed into rates using passed plus failed as the denominator, added by update and compared with baselines and SLO. A single invalid row can be critical if it affects identity; millions may be tolerable if they belong to an optional field during an agreed migration. That is why alerts combine severity, proportion, absolute volume, duration and segment. The event log shows what happened within the pipeline; A stable quality table preserves trends, owners, and incident status. The full cycle includes detecting, containing, diagnosing, remediating, re-entering and preventing recurrence. Changing an expectation from drop to warn to make a Job green does not solve the problem: it consumes or redefines a risk and requires contract approval.",
@@ -5980,27 +5980,27 @@ export const englishLessonContent = {
       }
     },
     "keyPoints": [
-      "Normalize by volume and preserve numerator/denominator.",
-      "Segment by source or version to locate the source of a regression.",
-      "An alert is closed when the indicator and repaired data return to target."
+      "Expectations apply actions; Data Quality Monitoring observes assets.",
+      "Anomaly detection covers freshness/completeness; profiling covers statistics and drift.",
+      "Every alert keeps an owner, cost, context and closing criterion."
     ],
     "decisions": [
-      "Normalize by volume and preserve numerator/denominator.",
-      "Segment by source or version to locate the source of a regression.",
-      "An alert is closed when the indicator and repaired data return to target."
+      "Expectations apply actions; Data Quality Monitoring observes assets.",
+      "Anomaly detection covers freshness/completeness; profiling covers statistics and drift.",
+      "Every alert keeps an owner, cost, context and closing criterion."
     ],
     "example": {
       "title": "Rape rate per rule",
       "note": "Define the threshold and minimum non-compliance duration in the runbook, not within an ad hoc query."
     },
     "pitfalls": [
-      "Alert only by count and generate false positives when the volume grows.",
-      "Show payload with PII in the notification instead of linking to a restricted view."
+      "Replacing a critical enforcement rule with an observational anomaly that does not block publication.",
+      "Enabling large-scale profiling without an owner, serverless cost control or access control on its metric tables."
     ],
-    "examDecision": "For an operable quality alert, use rate per rule and window, source and owner segmentation; a manual capture of the UI is not monitoring.",
+    "examDecision": "Blueprint: expectations and the event log for per-rule actions. Professional extension: Data Quality Monitoring discovers anomalies and drift; it does not replace quarantine, FAIL or authoritative reconciliation.",
     "checkpoint": {
-      "question": "Why is it better to alert by rate than just by number of failures?",
-      "answer": "Because it relates failures to total volume and allows us to distinguish normal growth from real proportional degradation."
+      "question": "Which operational difference separates Data Quality Monitoring from a critical expectation?",
+      "answer": "Monitoring observes freshness, completeness, statistics or drift; an expectation can drop rows or fail the flow and therefore enforce the contract."
     }
   },
   "m20-l1": {
@@ -8020,10 +8020,10 @@ export const englishLessonContent = {
     }
   },
   "m26-l3": {
-    "summary": "Converts system tables into a common timeline for queries, jobs, compute, and cost at account and region scale.",
+    "summary": "Turns system tables and Data Quality Monitoring signals into a common timeline for execution, cost and data health.",
     "explanation": [
-      "`system.query.history` records SQL warehouse and serverless statements with state, duration, compute, and metrics. `system.lakeflow.job_run_timeline` and `job_task_run_timeline` allow you to analyze job runs and tasks; `system.billing.usage` provides consumption. These tables are largely regional, have documented retentions, and are governed by Unity Catalog.",
-      "Build restricted views for computers instead of granting broad access to the `system` catalog. Joins using available job/run/statement IDs and preserves time ranges; don't force joins when the source doesn't emit a common identifier. A reliable timeline differentiates compute failure, queuing, slow execution, and subsequent retry."
+      "`system.query.history` records SQL warehouse and serverless statements with state, duration, compute and metrics. `system.lakeflow.job_run_timeline` and `job_task_run_timeline` let you analyze job runs and tasks; `system.billing.usage` provides consumption. These tables are largely regional, have documented retention periods and are governed by Unity Catalog.",
+      "A `SUCCESS` run does not prove that the asset is fresh or complete. Data Quality Monitoring adds anomaly detection for freshness/completeness and data profiling for distribution/drift without modifying the producing job. Correlate its incidents with IDs and deployment/run windows, and keep expectations or reconciliations for rules that must apply actions. Build restricted views and do not force joins when no common identifier exists."
     ],
     "deepDive": {
       "mentalModel": "The system tables are the historical observability plan of the account. Each schema records a perspective: billing describes consumption, query history statements, lakeflow jobs and tasks, compute configurations, access auditing, and lineage inferred relationships. No single table tells the entire incident. The conceptual work is to build a timeline with compatible identifiers, region, and granularity, and accept that some relationships are optional or partial. It is sensitive data governed within the catalog system, with its own retention and availability. A selective query by time and workspace protects performance; Copying everything off the platform increases the risk surface and is usually unnecessary.",
@@ -8059,14 +8059,14 @@ export const englishLessonContent = {
       }
     },
     "keyPoints": [
-      "Respects regional scope and retention of each system table.",
-      "Grant `USE` and `SELECT` through least privilege views.",
-      "Correlates by IDs and time, declaring lag and telemetry gaps."
+      "Respect the regional scope and retention of each signal.",
+      "Distinguish run health from data freshness, completeness and drift.",
+      "Correlate by IDs and time, declaring lag and telemetry gaps."
     ],
     "decisions": [
-      "Respects regional scope and retention of each system table.",
-      "Grant `USE` and `SELECT` through least privilege views.",
-      "Correlates by IDs and time, declaring lag and telemetry gaps."
+      "Respect the regional scope and retention of each signal.",
+      "Distinguish run health from data freshness, completeness and drift.",
+      "Correlate by IDs and time, declaring lag and telemetry gaps."
     ],
     "example": {
       "title": "Detect failed and slow queries",
@@ -8076,7 +8076,7 @@ export const englishLessonContent = {
       "Assume that a query from another region will appear in the queried metastore.",
       "Give broad `SELECT` on audit and query history to the entire workspace."
     ],
-    "examDecision": "Use system tables for trends and account correlation; use the run profile/UI for specific details.",
+    "examDecision": "Blueprint: system tables for trends and the profile/UI for detail. Professional extension: add Data Quality Monitoring when the incident may lie in the data even though the run is green.",
     "checkpoint": {
       "question": "Why is a dynamic view preferable to directly sharing `system.query.history`?",
       "answer": "Allows you to limit rows and columns per team or workspace and avoid exposing unnecessary text, errors, and identities."
@@ -9091,10 +9091,10 @@ export const englishLessonContent = {
     }
   },
   "m29-l5": {
-    "summary": "Manage drift, ownership, permissions and rollback as part of the bundle so that a deployment is reversible and auditable.",
+    "summary": "Manage drift, ownership, rollback and the migration to the GA direct deployment engine without losing the identity of existing resources.",
     "explanation": [
-      "A manually created resource can be incorporated through generation or binding depending on support, but first you must decide who will be its source of truth. Two bundles should not manage the same job. Use declared permissions, stable names, and operational ownership; reviews the plan when the identity or root path changes because it may appear to be a new resource.",
-      "Rollback typically deploys the latest known version of the bundle and artifact, it does not automatically restore data. Schema changes require a forward and backward compatible strategy. Maintains manifest, plan and smoke test results by release; If a deploy fails midway, inspect the actual state before relaunching."
+      "A manually created resource can be incorporated through generation or binding depending on support, but first you must decide who will be its source of truth. Two bundles must not manage the same job. Use declared permissions, stable names and operational ownership; review the plan when the identity or root path changes because it may look like a new resource.",
+      "The direct engine is GA and new bundles on Databricks CLI 1.3 or later use it by default. An older deployment keeps Terraform state and must not be switched blindly: first complete a deploy with the current engine, run `databricks bundle deployment migrate -t <target>` and stop if the plan shows actions. The migration converts IDs into the `resources.json` state; it is not a data rollback and does not authorize replacements. Keep the manifest, plan and smoke test per release."
     ],
     "deepDive": {
       "mentalModel": "The declared state, the deployed state, and the state that actually runs production can diverge. Drift appears when someone edits a resource outside of the bundle, another automation shares ownership, or an external reference changes. The bundle needs an owner boundary: a resource has a source of truth and an identity authorized to modify it. Permissions are also configuration and should prevent the deploy from removing itself from access or granting excessive control. Rollback is not always applying the previous commit: code, schema and data may have evolved. A reversible strategy preserves artifacts, plans, backward compatibility, and procedures for stopping, redeploying, or moving forward with a fix.",
@@ -9130,27 +9130,27 @@ export const englishLessonContent = {
       }
     },
     "keyPoints": [
-      "A resource has a single source of truth and a single proprietary bundle.",
-      "Configuration rollback does not reverse data side effects.",
-      "Review plan and actual status before repairing a partial deploy."
+      "A resource has a single source of truth and a single owning bundle.",
+      "The direct engine is GA; migrating the state is an explicit operation.",
+      "A configuration rollback does not revert data side effects."
     ],
     "decisions": [
-      "A resource has a single source of truth and a single proprietary bundle.",
-      "Configuration rollback does not reverse data side effects.",
-      "Review plan and actual status before repairing a partial deploy."
+      "A resource has a single source of truth and a single owning bundle.",
+      "The direct engine is GA; migrating the state is an explicit operation.",
+      "A configuration rollback does not revert data side effects."
     ],
     "example": {
       "title": "Inventory before reconciling an existing resource",
       "note": "Don't blindly bind: confirm that no other bundle or process manages that resource."
     },
     "pitfalls": [
-      "Create a duplicate job because you changed `root_path` or the bundle identity.",
+      "Enabling `engine: direct` on an older deployment without migrating and verifying its state.",
       "Believing that deploying the previous version reverts rows already written."
     ],
-    "examDecision": "When faced with drift, first establish the source of truth; use plan/binding consciously and design data rollback separately.",
+    "examDecision": "Blueprint: establish the source of truth, the plan and a separate rollback. Professional extension: CLI 1.3+ uses direct for new bundles; migrate earlier deployments following the official flow and without accepting unexpected actions.",
     "checkpoint": {
-      "question": "What doesn't redeploying the previous bundle solve by itself?",
-      "answer": "It does not revert tables, messages or side effects that the faulty version already produced."
+      "question": "Which precaution prevents duplicating or replacing resources when moving an older deployment to the direct engine?",
+      "answer": "First deploy with the existing engine, run the official migration per target and require a plan without unexpected actions before continuing."
     }
   },
   "m30-l1": {
@@ -9343,10 +9343,10 @@ export const englishLessonContent = {
     }
   },
   "m30-l4": {
-    "summary": "Demonstrate who did what using `system.access.audit` and lineage, maintaining separation of duties and restricted access to sensitive telemetry.",
+    "summary": "Prove who did what with audit, extend lineage to external systems and communicate trust or deprecation without turning a tag into an official guarantee.",
     "explanation": [
-      "The audit log system table records account and workspace events with identity, service, action, parameters, and response. Check changes in permissions, tags, policies and access within the region and documented retention. ABAC policy creation, modification, and deletion events are auditable; an alert should filter relevant actions and link to the affected object.",
-      "Unity Catalog Lineage captures reads and writes at the table and column level for supported interfaces, and helps analyze the impact of a PII change or flow. It does not replace audit: lineage explains flow, audit explains action/actor. Present redacted views to security and operations; do not distribute entire request parameters without evaluating secrets or personal data."
+      "The audit log system table records account and workspace events with identity, service, action, parameters and response. Query changes to permissions, tags, policies and access within the region and the documented retention. Creation, modification and deletion events for ABAC policies are auditable; an alert should filter the relevant actions and link the affected object.",
+      "Automatic lineage covers compatible interfaces executed on Databricks. For external first-mile or last-mile steps, create external metadata objects and external lineage relationships to tables, models, paths or other external objects; that documents the flow, not the actor or the access. `system.certification_status` lets you mark assets as `certified` or `deprecated` according to internal standards: it improves discovery, but it does not turn the asset into an official requirement or replace tests, an owner or a contract."
     ],
     "deepDive": {
       "mentalModel": "Audit answers who tried what, when, from where and with what result; lineage answers which assets a transaction read or wrote when that relationship could be inferred. They are complementary sources, not equivalent. system.access.audit logs access and control events with parameters and responses; Lineage system tables record table- or column-level relationships for captured entities. Lineage has partial coverage by design and the absence of an edge does not demonstrate absence of access. Both sources contain potentially sensitive identities, names, and queries, so their access must be narrower than the dashboard they derive. Useful evidence preserves IDs, timestamps, and granularity without indiscriminately exporting the entire control plane.",
@@ -9382,27 +9382,27 @@ export const englishLessonContent = {
       }
     },
     "keyPoints": [
-      "Audit answers actor and action; lineage, origin and consumption.",
-      "Restrict telemetry columns and rows based on function.",
-      "Alert about changes in grants, policies, tags and anomalous accesses."
+      "Audit answers actor/action; lineage answers provenance/consumption.",
+      "External metadata objects link the first mile and last mile outside Databricks.",
+      "Certified/deprecated expresses a governed internal decision, not an automatic guarantee."
     ],
     "decisions": [
-      "Audit answers actor and action; lineage, origin and consumption.",
-      "Restrict telemetry columns and rows based on function.",
-      "Alert about changes in grants, policies, tags and anomalous accesses."
+      "Audit answers actor/action; lineage answers provenance/consumption.",
+      "External metadata objects link the first mile and last mile outside Databricks.",
+      "Certified/deprecated expresses a governed internal decision, not an automatic guarantee."
     ],
     "example": {
       "title": "Audit permission and policy changes",
       "note": "Validate the real action names of your account and limit the view; `request_params` may contain information that is not needed by the entire team."
     },
     "pitfalls": [
-      "Grant access to the full audit log to those who only investigate a catalog.",
-      "Interpret absence of lineage of an unsupported API as proof that there was no access."
+      "Interpreting the absence of lineage from an unsupported API as proof that there was no access.",
+      "Marking an asset as certified without criteria, evidence, an owner or periodic review."
     ],
-    "examDecision": "To investigate permissions use audit; for upstream/downstream impact use lineage; combines both without expanding access unnecessarily.",
+    "examDecision": "Blueprint: audit for actor/action and lineage for impact. Professional extension: external lineage completes external systems and certification status communicates internal trust with verifiable criteria.",
     "checkpoint": {
-      "question": "Which source would you use to find out who revoked a grant and which one to discover affected dashboards?",
-      "answer": "`system.access.audit` for actor/action and Unity Catalog lineage for downstream consumers."
+      "question": "What does an external metadata object model, and what does it not prove?",
+      "answer": "It represents a system or asset outside Databricks so end-to-end lineage can be linked; on its own it does not prove who accessed the data or that the data is correct."
     }
   },
   "m30-l5": {
@@ -9721,10 +9721,10 @@ export const englishLessonContent = {
     }
   },
   "m31-l5": {
-    "summary": "Select sharing, federation, or ingestion by comparing address, frequency, freshness, writing, governance, cost, and operational isolation.",
+    "summary": "Select sharing, federation, ingestion or external engine access by comparing the organizational boundary, writes, governance, cost and maturity.",
     "explanation": [
-      "Sharing publishes a product governed towards external consumers; federation consults an external source on site; ingestion copies changes to the lakehouse for transformation and own SLAs. If a partner needs to read a curated table, sharing prevents an export. If an analyst scans PostgreSQL a few times, federation reduces time-to-value. If hundreds of jobs add that base every hour, it ingests incrementally.",
-      "Interoperability does not eliminate contracts. Documents types, time zones, delete semantics, limits and ownership. Consider Iceberg REST Catalog or other protocols when external clients must read governed tables directly, always contrasting support for Delta/ABAC features. Design an exit: how to revoke, materialize, or migrate without breaking consumers."
+      "Sharing publishes a governed product to another organization; federation queries an external source in place; ingestion copies changes into the lakehouse for its own transformation and SLA. A trusted engine inside the perimeter (for example Trino, Flink or Spark) can use Unity REST or the Iceberg REST Catalog and credential vending, which hands out temporary cloud credentials with the principal's privileges instead of permanent paths and keys.",
+      "Managed Iceberg supports reads and writes through Iceberg REST for compatible clients; foreign Iceberg is read-only and its REST access appears as Preview in the current matrix, and it also requires metadata refresh. Compatibility Mode generates a read-only version for older clients, but it is Public Preview. These extensions do not replace OpenSharing for partners and must not be presented as universally GA: validate table, operation, client, ABAC, network and credential vending support."
     ],
     "deepDive": {
       "mentalModel": "Sharing, federation and ingestion address different directions. Sharing publishes from a provider to read-only consumers and keeps the product at source. Federation allows Databricks to query an external system on-premise, typically for exploration or hybrid modeling. Ingestion moves changes to Delta for Databricks to monitor downstream performance, history, quality, and writing. The decision is formulated with direction, frequency, freshness, volume, write needs, governance, egress and operational isolation. The lower apparent latency can hide load on OLTP; the most robust copy may violate residency; sharing may be perfect for collaboration but not for updating the provider's system. No label replaces a requirements matrix and a failure test.",
@@ -9760,27 +9760,27 @@ export const englishLessonContent = {
       }
     },
     "keyPoints": [
-      "Sharing serves publishing; federation, on-site consultation; ingestion, controlled processing.",
-      "The frequency and burden on the origin usually decide between federation and intake.",
-      "Each employer needs contract, owner, cost and exit strategy."
+      "OpenSharing crosses organizations; REST + credential vending integrates trusted engines.",
+      "Managed Iceberg can be read/write; foreign Iceberg is read-only and its maturity must be reviewed.",
+      "Compatibility Mode is Public Preview and read-only."
     ],
     "decisions": [
-      "Sharing serves publishing; federation, on-site consultation; ingestion, controlled processing.",
-      "The frequency and burden on the origin usually decide between federation and intake.",
-      "Each employer needs contract, owner, cost and exit strategy."
+      "OpenSharing crosses organizations; REST + credential vending integrates trusted engines.",
+      "Managed Iceberg can be read/write; foreign Iceberg is read-only and its maturity must be reviewed.",
+      "Compatibility Mode is Public Preview and read-only."
     ],
     "example": {
       "title": "Interoperability Decision Matrix",
       "note": "A useful decision also preserves the reason for rejected alternatives and the review date."
     },
     "pitfalls": [
-      "Use federation for a heavy time transformation and move the neck to OLTP.",
-      "Export files with static credentials when OpenSharing covers the contract."
+      "Handing out permanent cloud paths/credentials when the client supports credential vending.",
+      "Presenting Compatibility Mode or REST access to foreign Iceberg as universally GA."
     ],
-    "examDecision": "Choose by direction and pattern: curated outbound → sharing; external occasional reading → federation; recurrent/independent processing → ingestion.",
+    "examDecision": "Blueprint: curated outbound → sharing; occasional external read → federation; recurring processing → ingestion. Professional extension: trusted engine → REST + credential vending, reviewing the table, the operation and the Preview status.",
     "checkpoint": {
-      "question": "Which signal indicates that a federated query should be ingested?",
-      "answer": "It is frequent, moves a lot of data, loads the source, or requires transformations/SLAs that should not depend on the remote system."
+      "question": "When would you choose the Iceberg REST Catalog with credential vending instead of OpenSharing?",
+      "answer": "When a trusted external engine must operate on a governed table inside the perimeter and the client supports the operation; OpenSharing remains the read-only contract for external partners."
     }
   },
   "m32-l1": {

@@ -103,6 +103,18 @@ global.
 - **Fundamentos**: `app/curriculum/foundations.ts` alimenta la página pública
   `/fundamentos`, un recorrido previo al módulo 1 cuyos capítulos son anclas
   referenciadas desde el glosario.
+- **Proyección inglesa**: el español es la fuente editorial. `app/i18n/`
+  guarda la traducción completa por ID persistente: lecciones
+  (`english-lesson-content.ts`), laboratorios (`english-lab-content.ts`),
+  preguntas de tests y simulacros (`english-quiz-content.ts`, opciones en el
+  orden canónico español) y recursos comunitarios
+  (`english-resource-content.ts`). `i18n/curriculum.ts` las aplica en
+  servidor; el código, las soluciones, los checks y las claves de respuesta
+  siguen siendo canónicos. Los componentes cliente solo deben importar
+  utilidades ligeras como `i18n/dates.ts`, nunca el contenido de evaluación.
+  Si cambia un texto español, actualiza su par inglés en el mismo cambio;
+  `tests/curriculum-bilingual.test.mjs` comprueba estructura y ausencia de
+  texto sin traducir.
 
 ## Desarrollo local
 

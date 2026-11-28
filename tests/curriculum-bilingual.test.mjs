@@ -64,7 +64,7 @@ async function compileSource(sourcePath) {
   await writeFile(target, result.outputText, "utf8");
 }
 
-for (const entry of ["app/course-data.ts", "app/i18n/curriculum.ts", "app/enterprise/curriculum.ts", "app/progress.ts"]) {
+for (const entry of ["app/course-data.ts", "app/i18n/curriculum.ts", "app/i18n/dates.ts", "app/i18n/english-quiz-content.ts", "app/i18n/english-resource-content.ts", "app/curriculum/community-resources.ts", "app/enterprise/curriculum.ts", "app/progress.ts"]) {
   await compileSource(join(workspace, entry));
 }
 
@@ -72,6 +72,10 @@ const course = require(join(temporary, "app/course-data.js"));
 const localization = require(join(temporary, "app/i18n/curriculum.js"));
 const curriculum = require(join(temporary, "app/enterprise/curriculum.js"));
 const progress = require(join(temporary, "app/progress.js"));
+const dates = require(join(temporary, "app/i18n/dates.js"));
+const { englishQuizContent } = require(join(temporary, "app/i18n/english-quiz-content.js"));
+const englishResources = require(join(temporary, "app/i18n/english-resource-content.js"));
+const community = require(join(temporary, "app/curriculum/community-resources.js"));
 
 after(async () => {
   await rm(temporary, { recursive: true, force: true });
@@ -170,3 +174,94 @@ test("concept anchors remain canonical across locales", () => {
   }
 });
 
+
+const SPANISH_MARKERS = /[áéíóúñ¿¡]|\b(?:de|del|los|las|una|sobre|para|según|sin|cuando)\b/iu;
+
+function shapeOf(value) {
+  if (Array.isArray(value)) return `[${value.map(shapeOf).join(",")}]`;
+  if (value && typeof value === "object") return `{${Object.keys(value).sort().map((key) => `${key}:${shapeOf(value[key])}`).join(",")}}`;
+  return typeof value;
+}
+
+test("English lessons mirror the Spanish editorial structure field by field", () => {
+  for (const spanishModule of course.modules) {
+    const englishModule = localization.localizeModule(spanishModule, "en");
+    for (const [index, spanish] of spanishModule.lessons.entries()) {
+      const english = englishModule.lessons[index];
+      for (const field of ["summary", "explanation", "deepDive", "keyPoints", "decisions", "pitfalls", "examDecision", "checkpoint"]) {
+        assert.equal(shapeOf(english[field]), shapeOf(spanish[field]), `${spanish.id}.${field} no conserva la estructura`);
+        assert.notDeepEqual(english[field], spanish[field], `${spanish.id}.${field} no está traducido`);
+      }
+      const professionalExtension = /Extensión profesional/u.test(spanish.examDecision);
+      assert.equal(/Professional extension/u.test(english.examDecision), professionalExtension, `${spanish.id}: la decisión de examen EN no refleja la extensión profesional`);
+    }
+  }
+});
+
+test("English labs translate every learner-facing field and keep executable content canonical", () => {
+  for (const spanishModule of course.modules) {
+    const spanish = spanishModule.lab;
+    const english = localization.localizeModule(spanishModule, "en").lab;
+    assert.equal(english.steps.length, spanish.steps.length);
+    assert.equal(english.expectedEvidence.length, spanish.expectedEvidence.length);
+    assert.deepEqual(english.refIds, spanish.refIds);
+    assert.equal(english.estimatedCost.paid.AWS.replaceAll(".", ","), spanish.estimatedCost.paid.AWS);
+    const prose = [
+      english.title, english.goal, english.scenario, ...english.steps, ...english.expectedEvidence,
+      english.deliberateFailure.scenario, english.deliberateFailure.recovery,
+      ...english.checks.map((check) => check.label), ...english.cloudNotes.map((note) => note.note),
+      english.freeEdition.note, english.runtime.free, english.environment, english.compute,
+      ...english.prerequisites, ...english.permissions, english.dataset.name, english.dataset.acquisition,
+      english.reproducibility.note, english.estimatedCost.free, english.estimatedCost.assumptions, english.expectedOutcome,
+      ...english.cleanup.slice(1), ...english.troubleshooting.flatMap((item) => [item.symptom, item.fix]), english.reviewedAt,
+    ];
+    for (const text of prose) {
+      assert.doesNotMatch(text, SPANISH_MARKERS, `${spanishModule.id}: texto de laboratorio sin traducir: ${text}`);
+    }
+    assert.equal(english.cleanup[0], spanish.cleanup[0], "el SQL de limpieza es canónico");
+  }
+});
+
+test("English assessments translate every item and keep the correct option aligned after shuffling", () => {
+  const spanishQuestions = [
+    ...course.modules.flatMap((module) => module.quiz),
+    ...[1, 2, 3].flatMap((attempt) => [...course.buildExamQuestions("associate", attempt), ...course.buildExamQuestions("professional", attempt)]),
+  ];
+  for (const spanish of spanishQuestions) {
+    const english = localization.localizeQuizQuestion(spanish, "en");
+    const copy = englishQuizContent[spanish.editorialId];
+    const canonical = course.canonicalQuestionOptions(spanish.editorialId);
+    assert.ok(copy && canonical, `${spanish.editorialId} sin traducción`);
+    assert.equal(english.answer, spanish.answer);
+    assert.equal(english.options[english.answer], copy.options[canonical.indexOf(spanish.options[spanish.answer])]);
+    assert.doesNotMatch(english.question, SPANISH_MARKERS, `${spanish.editorialId}: enunciado sin traducir`);
+    assert.doesNotMatch(english.explanation, SPANISH_MARKERS, `${spanish.editorialId}: explicación sin traducir`);
+    assert.doesNotMatch(english.domain, /Extensión|garantías|recuperación|despliegue/u, `${spanish.editorialId}: dominio sin traducir`);
+    if (english.originLabel) assert.doesNotMatch(english.originLabel, SPANISH_MARKERS);
+    if (english.sourceLabel) assert.doesNotMatch(english.sourceLabel, SPANISH_MARKERS);
+  }
+  assert.equal(Object.keys(englishQuizContent).length, 308);
+});
+
+test("English community resources use reviewed prose instead of generic placeholders", () => {
+  for (const artifact of community.communityArtifacts) {
+    const copy = englishResources.englishArtifactFor(artifact.id);
+    assert.notEqual(copy.summary, artifact.summary);
+    assert.doesNotMatch(`${copy.summary} ${copy.runtimeNotes}`, SPANISH_MARKERS, `${artifact.id} sin traducir`);
+  }
+  const catalog = curriculum.communityResourceCatalog("en");
+  for (const resource of catalog) {
+    assert.doesNotMatch(resource.summary, /^Reviewed .* resource for Databricks practice\.$/u);
+    for (const text of [resource.summary, resource.runtimeNotes, ...resource.usageInstructions, ...resource.concepts]) {
+      assert.doesNotMatch(text, SPANISH_MARKERS, `${resource.id}: ${text}`);
+    }
+  }
+});
+
+test("editorial review dates are localized without inventing values", () => {
+  assert.equal(dates.localizeReviewDate("25 ago 2026", "en"), "Aug 25, 2026");
+  assert.equal(dates.localizeReviewDate("24 de julio de 2026", "en"), "July 24, 2026");
+  assert.equal(dates.localizeReviewDate("25 ago 2026", "es"), "25 ago 2026");
+  assert.equal(dates.localizeReviewDate("2026-11-27", "en"), "2026-11-27");
+  assert.equal(dates.localizeReviewDate(null, "en"), null);
+});

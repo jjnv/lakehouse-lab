@@ -1,5 +1,4 @@
-import { buildExamQuestions, modules, trackMeta, type CurriculumModule, type QuizQuestion } from "../course-data";
-import { CONTENT_VERSION } from "../progress";
+import { modules, type CurriculumModule } from "../course-data";
 import {
   moduleResourceRecommendations,
   recommendationsForModule,
@@ -15,10 +14,8 @@ import {
   localizeModuleSummary,
   localizeReviewDate,
   localizeResourceCatalog,
-  moduleCopyEn,
 } from "../i18n/curriculum";
-import { prepareAssessment, type PrivateAssessmentDefinition, type PreparedAssessment } from "./assessment-private";
-import type { AssessmentKind, AssessmentTimingMode } from "./assessment";
+import { englishArtifactFor, englishFocusFor, englishRationale, englishUsageInstructionsFor } from "../i18n/english-resource-content";
 import type {
   CommunityResourceCatalogEntry,
   CommunityResourcePublic,
@@ -176,7 +173,7 @@ function publicCommunityResource(item: ExpandedCommunityRecommendation, locale: 
   return {
     id: artifact.id,
     title: artifact.title,
-    summary: locale === "en" ? `Reviewed ${artifact.format} resource for Databricks practice.` : artifact.summary,
+    summary: locale === "en" ? englishArtifactFor(artifact.id).summary : artifact.summary,
     href: reviewedSourceHref,
     repositoryName: repository.name,
     repositoryUrl: repository.url,
@@ -190,7 +187,7 @@ function publicCommunityResource(item: ExpandedCommunityRecommendation, locale: 
     format: artifact.format,
     languages: [...artifact.languages],
     difficulty: artifact.difficulty,
-    runtimeNotes: locale === "en" ? "Review the source repository requirements before running it." : artifact.runtimeNotes,
+    runtimeNotes: locale === "en" ? englishArtifactFor(artifact.id).runtimeNotes : artifact.runtimeNotes,
     freeEdition: artifact.freeEdition,
     previewAvailable,
     previewUnavailableReason: previewAvailable
@@ -204,7 +201,7 @@ function publicCommunityResource(item: ExpandedCommunityRecommendation, locale: 
     sourcePath: reviewedSource.path,
     upstreamRef: reviewedSource.upstreamRef,
     reviewedAt: localizeReviewDate(repository.reviewedAt, locale) ?? repository.reviewedAt,
-    usageInstructions: locale === "en" ? usageInstructionsFor(artifact).map((_, index) => `Review step ${index + 1} in the source repository.`) : usageInstructionsFor(artifact),
+    usageInstructions: locale === "en" ? englishUsageInstructionsFor(artifact.importMode) : usageInstructionsFor(artifact),
   };
 }
 
@@ -214,10 +211,8 @@ function publicCommunityRecommendation(item: ExpandedCommunityRecommendation, lo
     rank: item.rank,
     preferred: item.preferred,
     coverage: item.coverage,
-    concepts: locale === "en"
-      ? item.concepts.map((_, index) => `${moduleCopyEn[item.moduleId]?.short ?? "Databricks"} concept ${index + 1}`)
-      : [...item.concepts],
-    rationale: locale === "en" ? `Recommended supporting resource for this module.` : item.rationale,
+    concepts: locale === "en" ? englishFocusFor(item.moduleId).concepts : [...item.concepts],
+    rationale: locale === "en" ? englishRationale(item.artifact.id, item.moduleId) : item.rationale,
   };
 }
 
@@ -228,6 +223,7 @@ export function communityResourceCatalog(locale: Locale = "es"): CommunityResour
     if (!curriculumModule) continue;
     const phase = phaseByTrack.get(curriculumModule.track) ?? LEARNING_PHASES[0];
     const existing = aggregated.get(item.artifact.id);
+    const concepts = locale === "en" ? englishFocusFor(item.moduleId).concepts : item.concepts;
     const relatedModule = {
       id: curriculumModule.id,
       number: curriculumModule.number,
@@ -240,12 +236,12 @@ export function communityResourceCatalog(locale: Locale = "es"): CommunityResour
     };
     if (existing) {
       existing.relatedModules.push(relatedModule);
-      existing.concepts = [...new Set([...existing.concepts, ...item.concepts])];
+      existing.concepts = [...new Set([...existing.concepts, ...concepts])];
       existing.preferred ||= item.preferred;
     } else {
       aggregated.set(item.artifact.id, {
-        ...publicCommunityResource(item),
-        concepts: [...item.concepts],
+        ...publicCommunityResource(item, locale),
+        concepts: [...concepts],
         preferred: item.preferred,
         relatedModules: [relatedModule],
       });
@@ -496,67 +492,4 @@ export function publicModule(sourceModule: CurriculumModule, locale: Locale = "e
       domain: question.domain,
     })),
   };
-}
-
-function assessmentDefinition(kind: AssessmentKind, moduleId: string | undefined, attemptOrdinal: number): PrivateAssessmentDefinition {
-  if (kind === "module-quiz") {
-    const courseModule = moduleId ? findModuleById(moduleId) : null;
-    if (!courseModule) throw new RangeError("El módulo indicado no existe.");
-    return {
-      sourceId: `module:${courseModule.id}:quiz`,
-      contentVersion: CONTENT_VERSION,
-      kind,
-      title: `Evaluación · ${courseModule.title}`,
-      instructions: "Responde las cuatro preguntas. Necesitas al menos tres respuestas correctas.",
-      baseDurationMinutes: 15,
-      questions: courseModule.quiz.map((question, index) => privateQuestion(question, `${courseModule.id}:q${index + 1}`)),
-    };
-  }
-
-  const mode = kind === "associate-simulator" ? "associate" : "professional";
-  const questions = buildExamQuestions(mode, Math.max(1, attemptOrdinal));
-  return {
-    sourceId: `simulator:${mode}:${Math.max(1, attemptOrdinal)}`,
-    contentVersion: CONTENT_VERSION,
-    kind,
-    title: `Simulacro ${mode === "associate" ? "Associate" : "Professional"}`,
-    instructions: "Completa el intento y alcanza al menos el 80 %. Puedes repetirlo sin límite.",
-    baseDurationMinutes: mode === "associate" ? 90 : 120,
-    questions: questions.map((question, index) => privateQuestion(question, `${mode}:q${index + 1}`)),
-  };
-}
-
-function privateQuestion(question: QuizQuestion, sourceId: string) {
-  return {
-    sourceId: question.editorialId || sourceId,
-    editorialId: question.editorialId,
-    objectiveIds: question.objectiveIds,
-    refIds: question.refIds,
-    scope: question.scope,
-    question: question.question,
-    options: question.options,
-    answer: question.answer,
-    explanation: question.explanation,
-    domain: question.domain,
-    moduleId: question.moduleId,
-    origin: question.origin,
-    originLabel: question.originLabel,
-    sourceLabel: question.sourceLabel,
-  };
-}
-
-export function prepareEnterpriseAssessment(input: {
-  kind: AssessmentKind;
-  moduleId?: string;
-  timingMode: AssessmentTimingMode;
-  attemptOrdinal?: number;
-}): PreparedAssessment {
-  return prepareAssessment(
-    assessmentDefinition(input.kind, input.moduleId, input.attemptOrdinal ?? 1),
-    input.timingMode,
-  );
-}
-
-export function trackLabel(module: CurriculumModule): string {
-  return trackMeta[module.track].name;
 }

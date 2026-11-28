@@ -94,19 +94,3 @@ export const glossaryEntries: GlossaryEntry[] = [
 export const glossaryEntryById: ReadonlyMap<string, GlossaryEntry> = new Map(
   glossaryEntries.map((entry) => [entry.id, entry]),
 );
-
-export function glossaryEntriesByInitial(locale: "es" | "en" = "es") {
-  const sorted = [...glossaryEntries].sort((left, right) =>
-    (locale === "en" ? left.en.term ?? left.term : left.term).localeCompare(
-      locale === "en" ? right.en.term ?? right.term : right.term,
-      locale,
-      { sensitivity: "base" },
-    ));
-  return sorted.reduce<Record<string, GlossaryEntry[]>>((groups, entry) => {
-    const label = locale === "en" ? entry.en.term ?? entry.term : entry.term;
-    const initial = label.normalize("NFD").replace(/\p{Diacritic}/gu, "")[0]?.toLocaleUpperCase(locale) ?? "#";
-    const key = /\p{L}/u.test(initial) ? initial : "#";
-    groups[key] = [...(groups[key] ?? []), entry];
-    return groups;
-  }, {});
-}

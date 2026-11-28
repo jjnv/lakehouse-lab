@@ -159,7 +159,7 @@ export async function getProgressRevision(learner: LearnerContext): Promise<Prog
     .from(learnerAssignments)
     .where(and(eq(learnerAssignments.assignmentId, learner.professionalAssignment.id), eq(learnerAssignments.userId, learner.user.id)))
     .limit(1);
-  if (!row) throw new LearningApiError(403, "ENROLLMENT_REQUIRED", "No existe una matrÃ­cula activa para esta cuenta.");
+  if (!row) throw new LearningApiError(403, "ENROLLMENT_REQUIRED", "No existe una matrícula activa para esta cuenta.");
   return { value: row.value, updatedAt: row.updatedAt };
 }
 
@@ -178,7 +178,7 @@ async function guardMutation(
   const revision = await getProgressRevision(learner);
   if (existing) {
     if (existing.payloadHash !== payloadHash || existing.type !== action) {
-      throw new LearningApiError(409, "IDEMPOTENCY_CONFLICT", "Este clientMutationId ya se utilizÃ³ con otro contenido.", false, revision.value);
+      throw new LearningApiError(409, "IDEMPOTENCY_CONFLICT", "Este clientMutationId ya se utilizó con otro contenido.", false, revision.value);
     }
     return { key, payloadHash, replayed: true, merged: false, revision };
   }
@@ -186,7 +186,7 @@ async function guardMutation(
   let merged = false;
   if (input.expectedRevision !== revision.value) {
     if (!options.allowMonotonicMerge) {
-      throw new LearningApiError(409, "REVISION_CONFLICT", "El progreso cambiÃ³ en otro dispositivo. Actualiza los datos antes de reintentar.", true, revision.value);
+      throw new LearningApiError(409, "REVISION_CONFLICT", "El progreso cambió en otro dispositivo. Actualiza los datos antes de reintentar.", true, revision.value);
     }
     expectedForCas = revision.value;
     merged = true;
@@ -214,7 +214,7 @@ async function guardMutation(
   }
   if (!advanced[0]) {
     const current = await getProgressRevision(learner);
-    throw new LearningApiError(409, "REVISION_CONFLICT", "El progreso cambiÃ³ en otro dispositivo. Actualiza los datos antes de reintentar.", true, current.value);
+    throw new LearningApiError(409, "REVISION_CONFLICT", "El progreso cambió en otro dispositivo. Actualiza los datos antes de reintentar.", true, current.value);
   }
   return { key, payloadHash, replayed: false, merged, revision: { value: advanced[0].value, updatedAt: advanced[0].updatedAt } };
 }
@@ -259,14 +259,14 @@ function envelope<T>(data: T, revision: ProgressRevision, replayed: boolean): Mu
 
 function findModule(moduleId: string) {
   const curriculumModule = modules.find((item) => item.id === moduleId || item.slug === moduleId);
-  if (!curriculumModule) throw new LearningApiError(422, "UNKNOWN_MODULE", "El mÃ³dulo indicado no existe.");
+  if (!curriculumModule) throw new LearningApiError(422, "UNKNOWN_MODULE", "El módulo indicado no existe.");
   return curriculumModule;
 }
 
 function findLesson(moduleId: string, lessonId: string) {
   const curriculumModule = findModule(moduleId);
   const lesson = curriculumModule.lessons.find((item) => item.id === lessonId);
-  if (!lesson) throw new LearningApiError(422, "UNKNOWN_LESSON", "La lecciÃ³n indicada no pertenece al mÃ³dulo.");
+  if (!lesson) throw new LearningApiError(422, "UNKNOWN_LESSON", "La lección indicada no pertenece al módulo.");
   return { curriculumModule, lesson };
 }
 
@@ -523,7 +523,7 @@ export async function getLearnerDashboard(learner: LearnerContext): Promise<Lear
   ]);
   const [revisionRows, lessonRows, labRows, allAttempts, reviews, credentialRows, snapshot, motivationRows, rewardRows, legacyRows, latestEvent, preferenceRows] = dashboardRows;
   const revisionRow = revisionRows[0];
-  if (!revisionRow) throw new LearningApiError(403, "ENROLLMENT_REQUIRED", "No existe una matrÃ­cula activa para esta cuenta.");
+  if (!revisionRow) throw new LearningApiError(403, "ENROLLMENT_REQUIRED", "No existe una matrícula activa para esta cuenta.");
   const revision: ProgressRevision = { value: revisionRow.value, updatedAt: revisionRow.updatedAt };
   const attempts = allAttempts.filter((row) => row.status === "submitted");
   const progress = calculateModuleProgressFromRows(lessonRows, labRows, attempts);
@@ -551,7 +551,7 @@ export async function getLearnerDashboard(learner: LearnerContext): Promise<Lear
   let nextActivity: LearnerDashboard["nextActivity"];
   if (dueReview) {
     const owner = modules.find((item) => item.lessons.some((lesson) => lesson.id === dueReview.lessonId));
-    nextActivity = { kind: "review", moduleId: owner?.id ?? null, lessonId: dueReview.lessonId, label: "Completar repaso pendiente", reason: `Este recuerdo estÃ¡ programado desde el ${dueReview.dueOn}; repasarlo ahora refuerza la retenciÃ³n antes de avanzar.`, href: owner ? `/curso/${owner.slug}?lesson=${dueReview.lessonId}&review=1` : "/mi-aprendizaje" };
+    nextActivity = { kind: "review", moduleId: owner?.id ?? null, lessonId: dueReview.lessonId, label: "Completar repaso pendiente", reason: `Este recuerdo está programado desde el ${dueReview.dueOn}; repasarlo ahora refuerza la retención antes de avanzar.`, href: owner ? `/curso/${owner.slug}?lesson=${dueReview.lessonId}&review=1` : "/mi-aprendizaje" };
   } else if (nextModule && nextModuleProgress) {
     const lesson = localizedNextModule?.lessons.find((item) => !nextModuleProgress.completedLessonIds.includes(item.id));
     nextActivity = lesson
@@ -650,11 +650,11 @@ export async function getLearnerDashboard(learner: LearnerContext): Promise<Lear
 }
 
 export async function updateLearnerPreferences(learner: LearnerContext, body: unknown) {
-  if (!isRecord(body)) throw new LearningApiError(422, "INVALID_BODY", "Las preferencias no tienen un formato vÃ¡lido.");
+  if (!isRecord(body)) throw new LearningApiError(422, "INVALID_BODY", "Las preferencias no tienen un formato válido.");
   assertMutationInput(body);
   const goal = body.goal;
   if (goal !== "associate" && goal !== "professional" && goal !== "topics") {
-    throw new LearningApiError(422, "INVALID_GOAL", "El objetivo de aprendizaje no es vÃ¡lido.");
+    throw new LearningApiError(422, "INVALID_GOAL", "El objetivo de aprendizaje no es válido.");
   }
   const preferenceGoal: "associate" | "professional" | "topics" = goal;
   const canonical = { goal: preferenceGoal };
@@ -682,7 +682,7 @@ export async function updateLearnerPreferences(learner: LearnerContext, body: un
 }
 
 export async function importLegacyProgress(learner: LearnerContext, body: unknown) {
-  if (!isRecord(body)) throw new LearningApiError(422, "INVALID_BODY", "La importaciÃ³n no tiene un formato vÃ¡lido.");
+  if (!isRecord(body)) throw new LearningApiError(422, "INVALID_BODY", "La importación no tiene un formato válido.");
   assertMutationInput(body);
   const source = body.progress ?? body.legacyProgress ?? body.legacy;
   if (!isRecord(source)) throw new LearningApiError(422, "INVALID_IMPORT", "Falta el progreso local que se quiere importar.");
@@ -704,8 +704,8 @@ export async function importLegacyProgress(learner: LearnerContext, body: unknow
     return envelope(await getLearnerDashboard(learner), replay.revision, true);
   }
   const alreadyImported = await hasPermanentLegacyImport(learner);
-  if (alreadyImported) throw new LearningApiError(409, "IMPORT_ALREADY_COMPLETED", "El progreso de este perfil ya se importÃ³ una vez.");
-  if (await hasServerActivity(learner)) throw new LearningApiError(409, "SERVER_PROGRESS_EXISTS", "La importaciÃ³n solo estÃ¡ disponible antes de iniciar actividad en el perfil servidor.");
+  if (alreadyImported) throw new LearningApiError(409, "IMPORT_ALREADY_COMPLETED", "El progreso de este perfil ya se importó una vez.");
+  if (await hasServerActivity(learner)) throw new LearningApiError(409, "SERVER_PROGRESS_EXISTS", "La importación solo está disponible antes de iniciar actividad en el perfil servidor.");
   const guard = await guardMutation(learner, body, "progress.imported", safePayload);
   const importedAt = nowIso();
   for (const curriculumModule of modules) {
@@ -883,7 +883,7 @@ export async function importLegacyProgress(learner: LearnerContext, body: unknow
     action: "learner.legacy_import.completed",
     targetType: "user",
     targetId: learner.user.id,
-    reason: "ImportaciÃ³n consentida desde progreso local",
+    reason: "Importación consentida desde progreso local",
     payloadJson: stableJson({ importedAt, counts: { lessons: completedLessonIds.length, labs: progress.labConfirmed.length, quizzes: quizScores.length } }),
     createdAt: importedAt,
   }).onConflictDoNothing();
@@ -893,11 +893,11 @@ export async function importLegacyProgress(learner: LearnerContext, body: unknow
 }
 
 export async function reviewLesson(learner: LearnerContext, moduleId: string, lessonId: string, body: unknown) {
-  if (!isRecord(body)) throw new LearningApiError(422, "INVALID_BODY", "La actividad no tiene un formato vÃ¡lido.");
+  if (!isRecord(body)) throw new LearningApiError(422, "INVALID_BODY", "La actividad no tiene un formato válido.");
   assertMutationInput(body);
   const action = body.action === "review" ? "review" : body.action === "complete" || body.action === undefined ? "complete" : null;
-  if (!action) throw new LearningApiError(422, "INVALID_LESSON_ACTION", "La acciÃ³n debe ser complete o review.");
-  const rating: ReviewRating = body.rating === "again" || body.rating === "good" ? body.rating : action === "complete" ? "good" : (() => { throw new LearningApiError(422, "INVALID_REVIEW_RATING", "La valoraciÃ³n debe ser again o good."); })();
+  if (!action) throw new LearningApiError(422, "INVALID_LESSON_ACTION", "La acción debe ser complete o review.");
+  const rating: ReviewRating = body.rating === "again" || body.rating === "good" ? body.rating : action === "complete" ? "good" : (() => { throw new LearningApiError(422, "INVALID_REVIEW_RATING", "La valoración debe ser again o good."); })();
   const { curriculumModule, lesson } = findLesson(moduleId, lessonId);
   await ensureModuleUnlocked(learner, curriculumModule.id);
   const reviewedOn = typeof body.reviewedOn === "string" && ISO_DAY.test(body.reviewedOn) ? body.reviewedOn : todayUtc();
@@ -955,7 +955,7 @@ export async function reviewLesson(learner: LearnerContext, moduleId: string, le
 }
 
 export async function attestLab(learner: LearnerContext, moduleId: string, body: unknown) {
-  if (!isRecord(body)) throw new LearningApiError(422, "INVALID_BODY", "La atestaciÃ³n no tiene un formato vÃ¡lido.");
+  if (!isRecord(body)) throw new LearningApiError(422, "INVALID_BODY", "La atestación no tiene un formato válido.");
   assertMutationInput(body);
   if (body.attested !== true) throw new LearningApiError(422, "ATTESTATION_REQUIRED", "Confirma expresamente que has completado el laboratorio.");
   const curriculumModule = findModule(moduleId);
@@ -1010,7 +1010,7 @@ async function assertAssessmentAvailable(learner: LearnerContext, kind: Assessme
   const requiredIds = kind === "associate-simulator" ? modules.slice(0, 12).map((item) => item.id) : modules.map((item) => item.id);
   const completed = new Set(progress.filter((item) => item.completed).map((item) => item.moduleId));
   if (!requiredIds.every((id) => completed.has(id))) {
-    throw new LearningApiError(422, "PROGRAM_ACTIVITY_REQUIRED", kind === "associate-simulator" ? "Completa los doce mÃ³dulos troncales antes del simulacro Associate." : "Completa los 32 mÃ³dulos antes del simulacro Professional.");
+    throw new LearningApiError(422, "PROGRAM_ACTIVITY_REQUIRED", kind === "associate-simulator" ? "Completa los doce módulos troncales antes del simulacro Associate." : "Completa los 32 módulos antes del simulacro Professional.");
   }
 }
 
@@ -1061,7 +1061,7 @@ export async function getPublicCredentialVerification(credentialId: string, veri
 
 export async function getActiveAssessment(learner: LearnerContext, kind: unknown, requestedModuleId?: unknown) {
   if (kind !== "module-quiz" && kind !== "associate-simulator" && kind !== "professional-simulator") {
-    throw new LearningApiError(422, "INVALID_ASSESSMENT_KIND", "El tipo de evaluaciÃ³n no es vÃ¡lido.");
+    throw new LearningApiError(422, "INVALID_ASSESSMENT_KIND", "El tipo de evaluación no es válido.");
   }
   const moduleId = kind === "module-quiz"
     ? typeof requestedModuleId === "string" ? findModule(requestedModuleId).id : null
@@ -1085,12 +1085,12 @@ export async function getActiveAssessment(learner: LearnerContext, kind: unknown
 }
 
 export async function startAssessment(learner: LearnerContext, body: unknown) {
-  if (!isRecord(body)) throw new LearningApiError(422, "INVALID_BODY", "La solicitud de evaluaciÃ³n no tiene un formato vÃ¡lido.");
+  if (!isRecord(body)) throw new LearningApiError(422, "INVALID_BODY", "La solicitud de evaluación no tiene un formato válido.");
   assertMutationInput(body);
   const kind = body.kind;
   const timingMode = body.timingMode;
-  if (kind !== "module-quiz" && kind !== "associate-simulator" && kind !== "professional-simulator") throw new LearningApiError(422, "INVALID_ASSESSMENT_KIND", "El tipo de evaluaciÃ³n no es vÃ¡lido.");
-  if (timingMode !== "untimed" && timingMode !== "1x" && timingMode !== "1.5x" && timingMode !== "2x") throw new LearningApiError(422, "INVALID_TIMING_MODE", "El modo de tiempo no es vÃ¡lido.");
+  if (kind !== "module-quiz" && kind !== "associate-simulator" && kind !== "professional-simulator") throw new LearningApiError(422, "INVALID_ASSESSMENT_KIND", "El tipo de evaluación no es válido.");
+  if (timingMode !== "untimed" && timingMode !== "1x" && timingMode !== "1.5x" && timingMode !== "2x") throw new LearningApiError(422, "INVALID_TIMING_MODE", "El modo de tiempo no es válido.");
   const moduleId = typeof body.moduleId === "string" ? findModule(body.moduleId).id : undefined;
   await assertAssessmentAvailable(learner, kind, moduleId);
   const guard = await guardMutation(learner, body, "assessment.started", { kind, timingMode, moduleId });
@@ -1143,13 +1143,13 @@ async function ownAttempt(learner: LearnerContext, attemptId: string) {
 }
 
 export async function saveAssessmentSelections(learner: LearnerContext, attemptId: string, body: unknown) {
-  if (!isRecord(body)) throw new LearningApiError(422, "INVALID_BODY", "Las respuestas no tienen un formato vÃ¡lido.");
+  if (!isRecord(body)) throw new LearningApiError(422, "INVALID_BODY", "Las respuestas no tienen un formato válido.");
   assertMutationInput(body);
-  if (!isRecord(body.selections)) throw new LearningApiError(422, "INVALID_SELECTIONS", "selections debe ser un mapa de pregunta y opciÃ³n.");
+  if (!isRecord(body.selections)) throw new LearningApiError(422, "INVALID_SELECTIONS", "selections debe ser un mapa de pregunta y opción.");
   const row = await ownAttempt(learner, attemptId);
   if (row.status !== "started") throw new LearningApiError(422, "ATTEMPT_IMMUTABLE", "Un intento enviado ya no se puede modificar.");
   if (row.expiresAt !== null && Date.now() > Date.parse(row.expiresAt)) {
-    throw new LearningApiError(422, "ATTEMPT_EXPIRED", "El tiempo del intento ha terminado. EnvÃ­alo para obtener el resultado.");
+    throw new LearningApiError(422, "ATTEMPT_EXPIRED", "El tiempo del intento ha terminado. Envíalo para obtener el resultado.");
   }
   const { prepared } = prepareStoredAttempt(row);
   const selections = Object.fromEntries(Object.entries(body.selections).filter((entry): entry is [string, string] => typeof entry[1] === "string"));
@@ -1249,7 +1249,7 @@ async function maybeIssueCredential(learner: LearnerContext) {
 }
 
 export async function submitAssessment(learner: LearnerContext, attemptId: string, body: unknown) {
-  if (!isRecord(body)) throw new LearningApiError(422, "INVALID_BODY", "El envÃ­o no tiene un formato vÃ¡lido.");
+  if (!isRecord(body)) throw new LearningApiError(422, "INVALID_BODY", "El envío no tiene un formato válido.");
   assertMutationInput(body);
   const row = await ownAttempt(learner, attemptId);
   if (row.status !== "started") {
@@ -1358,7 +1358,7 @@ function pdfCompatibleText(font: PDFFont, value: string) {
       if (!appended) safe += "?";
     }
   }
-  return safe || "â€”";
+  return safe || "—";
 }
 
 function pdfColor(hex: string) {
@@ -1372,12 +1372,12 @@ function pdfColor(hex: string) {
 export async function renderCredentialPdf(learner: LearnerContext, row: typeof credentials.$inferSelect) {
   const brand = await getOrganizationBranding(learner.organization.id);
   const pdf = await PDFDocument.create();
-  pdf.setTitle(`Constancia interna de finalizaciÃ³n Â· ${learner.user.displayName}`);
+  pdf.setTitle(`Constancia interna de finalización · ${learner.user.displayName}`);
   pdf.setSubject(`${row.title}. ${CERTIFICATE_DISCLAIMER}`);
   pdf.setAuthor(brand.organizationName);
   pdf.setCreator("Lakehouse Lab Enterprise");
-  pdf.setProducer("Lakehouse Lab Enterprise Â· pdf-lib");
-  pdf.setKeywords(["preparaciÃ³n interna", "Databricks", "Lakehouse Lab", row.contentVersion]);
+  pdf.setProducer("Lakehouse Lab Enterprise · pdf-lib");
+  pdf.setKeywords(["preparación interna", "Databricks", "Lakehouse Lab", row.contentVersion]);
 
   const page = pdf.addPage([841.89, 595.28]);
   const regular = await pdf.embedFont(StandardFonts.Helvetica);
@@ -1396,8 +1396,8 @@ export async function renderCredentialPdf(learner: LearnerContext, row: typeof c
   page.drawRectangle({ x: 58, y: 86, width: 725.89, height: 80, color: pale });
 
   page.drawText(boldText(brand.organizationName), { x: 58, y: 518, size: 11, font: bold, color: ink });
-  page.drawText(regularText("Lakehouse Lab Â· Proyecto educativo independiente"), { x: 58, y: 500, size: 9, font: regular, color: muted });
-  page.drawText(boldText("CERTIFICADO INTERNO DE FINALIZACIÃ“N"), { x: 58, y: 445, size: 12, font: bold, color: purple });
+  page.drawText(regularText("Lakehouse Lab · Proyecto educativo independiente"), { x: 58, y: 500, size: 9, font: regular, color: muted });
+  page.drawText(boldText("CERTIFICADO INTERNO DE FINALIZACIÓN"), { x: 58, y: 445, size: 12, font: bold, color: purple });
   page.drawText(boldText(row.title), { x: 58, y: 397, size: 27, font: bold, color: ink, maxWidth: 725 });
   page.drawText(regularText("Otorgado a"), { x: 58, y: 342, size: 10, font: regular, color: muted });
   page.drawText(boldText(learner.user.displayName), { x: 58, y: 304, size: 25, font: bold, color: ink, maxWidth: 725 });
@@ -1405,16 +1405,16 @@ export async function renderCredentialPdf(learner: LearnerContext, row: typeof c
 
   const issuedDate = new Intl.DateTimeFormat("es-ES", { dateStyle: "long", timeZone: learner.organization.timezone }).format(new Date(row.issuedAt));
   const facts = [
-    ["FECHA DE EMISIÃ“N", issuedDate],
-    ["VERSIÃ“N DE CONTENIDO", row.contentVersion],
-    ["NÃšMERO DE CERTIFICADO", row.certificateNumber],
+    ["FECHA DE EMISIÓN", issuedDate],
+    ["VERSIÓN DE CONTENIDO", row.contentVersion],
+    ["NÚMERO DE CERTIFICADO", row.certificateNumber],
   ] as const;
   facts.forEach(([label, value], index) => {
     const x = 74 + index * 240;
     page.drawText(boldText(label), { x, y: 135, size: 8, font: bold, color: purple });
     page.drawText(regularText(value), { x, y: 113, size: 10, font: regular, color: ink, maxWidth: 210 });
   });
-  page.drawText(regularText("Criterios: 32 mÃ³dulos, cinco lecciones por mÃ³dulo, laboratorios autoatestiguados, tests con al menos el 75 %, simulacros Associate y Professional con al menos el 80 % y capstone."), { x: 58, y: 66, size: 8.5, font: regular, color: muted, maxWidth: 725 });
+  page.drawText(regularText("Criterios: 32 módulos, cinco lecciones por módulo, laboratorios autoatestiguados, tests con al menos el 75 %, simulacros Associate y Professional con al menos el 80 % y capstone."), { x: 58, y: 66, size: 8.5, font: regular, color: muted, maxWidth: 725 });
   page.drawText(boldText(CERTIFICATE_DISCLAIMER), { x: 58, y: 45, size: 8.5, font: bold, color: coral, maxWidth: 725 });
   return pdf.save({ useObjectStreams: false, addDefaultPage: false });
 }
@@ -1445,10 +1445,10 @@ export async function exportLearnerData(learner: LearnerContext) {
 }
 
 export async function deleteLearnerProgress(learner: LearnerContext, body: unknown) {
-  if (!isRecord(body)) throw new LearningApiError(422, "INVALID_BODY", "La solicitud de borrado no tiene un formato vÃ¡lido.");
+  if (!isRecord(body)) throw new LearningApiError(422, "INVALID_BODY", "La solicitud de borrado no tiene un formato válido.");
   assertMutationInput(body);
   const confirmation = body.confirm ?? body.confirmation;
-  if (confirmation !== "ELIMINAR" && confirmation !== "BORRAR") throw new LearningApiError(422, "CONFIRMATION_REQUIRED", "Escribe ELIMINAR para confirmar la eliminaciÃ³n del progreso.");
+  if (confirmation !== "ELIMINAR" && confirmation !== "BORRAR") throw new LearningApiError(422, "CONFIRMATION_REQUIRED", "Escribe ELIMINAR para confirmar la eliminación del progreso.");
   const guard = await guardMutation(learner, body, "progress.deleted", { confirm: "ELIMINAR" });
   if (guard.replayed) return envelope({ deleted: true }, guard.revision, true);
   const db = getDb();

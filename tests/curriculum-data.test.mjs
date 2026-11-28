@@ -413,7 +413,7 @@ test("dependency and enterprise completion gates cannot be bypassed by stale sta
 
   const publicQuizStart = enterpriseCurriculumSource.indexOf("quiz: module.quiz.map");
   const publicQuizEnd = enterpriseCurriculumSource.indexOf("\n    })),", publicQuizStart);
-  assert.ok(publicQuizStart >= 0 && publicQuizEnd > publicQuizStart, "falta la proyecciÃ³n pÃºblica del test");
+  assert.ok(publicQuizStart >= 0 && publicQuizEnd > publicQuizStart, "falta la proyección pública del test");
   const publicQuizProjection = enterpriseCurriculumSource.slice(publicQuizStart, publicQuizEnd);
   assert.doesNotMatch(publicQuizProjection, /\banswer\s*:|\bexplanation\s*:/);
   assert.match(pageSource, /getSessionUser\(\)/);

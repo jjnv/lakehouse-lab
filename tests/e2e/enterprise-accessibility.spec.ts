@@ -296,7 +296,7 @@ test("la fila del catálogo abre el curso completo", async ({ page }) => {
   await expect(page).toHaveURL(/\/curso\/data-intelligence-platform-y-arquitectura-lakehouse$/);
   await waitForWorkspace(page);
   await expect(page.getByRole("heading", { level: 2, name: "Data Intelligence Platform y arquitectura lakehouse" })).toBeVisible();
-  await expect(page.locator(".ent-lesson-body > p")).toHaveCount(10);
+  await expect(page.locator(".ent-lesson-body section[id$=\"-idea\"] > p")).toHaveCount(10);
 });
 
 test("el catálogo descubre notebooks por temática sin duplicar el progreso", async ({ page }) => {

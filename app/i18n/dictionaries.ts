@@ -1,5 +1,12 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
 import type { Locale } from "./config";
+
+/**
+ * Declara un diccionario bilingüe tomando la versión española como contrato:
+ * la versión inglesa debe tener exactamente las mismas claves y tipos.
+ */
+function bilingual<T>(dictionary: { es: T; en: NoInfer<T> }): Record<Locale, T> {
+  return dictionary;
+}
 
 export const languageSwitcherText: Record<Locale, {
   label: string;
@@ -166,7 +173,7 @@ export const searchText: Record<Locale, {
   },
 };
 
-export const portalPagesText: Record<Locale, Record<string, any>> = {
+export const portalPagesText = bilingual({
   es: {
     loadingTitle: "Preparando tu espacio",
     loadingDesc: "Sincronizando matrícula y progreso.",
@@ -441,9 +448,9 @@ export const portalPagesText: Record<Locale, Record<string, any>> = {
     settingsDeleting: "Deleting…",
     settingsDeleteDefinitive: "Permanently delete",
   },
-};
+});
 
-export const catalogWorkspaceText: Record<Locale, Record<string, any>> = {
+export const catalogWorkspaceText = bilingual({
   es: {
     kicker: "Temario de preparación",
     modulesTitle: "Encuentra tu siguiente módulo",
@@ -552,9 +559,9 @@ export const catalogWorkspaceText: Record<Locale, Record<string, any>> = {
     emptyDesc: "Broaden level, domain, or format to see more results.",
     clearFilters: "Clear filters",
   },
-};
+});
 
-export const courseWorkspaceText: Record<Locale, Record<string, any>> = {
+export const courseWorkspaceText = bilingual({
   es: {
     tabs: { lessons: "Lecciones", lab: "Laboratorio", quiz: "Evaluación", resources: "Recursos" },
     breadcrumbs: { route: "Ruta", catalog: "Temario", module: (num: string) => `Módulo ${num}`, lesson: (num: number) => `Lección ${num}` },
@@ -661,9 +668,9 @@ export const courseWorkspaceText: Record<Locale, Record<string, any>> = {
     notebookGuideExpectedEvidence: "Expected evidence",
     notebookGuideOfficialReferences: "Official references",
   },
-};
+});
 
-export const assessmentPanelText: Record<Locale, Record<string, any>> = {
+export const assessmentPanelText = bilingual({
   es: {
     recoveringTitle: "Buscando un intento guardado",
     recoveringBody: "Si recargaste la página, continuarás donde lo dejaste.",
@@ -754,9 +761,9 @@ export const assessmentPanelText: Record<Locale, Record<string, any>> = {
     newAttemptBtn: "New attempt",
     domainBreakdownTitle: "Domain breakdown",
   },
-};
+});
 
-export const simulatorWorkspaceText: Record<Locale, Record<string, any>> = {
+export const simulatorWorkspaceText = bilingual({
   es: {
     loadingTitle: "Preparando el simulacro",
     loadingDesc: "Generando un intento seguro.",
@@ -797,9 +804,9 @@ export const simulatorWorkspaceText: Record<Locale, Record<string, any>> = {
     disclaimerBody: "Official sample items are linked from course sources. Lakehouse Lab does not use dumps or claim equivalence with official Databricks exams.",
     backToLearning: "← Back to my learning",
   },
-};
+});
 
-export const glossaryText: Record<Locale, Record<string, any>> = {
+export const glossaryText = bilingual({
   es: {
     kicker: "Glosario",
     title: "El vocabulario del lakehouse, de lo básico a lo avanzado.",
@@ -866,4 +873,4 @@ export const glossaryText: Record<Locale, Record<string, any>> = {
     review: "reviewed",
     permalink: "Direct link to",
   },
-};
+});

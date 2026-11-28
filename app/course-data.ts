@@ -532,6 +532,13 @@ for (const question of allEditorialQuestions) {
   }
 }
 
+const canonicalOptionsById = new Map(allEditorialQuestions.map((question) => [question.editorialId, question.options]));
+
+/** Opciones en su orden editorial original; permite proyectar traducciones sobre preguntas barajadas. */
+export function canonicalQuestionOptions(editorialId: string): readonly string[] | undefined {
+  return canonicalOptionsById.get(editorialId);
+}
+
 export const professionalExtensionQuestionIds = allEditorialQuestions
   .filter((question) => question.scope === "professional-extension")
   .map((question) => question.editorialId);
